@@ -128,14 +128,16 @@ struct TranscriptSegmentRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 if let spk = speaker {
-                    Text(spk.name)
-                        .font(t.typography.labelLarge)
-                        .foregroundStyle(Color(hex: spk.colorHex))
-                        + (spk.isNameInferred
-                            ? Text(" · inferred")
+                    HStack(spacing: 4) {
+                        Text(spk.name)
+                            .font(t.typography.labelLarge)
+                            .foregroundStyle(Color(hex: spk.colorHex))
+                        if spk.isNameInferred {
+                            Text("· inferred")
                                 .font(t.typography.labelSmall)
                                 .foregroundStyle(t.colors.textTertiary)
-                            : Text(""))
+                        }
+                    }
                 }
 
                 Text(segment.text)

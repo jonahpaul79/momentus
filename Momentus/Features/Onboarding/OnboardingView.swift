@@ -1,4 +1,8 @@
 import SwiftUI
+import AVFoundation
+import Speech
+import EventKit
+import UserNotifications
 
 struct OnboardingView: View {
     @Environment(ThemeManager.self) private var themeManager
@@ -7,6 +11,7 @@ struct OnboardingView: View {
 
     @State private var currentPage = 0
     @State private var micGranted = false
+    @State private var speechGranted = false
     @State private var calendarGranted = false
     @State private var notificationsGranted = false
 
@@ -18,7 +23,6 @@ struct OnboardingView: View {
             t.colors.backgroundPrimary.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Page content
                 TabView(selection: $currentPage) {
                     introPage1(t).tag(0)
                     introPage2(t).tag(1)
@@ -29,7 +33,6 @@ struct OnboardingView: View {
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut, value: currentPage)
 
-                // Navigation
                 bottomNav(t)
             }
         }
@@ -97,9 +100,28 @@ struct OnboardingView: View {
                         isGranted: micGranted,
                         color: t.colors.accentPrimary
                     ) {
-                        // TODO: Request microphone permission via AVAudioSession
-                        micGranted = true
-                        HapticStyle.success.trigger()
+                        Task {
+                            let granted = await AVAudioApplication.requestRecordPermission()
+                            micGranted = granted
+                            if granted { HapticStyle.success.trigger() }
+                        }
+                    }
+                    .environment(themeManager)
+
+                    PermissionRow(
+                        icon: "waveform",
+                        title: "Speech Recognition",
+                        description: "Transcribes your meetings on-device",
+                        isGranted: speechGranted,
+                        color: t.colors.accentSecondary
+                    ) {
+                        Task {
+                            let status = await withCheckedContinuation { cont in
+                                SFSpeechRecognizer.requestAuthorization { cont.resume(returning: $0) }
+                            }
+                            speechGranted = status == .authorized
+                            if speechGranted { HapticStyle.success.trigger() }
+                        }
                     }
                     .environment(themeManager)
 
@@ -108,11 +130,17 @@ struct OnboardingView: View {
                         title: "Calendar",
                         description: "Suggests meeting titles from your schedule",
                         isGranted: calendarGranted,
-                        color: t.colors.accentSecondary
+                        color: t.colors.accentSuccess
                     ) {
-                        // TODO: Request calendar permission via EventKit
-                        calendarGranted = true
-                        HapticStyle.success.trigger()
+                        Task {
+                            do {
+                                let granted = try await EKEventStore().requestFullAccessToEvents()
+                                calendarGranted = granted
+                                if granted { HapticStyle.success.trigger() }
+                            } catch {
+                                calendarGranted = false
+                            }
+                        }
                     }
                     .environment(themeManager)
 
@@ -123,9 +151,16 @@ struct OnboardingView: View {
                         isGranted: notificationsGranted,
                         color: t.colors.accentWarning
                     ) {
-                        // TODO: Request notification permission via UNUserNotificationCenter
-                        notificationsGranted = true
-                        HapticStyle.success.trigger()
+                        Task {
+                            do {
+                                let granted = try await UNUserNotificationCenter.current()
+                                    .requestAuthorization(options: [.alert, .sound, .badge])
+                                notificationsGranted = granted
+                                if granted { HapticStyle.success.trigger() }
+                            } catch {
+                                notificationsGranted = false
+                            }
+                        }
                     }
                     .environment(themeManager)
                 }
@@ -134,6 +169,7 @@ struct OnboardingView: View {
                 Spacer(minLength: t.spacing.huge)
             }
         }
+        .task { await refreshPermissionStatuses() }
     }
 
     private func defaultModePage(_ t: AppTheme) -> some View {
@@ -173,11 +209,26 @@ struct OnboardingView: View {
         }
     }
 
+    // MARK: - Permission Status Check
+
+    private func refreshPermissionStatuses() async {
+        micGranted = AVAudioApplication.shared.recordPermission == .granted
+
+
+        let speechStatus = SFSpeechRecognizer.authorizationStatus()
+        speechGranted = speechStatus == .authorized
+
+        let calStatus = EKEventStore.authorizationStatus(for: .event)
+        calendarGranted = calStatus == .fullAccess
+
+        let notifSettings = await UNUserNotificationCenter.current().notificationSettings()
+        notificationsGranted = notifSettings.authorizationStatus == .authorized
+    }
+
     // MARK: - Bottom Navigation
 
     private func bottomNav(_ t: AppTheme) -> some View {
         VStack(spacing: t.spacing.l) {
-            // Page dots
             HStack(spacing: 6) {
                 ForEach(0..<totalPages, id: \.self) { i in
                     Capsule()
@@ -187,7 +238,6 @@ struct OnboardingView: View {
                 }
             }
 
-            // Button
             Button {
                 if currentPage < totalPages - 1 {
                     withAnimation { currentPage += 1 }

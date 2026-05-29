@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 struct MeetingSummaryDetailView: View {
@@ -8,6 +9,13 @@ struct MeetingSummaryDetailView: View {
     @State private var showShareSheet = false
     @State private var exportedText = ""
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("audioRetention") private var audioRetentionRaw: String = AudioRetentionPolicy.deleteAfterTranscript.rawValue
+
+    private var hasAudio: Bool {
+        guard recording.audioFileID != nil else { return false }
+        let policy = AudioRetentionPolicy(rawValue: audioRetentionRaw) ?? .deleteAfterTranscript
+        return policy != .deleteAfterTranscript
+    }
 
     var body: some View {
         let t = themeManager.currentTheme
@@ -88,7 +96,10 @@ struct MeetingSummaryDetailView: View {
                     .environment(themeManager)
             }
 
-            StaticWaveformView(seed: recording.id.hashValue, color: t.colors.accentPrimary, height: 28)
+            if hasAudio, let audioFileID = recording.audioFileID {
+                AudioPlayerView(seed: recording.id.hashValue, duration: recording.duration, audioFileID: audioFileID)
+                    .environment(themeManager)
+            }
         }
         .padding(t.spacing.l)
         .padding(.top, t.spacing.m)
@@ -106,8 +117,45 @@ struct MeetingSummaryDetailView: View {
             if !summary.followUpDraft.isEmpty { followUpSection(summary.followUpDraft, t: t) }
             if recording.transcript != nil { transcriptButton(t) }
             if !summary.confidenceNotes.isEmpty { confidenceNotesSection(summary.confidenceNotes, t: t) }
+            providerProvenanceView(summary, t: t)
         }
         .padding(.horizontal, t.spacing.l)
+    }
+
+    // MARK: - Provider Provenance
+
+    private func providerProvenanceView(_ summary: MeetingSummary, t: AppTheme) -> some View {
+        let transcriptProvider = recording.transcript?.provider
+        let summaryProvider = summary.provider
+        return VStack(alignment: .center, spacing: t.spacing.xs) {
+            HStack(spacing: t.spacing.s) {
+                if let tp = transcriptProvider {
+                    providerChip("Transcript", value: tp, t: t)
+                    Text("·")
+                        .font(t.typography.caption)
+                        .foregroundStyle(t.colors.textTertiary)
+                }
+                providerChip("Notes", value: summaryProvider, t: t)
+            }
+            Text("Processed locally · Audio never in a backend")
+                .font(t.typography.caption)
+                .foregroundStyle(t.colors.textTertiary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, t.spacing.l)
+        .padding(.bottom, t.spacing.m)
+    }
+
+    private func providerChip(_ label: String, value: String, t: AppTheme) -> some View {
+        VStack(alignment: .center, spacing: 1) {
+            Text(label.uppercased())
+                .font(t.typography.caption)
+                .foregroundStyle(t.colors.textTertiary)
+                .tracking(0.5)
+            Text(value)
+                .font(t.typography.labelSmall)
+                .foregroundStyle(t.colors.textSecondary)
+        }
     }
 
     // MARK: - Executive Summary
@@ -167,7 +215,7 @@ struct MeetingSummaryDetailView: View {
         VStack(alignment: .leading, spacing: t.spacing.m) {
             sectionHeader("Action Items", icon: "checkmark.square.fill", t: t)
             ForEach(items) { item in
-                ActionItemRow(item: item)
+                ActionItemRow(item: item) { toggleActionItem(item.id) }
                     .environment(themeManager)
                 if item.id != items.last?.id {
                     Divider().overlay(t.colors.divider)
@@ -177,6 +225,12 @@ struct MeetingSummaryDetailView: View {
         .padding(t.spacing.l)
         .surfaceCard()
         .environment(themeManager)
+    }
+
+    private func toggleActionItem(_ id: UUID) {
+        guard let idx = recording.summary?.actionItems.firstIndex(where: { $0.id == id }) else { return }
+        recording.summary?.actionItems[idx].isCompleted.toggle()
+        store.update(recording)
     }
 
     // MARK: - Open Questions
@@ -327,19 +381,44 @@ struct MeetingSummaryDetailView: View {
         VStack(alignment: .leading, spacing: t.spacing.s) {
             sectionHeader("Confidence Notes", icon: "exclamationmark.circle", t: t)
             ForEach(notes, id: \.self) { note in
-                HStack(alignment: .top, spacing: t.spacing.s) {
-                    Image(systemName: "exclamationmark.circle")
-                        .font(.system(size: 12))
-                        .foregroundStyle(t.colors.accentWarning)
-                    Text(note)
-                        .font(t.typography.caption)
-                        .foregroundStyle(t.colors.textSecondary)
-                }
+                confidenceNoteRow(note, t: t)
             }
         }
         .padding(t.spacing.l)
         .surfaceCard(elevated: false)
         .environment(themeManager)
+    }
+
+    @ViewBuilder
+    private func confidenceNoteRow(_ note: String, t: AppTheme) -> some View {
+        if note.hasPrefix("action:addCredits:") {
+            let message = String(note.dropFirst("action:addCredits:".count))
+            Link(destination: AnthropicError.billingURL) {
+                HStack(alignment: .top, spacing: t.spacing.s) {
+                    Image(systemName: "creditcard.trianglebadge.exclamationmark")
+                        .font(.system(size: 12))
+                        .foregroundStyle(t.colors.accentWarning)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(message)
+                            .font(t.typography.caption)
+                            .foregroundStyle(t.colors.textSecondary)
+                            .multilineTextAlignment(.leading)
+                        Text("Add credits →")
+                            .font(t.typography.caption)
+                            .foregroundStyle(t.colors.accentPrimary)
+                    }
+                }
+            }
+        } else {
+            HStack(alignment: .top, spacing: t.spacing.s) {
+                Image(systemName: "exclamationmark.circle")
+                    .font(.system(size: 12))
+                    .foregroundStyle(t.colors.accentWarning)
+                Text(note)
+                    .font(t.typography.caption)
+                    .foregroundStyle(t.colors.textSecondary)
+            }
+        }
     }
 
     // MARK: - No Summary State
@@ -424,14 +503,21 @@ struct MeetingSummaryDetailView: View {
 struct ActionItemRow: View {
     @Environment(ThemeManager.self) private var themeManager
     let item: ActionItem
+    var onToggle: () -> Void = {}
 
     var body: some View {
         let t = themeManager.currentTheme
         HStack(alignment: .top, spacing: t.spacing.m) {
-            Image(systemName: item.isCompleted ? "checkmark.square.fill" : "square")
-                .font(.system(size: 18))
-                .foregroundStyle(item.isCompleted ? t.colors.accentSuccess : t.colors.textTertiary)
-                .padding(.top, 1)
+            Button {
+                onToggle()
+                HapticStyle.light.trigger()
+            } label: {
+                Image(systemName: item.isCompleted ? "checkmark.square.fill" : "square")
+                    .font(.system(size: 18))
+                    .foregroundStyle(item.isCompleted ? t.colors.accentSuccess : t.colors.textTertiary)
+            }
+            .buttonStyle(PlainButtonStyle())
+            .padding(.top, 1)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
@@ -488,6 +574,121 @@ struct ActionItemRow: View {
             .padding(.vertical, 2)
             .background(color.opacity(0.12))
             .clipShape(Capsule())
+    }
+}
+
+// MARK: - Audio Player
+
+struct AudioPlayerView: View {
+    @Environment(ThemeManager.self) private var themeManager
+    let seed: Int
+    let duration: TimeInterval
+    let audioFileID: String
+
+    @State private var player: AVAudioPlayer?
+    @State private var isPlaying = false
+    @State private var currentTime: TimeInterval = 0
+    @State private var isDragging = false
+    @State private var pollTask: Task<Void, Never>?
+
+    var body: some View {
+        let t = themeManager.currentTheme
+        VStack(spacing: t.spacing.s) {
+            StaticWaveformView(seed: seed, color: t.colors.accentPrimary, height: 28)
+
+            Slider(value: $currentTime, in: 0...max(duration, 1)) { editing in
+                isDragging = editing
+                if editing {
+                    player?.pause()
+                } else {
+                    player?.currentTime = currentTime
+                    if isPlaying { player?.play() }
+                }
+            }
+            .tint(t.colors.accentPrimary)
+
+            HStack {
+                Text(formatTime(currentTime))
+                    .font(t.typography.caption)
+                    .foregroundStyle(t.colors.textSecondary)
+                    .monospacedDigit()
+                    .frame(width: 40, alignment: .leading)
+
+                Spacer()
+
+                Button { togglePlayback() } label: {
+                    Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundStyle(player != nil ? t.colors.accentPrimary : t.colors.textTertiary)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(player == nil)
+
+                Spacer()
+
+                Text(formatTime(duration))
+                    .font(t.typography.caption)
+                    .foregroundStyle(t.colors.textTertiary)
+                    .monospacedDigit()
+                    .frame(width: 40, alignment: .trailing)
+            }
+        }
+        .task { preparePlayer() }
+        .onDisappear {
+            player?.stop()
+            pollTask?.cancel()
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
+    }
+
+    private func preparePlayer() {
+        let fileURL = AVAudioRecorderService.recordingsDirectory.appendingPathComponent(audioFileID)
+        guard FileManager.default.fileExists(atPath: fileURL.path),
+              let p = try? AVAudioPlayer(contentsOf: fileURL) else { return }
+        p.prepareToPlay()
+        player = p
+    }
+
+    private func togglePlayback() {
+        guard let player else { return }
+        if isPlaying {
+            player.pause()
+            isPlaying = false
+            pollTask?.cancel()
+        } else {
+            if player.currentTime >= player.duration { player.currentTime = 0; currentTime = 0 }
+            try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            try? AVAudioSession.sharedInstance().setActive(true)
+            player.play()
+            isPlaying = true
+            startPolling()
+        }
+        HapticStyle.light.trigger()
+    }
+
+    private func startPolling() {
+        pollTask?.cancel()
+        pollTask = Task {
+            do {
+                while true {
+                    try await Task.sleep(for: .milliseconds(100))
+                    guard let player else { break }
+                    if !isDragging { currentTime = player.currentTime }
+                    if !player.isPlaying {
+                        isPlaying = false
+                        currentTime = 0
+                        break
+                    }
+                }
+            } catch {}
+        }
+    }
+
+    private func formatTime(_ time: TimeInterval) -> String {
+        let t = max(0, time)
+        let m = Int(t) / 60
+        let s = Int(t) % 60
+        return String(format: "%d:%02d", m, s)
     }
 }
 

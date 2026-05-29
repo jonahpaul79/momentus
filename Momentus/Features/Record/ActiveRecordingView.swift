@@ -5,8 +5,6 @@ struct ActiveRecordingView: View {
     @Bindable var vm: RecordViewModel
     var onStop: () -> Void
 
-    @State private var showStopConfirm = false
-
     var body: some View {
         let t = themeManager.currentTheme
         ZStack {
@@ -22,15 +20,6 @@ struct ActiveRecordingView: View {
                 waveformSection(t)
                 controlBar(t)
             }
-        }
-        .confirmationDialog("Stop Recording", isPresented: $showStopConfirm) {
-            Button("Stop & Process", role: .destructive) {
-                onStop()
-                Task { await vm.stopRecording() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Your recording will be processed into notes.")
         }
     }
 
@@ -78,12 +67,23 @@ struct ActiveRecordingView: View {
     // MARK: - Recording Orb
 
     private func recordingOrb(_ t: AppTheme) -> some View {
-        RecordingOrb(
-            size: 130,
-            color: t.colors.accentRecording,
-            isRecording: vm.state == .recording,
-            isPaused: vm.state == .paused
-        )
+        Button {
+            Task {
+                if vm.state == .paused {
+                    await vm.resumeRecording()
+                } else {
+                    await vm.pauseRecording()
+                }
+            }
+        } label: {
+            RecordingOrb(
+                size: 130,
+                color: t.colors.accentRecording,
+                isRecording: vm.state == .recording,
+                isPaused: vm.state == .paused
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
         .padding(.bottom, t.spacing.xxl)
     }
 
@@ -147,7 +147,8 @@ struct ActiveRecordingView: View {
                     size: 70,
                     filled: true
                 ) {
-                    showStopConfirm = true
+                    onStop()
+                    Task { await vm.stopRecording() }
                 }
 
                 // Marker

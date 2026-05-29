@@ -5,12 +5,28 @@ struct ProcessingView: View {
     let vm: RecordViewModel
     var onDismiss: () -> Void
 
-    private let steps: [(title: String, subtitle: String, icon: String)] = [
-        ("Saving audio", "Securing your recording", "square.and.arrow.down"),
-        ("Transcribing", "Converting speech to text", "waveform"),
-        ("Summarizing", "Extracting key moments", "sparkles"),
-        ("Preparing notes", "Organizing your insights", "doc.text"),
-    ]
+    private var steps: [(title: String, subtitle: String, icon: String)] {
+        let isBestQuality = vm.selectedMode == .bestQuality
+        let summaryLabel = isBestQuality
+            ? "Generating notes with \(vm.summaryProviderName)"
+            : "Extracting key moments"
+        return [
+            ("Saving audio",
+             "Securing your recording",
+             "square.and.arrow.down"),
+            ("Transcribing",
+             isBestQuality
+                 ? "Uploading & transcribing with speaker labels"
+                 : "Converting speech to text",
+             "waveform"),
+            ("Summarizing",
+             summaryLabel,
+             "sparkles"),
+            ("Preparing notes",
+             "Organizing your insights",
+             "doc.text"),
+        ]
+    }
 
     var body: some View {
         let t = themeManager.currentTheme
@@ -20,6 +36,8 @@ struct ProcessingView: View {
             VStack(spacing: 0) {
                 if vm.state == .completed {
                     completedView(t)
+                } else if vm.state == .idle {
+                    failedView(t)
                 } else {
                     processingView(t)
                 }
@@ -112,11 +130,14 @@ struct ProcessingView: View {
     }
 
     private func cloudPrivacyNote(_ t: AppTheme) -> some View {
-        HStack(alignment: .top, spacing: t.spacing.m) {
+        let noteText = vm.selectedMode == .bestQuality
+            ? "Audio is sent to AssemblyAI for transcription and summarization. Transcripts and notes are stored locally on your device only."
+            : "Audio is sent only to your selected provider and deleted after processing when possible."
+        return HStack(alignment: .top, spacing: t.spacing.m) {
             Image(systemName: "info.circle")
                 .font(.system(size: 14))
                 .foregroundStyle(t.colors.textSecondary)
-            Text("Audio is sent only to your selected provider and deleted after processing when possible.")
+            Text(noteText)
                 .font(t.typography.caption)
                 .foregroundStyle(t.colors.textSecondary)
         }
@@ -162,6 +183,56 @@ struct ProcessingView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, t.spacing.l)
                     .background(t.colors.accentPrimary)
+                    .clipShape(RoundedRectangle(cornerRadius: t.radius.l))
+            }
+            .padding(.horizontal, t.spacing.xxxl)
+            .padding(.bottom, t.spacing.huge)
+        }
+        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+    }
+
+    // MARK: - Failed
+
+    private func failedView(_ t: AppTheme) -> some View {
+        VStack(spacing: t.spacing.xl) {
+            Spacer()
+
+            ZStack {
+                Circle()
+                    .fill(t.colors.accentError.opacity(0.12))
+                    .frame(width: 100, height: 100)
+                Image(systemName: "exclamationmark.circle.fill")
+                    .font(.system(size: 52))
+                    .foregroundStyle(t.colors.accentError)
+            }
+
+            VStack(spacing: t.spacing.s) {
+                Text("Processing failed")
+                    .font(t.typography.displayMedium)
+                    .foregroundStyle(t.colors.textPrimary)
+                Text(vm.errorMessage ?? "Something went wrong.")
+                    .font(t.typography.bodySmall)
+                    .foregroundStyle(t.colors.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, t.spacing.xxxl)
+            }
+
+            Text("Your recording is preserved in Notes.")
+                .font(t.typography.caption)
+                .foregroundStyle(t.colors.textTertiary)
+
+            Spacer()
+
+            Button {
+                HapticStyle.light.trigger()
+                onDismiss()
+            } label: {
+                Text("Close")
+                    .font(t.typography.headlineMedium)
+                    .foregroundStyle(t.colors.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, t.spacing.l)
+                    .background(t.colors.surfaceSecondary)
                     .clipShape(RoundedRectangle(cornerRadius: t.radius.l))
             }
             .padding(.horizontal, t.spacing.xxxl)

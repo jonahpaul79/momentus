@@ -10,6 +10,18 @@ struct SettingsView: View {
     @AppStorage("showConsentPrompt") private var showConsentPrompt: Bool = false
     @AppStorage("iCloudSync") private var iCloudSync: Bool = false
 
+    @State private var assemblyAIKey: String = ""
+    @State private var showAssemblyAIKey: Bool = false
+    @State private var assemblyAIKeySaved: Bool = false
+
+    @State private var claudeKey: String = ""
+    @State private var showClaudeKey: Bool = false
+    @State private var claudeKeySaved: Bool = false
+
+    // Tracks which key field is focused so we can auto-save when the keyboard dismisses.
+    enum KeyField: Hashable { case assemblyAI, claude }
+    @FocusState private var focusedField: KeyField?
+
     private var defaultMode: RecordingMode {
         get { RecordingMode(rawValue: defaultModeRaw) ?? .onDevice }
         nonmutating set { defaultModeRaw = newValue.rawValue }
@@ -24,6 +36,8 @@ struct SettingsView: View {
         let t = themeManager.currentTheme
         List {
             recordingModeSection(t)
+            bestQualitySection(t)
+            claudeSection(t)
             privacySection(t)
             storageSection(t)
             providerSection(t)
@@ -35,6 +49,17 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
+        .onAppear {
+            assemblyAIKey     = KeychainService.retrieve(.assemblyAIAPIKey) ?? ""
+            claudeKey         = KeychainService.retrieve(.anthropicAPIKey)  ?? ""
+            assemblyAIKeySaved = !assemblyAIKey.isEmpty
+            claudeKeySaved     = !claudeKey.isEmpty
+        }
+        .onChange(of: focusedField) { oldField, _ in
+            // Auto-save whichever field just lost focus
+            if oldField == .assemblyAI { saveAssemblyAIKey() }
+            if oldField == .claude     { saveClaudeKey() }
+        }
     }
 
     // MARK: - Recording Mode Section
@@ -77,10 +102,185 @@ struct SettingsView: View {
         } header: {
             sectionHeader("Default Recording Mode", t: t)
         } footer: {
-            Text("Private Mode keeps all processing on-device. Best Quality sends audio to your selected provider for higher accuracy.")
+            Text("Private keeps all processing on-device. Best Quality sends audio to AssemblyAI for speaker-labeled transcripts and structured notes — requires an AssemblyAI API key (see below).")
                 .font(t.typography.caption)
                 .foregroundStyle(t.colors.textTertiary)
         }
+    }
+
+    // MARK: - Best Quality / AssemblyAI Section
+
+    private func bestQualitySection(_ t: AppTheme) -> some View {
+        Section {
+            apiKeyRow(
+                label: "AssemblyAI API Key",
+                placeholder: "Paste key…",
+                key: $assemblyAIKey,
+                show: $showAssemblyAIKey,
+                saved: assemblyAIKeySaved,
+                focusTag: KeyField.assemblyAI,
+                onRemove: {
+                    assemblyAIKey = ""
+                    KeychainService.delete(.assemblyAIAPIKey)
+                    assemblyAIKeySaved = false
+                },
+                t: t
+            )
+
+            // Status
+            HStack(spacing: t.spacing.s) {
+                let hasKey = !assemblyAIKey.isEmpty
+                Image(systemName: hasKey ? "checkmark.circle.fill" : "xmark.circle")
+                    .font(.system(size: 12))
+                    .foregroundStyle(hasKey ? t.colors.accentSuccess : t.colors.accentWarning)
+                Text(hasKey ? "Transcription: AssemblyAI (speaker labels)" : "Transcription: not configured")
+                    .font(t.typography.caption)
+                    .foregroundStyle(hasKey ? t.colors.accentSuccess : t.colors.accentWarning)
+            }
+            .listRowBackground(t.colors.surfacePrimary)
+
+        } header: {
+            sectionHeader("Best Quality — Transcription (AssemblyAI)", t: t)
+        } footer: {
+            Text("AssemblyAI transcribes your meetings with speaker labels. Audio is sent to AssemblyAI for processing. Transcripts are stored locally on your device only.\n\nKey saved automatically when you leave the field. Get a free key at assemblyai.com.")
+                .font(t.typography.caption)
+                .foregroundStyle(t.colors.textTertiary)
+        }
+    }
+
+    private func saveAssemblyAIKey() {
+        let trimmed = assemblyAIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        assemblyAIKey = trimmed
+        let ok = KeychainService.store(trimmed, for: .assemblyAIAPIKey)
+        assemblyAIKeySaved = ok
+        print("[Settings] AssemblyAI key save: \(ok ? "success" : "FAILED")")
+    }
+
+    // MARK: - Claude / Summary Section
+
+    private func claudeSection(_ t: AppTheme) -> some View {
+        Section {
+            apiKeyRow(
+                label: "Anthropic API Key",
+                placeholder: "Paste key…",
+                key: $claudeKey,
+                show: $showClaudeKey,
+                saved: claudeKeySaved,
+                focusTag: KeyField.claude,
+                onRemove: {
+                    claudeKey = ""
+                    KeychainService.delete(.anthropicAPIKey)
+                    claudeKeySaved = false
+                },
+                t: t
+            )
+
+            // Status
+            HStack(spacing: t.spacing.s) {
+                let hasClaudeKey     = !claudeKey.isEmpty
+                let hasAssemblyAIKey = !assemblyAIKey.isEmpty
+                let (icon, label, color): (String, String, Color) = {
+                    if hasClaudeKey {
+                        return ("checkmark.circle.fill", "Summary: Claude Sonnet", t.colors.accentSuccess)
+                    } else if hasAssemblyAIKey {
+                        return ("arrow.triangle.2.circlepath", "Summary: AssemblyAI LeMUR (fallback)", t.colors.accentWarning)
+                    } else {
+                        return ("xmark.circle", "Summary: not configured", t.colors.accentWarning)
+                    }
+                }()
+                Image(systemName: icon).font(.system(size: 12)).foregroundStyle(color)
+                Text(label).font(t.typography.caption).foregroundStyle(color)
+            }
+            .listRowBackground(t.colors.surfacePrimary)
+
+        } header: {
+            sectionHeader("Best Quality — Summary (Claude Sonnet)", t: t)
+        } footer: {
+            Text("Claude Sonnet generates structured meeting notes from the transcript. Only transcript text is sent to Anthropic — audio never leaves your device.\n\nAssemblyAI LeMUR is used automatically if no Claude key is set. Notes are stored locally only.\n\nKey saved automatically when you leave the field. Get a key at console.anthropic.com.")
+                .font(t.typography.caption)
+                .foregroundStyle(t.colors.textTertiary)
+        }
+    }
+
+    private func saveClaudeKey() {
+        let trimmed = claudeKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        claudeKey = trimmed
+        let ok = KeychainService.store(trimmed, for: .anthropicAPIKey)
+        claudeKeySaved = ok
+        print("[Settings] Claude key save: \(ok ? "success" : "FAILED")")
+    }
+
+    // MARK: - Shared API Key Row
+
+    /// Full-width, 44pt-minimum key entry row. Saves automatically on Return or focus loss.
+    @ViewBuilder
+    private func apiKeyRow(
+        label: String,
+        placeholder: String,
+        key: Binding<String>,
+        show: Binding<Bool>,
+        saved: Bool,
+        focusTag: KeyField,
+        onRemove: @escaping () -> Void,
+        t: AppTheme
+    ) -> some View {
+        // Label + status/remove on one row
+        HStack {
+            Text(label)
+                .font(t.typography.headlineSmall)
+                .foregroundStyle(t.colors.textPrimary)
+            Spacer()
+            if saved {
+                Label("Saved", systemImage: "checkmark.circle.fill")
+                    .font(t.typography.caption)
+                    .foregroundStyle(t.colors.accentSuccess)
+            } else if !key.wrappedValue.isEmpty {
+                Button("Remove") {
+                    onRemove()
+                    HapticStyle.light.trigger()
+                }
+                .font(t.typography.caption)
+                .foregroundStyle(t.colors.accentError)
+                .buttonStyle(PlainButtonStyle())
+            }
+        }
+        .listRowBackground(t.colors.surfacePrimary)
+
+        // Text field row — full width with a guaranteed 44pt tap target
+        HStack(spacing: t.spacing.s) {
+            Group {
+                if show.wrappedValue {
+                    TextField(placeholder, text: key)
+                        .focused($focusedField, equals: focusTag)
+                } else {
+                    SecureField(placeholder, text: key)
+                        .focused($focusedField, equals: focusTag)
+                }
+            }
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.never)
+            .font(.system(.callout, design: .monospaced))
+            .foregroundStyle(t.colors.textPrimary)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .onSubmit {
+                if focusTag == .assemblyAI { saveAssemblyAIKey() }
+                if focusTag == .claude     { saveClaudeKey() }
+            }
+
+            Button {
+                show.wrappedValue.toggle()
+            } label: {
+                Image(systemName: show.wrappedValue ? "eye.slash" : "eye")
+                    .font(.system(size: 18))
+                    .foregroundStyle(t.colors.textSecondary)
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .listRowBackground(t.colors.surfacePrimary)
+        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
     }
 
     // MARK: - Privacy Section

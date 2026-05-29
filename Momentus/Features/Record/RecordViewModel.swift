@@ -32,7 +32,13 @@ import SwiftUI
     var state: State = .idle
     var elapsedTime: TimeInterval = 0
     var waveformLevels: [Float] = Array(repeating: 0.1, count: 40)
-    var selectedMode: RecordingMode = .onDevice
+    var selectedMode: RecordingMode = {
+        guard let raw = UserDefaults.standard.string(forKey: "defaultRecordingMode"),
+              let mode = RecordingMode(rawValue: raw) else { return .onDevice }
+        return mode
+    }() {
+        didSet { UserDefaults.standard.set(selectedMode.rawValue, forKey: "defaultRecordingMode") }
+    }
     var selectedMicSource: MicSource = .iPhone
     var processingStepIndex: Int = 0
     var errorMessage: String?
@@ -51,8 +57,8 @@ import SwiftUI
 
     private var store: RecordingsStore?
     private let recordingService: any RecordingService
-    private let transcriptionService: any TranscriptionService
-    private let summaryService: any SummaryService
+    private var transcriptionService: any TranscriptionService
+    private var summaryService: any SummaryService
     private let calendarService: any CalendarContextService
 
     private var timerTask: Task<Void, Never>?
@@ -61,9 +67,9 @@ import SwiftUI
     // MARK: Init
 
     init(
-        recordingService: any RecordingService = MockRecordingService(),
-        transcriptionService: any TranscriptionService = MockTranscriptionService(),
-        summaryService: any SummaryService = MockSummaryService(),
+        recordingService: any RecordingService = AVAudioRecorderService(),
+        transcriptionService: any TranscriptionService = AppleSpeechTranscriptionService(),
+        summaryService: any SummaryService = AppleFoundationModelsSummaryService(),
         calendarService: any CalendarContextService = MockCalendarContextService()
     ) {
         self.recordingService = recordingService
@@ -75,6 +81,35 @@ import SwiftUI
     func configure(store: RecordingsStore) {
         self.store = store
     }
+
+    /// Swaps in services built by ServiceFactory for the given mode.
+    /// Call this from RecordHomeView whenever the mode changes.
+    func configure(transcriptionService: any TranscriptionService, summaryService: any SummaryService) {
+        self.transcriptionService = transcriptionService
+        self.summaryService = summaryService
+        print("[RecordViewModel] services updated — transcription: \(transcriptionService.providerName), summary: \(summaryService.providerName)")
+    }
+
+    /// Display name of the active summary provider (e.g. "Claude Sonnet" or "AssemblyAI LeMUR").
+    var summaryProviderName: String { summaryService.providerName }
+
+    /// True when Best Quality mode is selected but no AssemblyAI key is configured
+    /// (transcription is the hard requirement — without it, Best Quality is effectively mock).
+    var isMissingTranscriptionKey: Bool {
+        selectedMode == .bestQuality && !ServiceFactory.isConfigured(for: .bestQuality)
+    }
+
+    /// True when Best Quality is selected, AssemblyAI transcription is configured,
+    /// but no Claude key is present — so summary will use AssemblyAI LeMUR instead.
+    var isUsingSummaryFallback: Bool {
+        guard selectedMode == .bestQuality else { return false }
+        let hasAssemblyAI = ServiceFactory.isConfigured(for: .bestQuality)
+        let hasClaude = !(KeychainService.retrieve(.anthropicAPIKey) ?? "").isEmpty
+        return hasAssemblyAI && !hasClaude
+    }
+
+    /// Backwards-compat alias used by RecordHomeView.
+    var isMissingAPIKey: Bool { isMissingTranscriptionKey }
 
     // MARK: Calendar Context
 
@@ -161,7 +196,9 @@ import SwiftUI
         processingStepIndex = 0
 
         do {
+            print("[Pipeline] stopping recording service")
             let audioFileID = try await recordingService.stopRecording()
+            print("[Pipeline] audioFileID: \(audioFileID)")
             recording.audioFileID = audioFileID
             recording.processingState = .transcribing
             store?.update(recording)
@@ -169,10 +206,12 @@ import SwiftUI
             state = .processing(.transcribing)
             processingStepIndex = 1
 
+            print("[Pipeline] starting transcription")
             let transcript = try await transcriptionService.transcribe(
                 audioFileID: audioFileID,
                 recordingId: recordingId
             )
+            print("[Pipeline] transcription done — \(transcript.segments.count) segments")
             recording.transcript = transcript
             recording.processingState = .summarizing
             store?.update(recording)
@@ -180,7 +219,9 @@ import SwiftUI
             state = .processing(.summarizing)
             processingStepIndex = 2
 
+            print("[Pipeline] starting summarization")
             let summary = try await summaryService.summarize(transcript: transcript, recordingId: recordingId)
+            print("[Pipeline] summarization done")
             recording.summary = summary
             if let suggested = summary.suggestedTitle {
                 recording.title = suggested
@@ -204,8 +245,10 @@ import SwiftUI
 
         } catch {
             recording.processingState = .failed
+            // Preserve everything collected so far so the recording isn't lost.
             store?.update(recording)
             errorMessage = error.localizedDescription
+            print("[Pipeline] failed: \(error)")
             state = .idle
         }
     }

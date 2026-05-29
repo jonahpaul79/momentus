@@ -73,6 +73,9 @@ struct Transcript: Identifiable, Codable, Equatable {
     var speakers: [Speaker]
     var language: String
     var provider: String
+    /// Provider-specific metadata (e.g. ["assemblyai_transcript_id": "abc123"]).
+    /// Used by paired summary services (e.g. AssemblyAISummaryService reads the ID to call LeMUR).
+    var providerData: [String: String] = [:]
     var createdAt: Date
 
     var averageConfidence: Float {

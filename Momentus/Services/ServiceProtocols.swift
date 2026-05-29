@@ -116,6 +116,7 @@ struct ProviderConfig {
 
 enum TranscriptionProvider: String, CaseIterable, Identifiable, Codable {
     case appleOnDevice
+    case assemblyAI
     case soniox
     case deepgram
 
@@ -124,8 +125,9 @@ enum TranscriptionProvider: String, CaseIterable, Identifiable, Codable {
     var displayName: String {
         switch self {
         case .appleOnDevice: return "Apple On-Device"
-        case .soniox: return "Soniox"
-        case .deepgram: return "Deepgram"
+        case .assemblyAI:    return "AssemblyAI"
+        case .soniox:        return "Soniox"
+        case .deepgram:      return "Deepgram"
         }
     }
 
@@ -134,8 +136,9 @@ enum TranscriptionProvider: String, CaseIterable, Identifiable, Codable {
     var privacyLabels: [String] {
         switch self {
         case .appleOnDevice: return ["On-device", "No data sent"]
-        case .soniox: return ["No training", "Zero retention"]
-        case .deepgram: return ["Metadata retained"]
+        case .assemblyAI:    return ["Speaker labels", "No training"]
+        case .soniox:        return ["No training", "Zero retention"]
+        case .deepgram:      return ["Metadata retained"]
         }
     }
 
@@ -144,6 +147,7 @@ enum TranscriptionProvider: String, CaseIterable, Identifiable, Codable {
 
 enum SummaryProvider: String, CaseIterable, Identifiable, Codable {
     case appleFoundationModels
+    case assemblyAILeMUR
     case claude
     case openAI
 
@@ -152,8 +156,9 @@ enum SummaryProvider: String, CaseIterable, Identifiable, Codable {
     var displayName: String {
         switch self {
         case .appleFoundationModels: return "Apple Foundation Models"
-        case .claude: return "Claude (Anthropic)"
-        case .openAI: return "OpenAI"
+        case .assemblyAILeMUR:       return "AssemblyAI LeMUR"
+        case .claude:                return "Claude (Anthropic)"
+        case .openAI:                return "OpenAI"
         }
     }
 
@@ -162,8 +167,9 @@ enum SummaryProvider: String, CaseIterable, Identifiable, Codable {
     var privacyLabels: [String] {
         switch self {
         case .appleFoundationModels: return ["On-device", "No data sent"]
-        case .claude: return ["No training", "Zero retention"]
-        case .openAI: return ["Metadata retained"]
+        case .assemblyAILeMUR:       return ["No training", "Notes local"]
+        case .claude:                return ["No training", "Zero retention"]
+        case .openAI:                return ["Metadata retained"]
         }
     }
 

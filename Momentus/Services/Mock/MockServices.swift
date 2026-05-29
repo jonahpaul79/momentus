@@ -167,6 +167,7 @@ private extension Transcript {
             speakers: speakers,
             language: language,
             provider: provider,
+            providerData: providerData,
             createdAt: Date()
         )
     }

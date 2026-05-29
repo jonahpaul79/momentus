@@ -688,6 +688,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Momentus;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Momentus reads your calendar to suggest meeting titles when you start recording.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Momentus needs microphone access to record meeting audio.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Momentus uses on-device speech recognition to transcribe your meetings privately.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -723,6 +726,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Momentus;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Momentus reads your calendar to suggest meeting titles when you start recording.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Momentus needs microphone access to record meeting audio.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Momentus uses on-device speech recognition to transcribe your meetings privately.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

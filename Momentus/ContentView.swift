@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var themeManager = ThemeManager()
-    @State private var store = RecordingsStore()
+    @State private var store = RecordingsStore(loadSamples: false)
     @State private var selectedTab = Tab.record
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
@@ -57,4 +57,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+        .environment(RecordingsStore(loadSamples: true))
 }

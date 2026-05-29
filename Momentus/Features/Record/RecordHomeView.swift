@@ -6,6 +6,7 @@ struct RecordHomeView: View {
     @State private var vm = RecordViewModel()
     @State private var showingActiveRecording = false
     @State private var showingProcessing = false
+    @State private var selectedRecording: Recording?
 
     var body: some View {
         let t = themeManager.currentTheme
@@ -28,7 +29,22 @@ struct RecordHomeView: View {
         .toolbarBackground(t.colors.backgroundPrimary.opacity(0.95), for: .navigationBar)
         .task {
             vm.configure(store: store)
+            vm.configure(
+                transcriptionService: ServiceFactory.makeTranscriptionService(for: vm.selectedMode),
+                summaryService: ServiceFactory.makeSummaryService(for: vm.selectedMode)
+            )
             await vm.loadCalendarContext()
+        }
+        .onChange(of: vm.selectedMode) { _, newMode in
+            vm.configure(
+                transcriptionService: ServiceFactory.makeTranscriptionService(for: newMode),
+                summaryService: ServiceFactory.makeSummaryService(for: newMode)
+            )
+        }
+        .sheet(item: $selectedRecording) { recording in
+            MeetingSummaryDetailView(recording: recording)
+                .environment(themeManager)
+                .environment(store)
         }
         .fullScreenCover(isPresented: $showingActiveRecording) {
             ActiveRecordingView(vm: vm, onStop: {
@@ -186,8 +202,32 @@ struct RecordHomeView: View {
                     .font(t.typography.labelMedium)
                     .foregroundStyle(t.colors.textSecondary)
             }
+
+            if vm.isMissingTranscriptionKey {
+                HStack(spacing: t.spacing.xs) {
+                    Image(systemName: "key.slash")
+                        .font(.system(size: 11))
+                        .foregroundStyle(t.colors.accentWarning)
+                    Text("AssemblyAI key missing — add it in Settings for Best Quality")
+                        .font(t.typography.caption)
+                        .foregroundStyle(t.colors.accentWarning)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            } else if vm.isUsingSummaryFallback {
+                HStack(spacing: t.spacing.xs) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 11))
+                        .foregroundStyle(t.colors.textTertiary)
+                    Text("Claude key missing — summary will use AssemblyAI LeMUR")
+                        .font(t.typography.caption)
+                        .foregroundStyle(t.colors.textTertiary)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
         .padding(.horizontal, t.spacing.l)
+        .animation(.easeInOut(duration: 0.2), value: vm.isMissingTranscriptionKey)
+        .animation(.easeInOut(duration: 0.2), value: vm.isUsingSummaryFallback)
     }
 
     // MARK: - Calendar Card
@@ -236,12 +276,16 @@ struct RecordHomeView: View {
                 .padding(.horizontal, t.spacing.l)
                 .padding(.top, t.spacing.xxl)
 
-            if store.recordings.filter({ $0.processingState == .completed }).isEmpty {
+            let completed = store.recordings.filter { $0.processingState == .completed }
+            if completed.isEmpty {
                 emptyRecentState(t)
             } else {
-                ForEach(store.recordings.filter({ $0.processingState == .completed }).prefix(3)) { recording in
+                ForEach(Array(completed.prefix(3))) { recording in
                     RecentRecordingRow(recording: recording)
                         .padding(.horizontal, t.spacing.l)
+                        .contentShape(Rectangle())
+                        .onTapGesture { selectedRecording = recording }
+                        .environment(themeManager)
                 }
             }
         }
