@@ -1,0 +1,1004 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		8CAA6EC72FC91345007D0CB1 /* Momentus Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 8CAA6EC62FC91345007D0CB1 /* Momentus Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		8CAA6EB12FC91345007D0CB1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8CAA6E9B2FC91342007D0CB1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8CAA6EA22FC91343007D0CB1;
+			remoteInfo = Momentus;
+		};
+		8CAA6EBB2FC91345007D0CB1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8CAA6E9B2FC91342007D0CB1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8CAA6EA22FC91343007D0CB1;
+			remoteInfo = Momentus;
+		};
+		8CAA6EC82FC91345007D0CB1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8CAA6E9B2FC91342007D0CB1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8CAA6EC52FC91345007D0CB1;
+			remoteInfo = "Momentus Watch App";
+		};
+		8CAA6ED62FC91346007D0CB1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8CAA6E9B2FC91342007D0CB1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8CAA6EC52FC91345007D0CB1;
+			remoteInfo = "Momentus Watch App";
+		};
+		8CAA6EE02FC91346007D0CB1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8CAA6E9B2FC91342007D0CB1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8CAA6EC52FC91345007D0CB1;
+			remoteInfo = "Momentus Watch App";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		8CAA6EEC2FC91346007D0CB1 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				8CAA6EC72FC91345007D0CB1 /* Momentus Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		8CAA6EA32FC91343007D0CB1 /* Momentus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Momentus.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8CAA6EB02FC91345007D0CB1 /* MomentusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MomentusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		8CAA6EBA2FC91345007D0CB1 /* MomentusUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MomentusUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		8CAA6EC62FC91345007D0CB1 /* Momentus Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Momentus Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		8CAA6ED52FC91346007D0CB1 /* Momentus Watch AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Momentus Watch AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		8CAA6EDF2FC91346007D0CB1 /* Momentus Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Momentus Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		8CAA6EA52FC91343007D0CB1 /* Momentus */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Momentus;
+			sourceTree = "<group>";
+		};
+		8CAA6EB32FC91345007D0CB1 /* MomentusTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MomentusTests;
+			sourceTree = "<group>";
+		};
+		8CAA6EBD2FC91345007D0CB1 /* MomentusUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MomentusUITests;
+			sourceTree = "<group>";
+		};
+		8CAA6ECA2FC91345007D0CB1 /* Momentus Watch App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Momentus Watch App";
+			sourceTree = "<group>";
+		};
+		8CAA6ED82FC91346007D0CB1 /* Momentus Watch AppTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Momentus Watch AppTests";
+			sourceTree = "<group>";
+		};
+		8CAA6EE22FC91346007D0CB1 /* Momentus Watch AppUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Momentus Watch AppUITests";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		8CAA6EA02FC91343007D0CB1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8CAA6EAD2FC91345007D0CB1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8CAA6EB72FC91345007D0CB1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8CAA6EC32FC91345007D0CB1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8CAA6ED22FC91346007D0CB1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8CAA6EDC2FC91346007D0CB1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		8CAA6E9A2FC91342007D0CB1 = {
+			isa = PBXGroup;
+			children = (
+				8CAA6EA52FC91343007D0CB1 /* Momentus */,
+				8CAA6EB32FC91345007D0CB1 /* MomentusTests */,
+				8CAA6EBD2FC91345007D0CB1 /* MomentusUITests */,
+				8CAA6ECA2FC91345007D0CB1 /* Momentus Watch App */,
+				8CAA6ED82FC91346007D0CB1 /* Momentus Watch AppTests */,
+				8CAA6EE22FC91346007D0CB1 /* Momentus Watch AppUITests */,
+				8CAA6EA42FC91343007D0CB1 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		8CAA6EA42FC91343007D0CB1 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				8CAA6EA32FC91343007D0CB1 /* Momentus.app */,
+				8CAA6EB02FC91345007D0CB1 /* MomentusTests.xctest */,
+				8CAA6EBA2FC91345007D0CB1 /* MomentusUITests.xctest */,
+				8CAA6EC62FC91345007D0CB1 /* Momentus Watch App.app */,
+				8CAA6ED52FC91346007D0CB1 /* Momentus Watch AppTests.xctest */,
+				8CAA6EDF2FC91346007D0CB1 /* Momentus Watch AppUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		8CAA6EA22FC91343007D0CB1 /* Momentus */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8CAA6EED2FC91346007D0CB1 /* Build configuration list for PBXNativeTarget "Momentus" */;
+			buildPhases = (
+				8CAA6E9F2FC91343007D0CB1 /* Sources */,
+				8CAA6EA02FC91343007D0CB1 /* Frameworks */,
+				8CAA6EA12FC91343007D0CB1 /* Resources */,
+				8CAA6EEC2FC91346007D0CB1 /* Embed Watch Content */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8CAA6EC92FC91345007D0CB1 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				8CAA6EA52FC91343007D0CB1 /* Momentus */,
+			);
+			name = Momentus;
+			packageProductDependencies = (
+			);
+			productName = Momentus;
+			productReference = 8CAA6EA32FC91343007D0CB1 /* Momentus.app */;
+			productType = "com.apple.product-type.application";
+		};
+		8CAA6EAF2FC91345007D0CB1 /* MomentusTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8CAA6EF02FC91346007D0CB1 /* Build configuration list for PBXNativeTarget "MomentusTests" */;
+			buildPhases = (
+				8CAA6EAC2FC91345007D0CB1 /* Sources */,
+				8CAA6EAD2FC91345007D0CB1 /* Frameworks */,
+				8CAA6EAE2FC91345007D0CB1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8CAA6EB22FC91345007D0CB1 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				8CAA6EB32FC91345007D0CB1 /* MomentusTests */,
+			);
+			name = MomentusTests;
+			packageProductDependencies = (
+			);
+			productName = MomentusTests;
+			productReference = 8CAA6EB02FC91345007D0CB1 /* MomentusTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		8CAA6EB92FC91345007D0CB1 /* MomentusUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8CAA6EF32FC91346007D0CB1 /* Build configuration list for PBXNativeTarget "MomentusUITests" */;
+			buildPhases = (
+				8CAA6EB62FC91345007D0CB1 /* Sources */,
+				8CAA6EB72FC91345007D0CB1 /* Frameworks */,
+				8CAA6EB82FC91345007D0CB1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8CAA6EBC2FC91345007D0CB1 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				8CAA6EBD2FC91345007D0CB1 /* MomentusUITests */,
+			);
+			name = MomentusUITests;
+			packageProductDependencies = (
+			);
+			productName = MomentusUITests;
+			productReference = 8CAA6EBA2FC91345007D0CB1 /* MomentusUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		8CAA6EC52FC91345007D0CB1 /* Momentus Watch App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8CAA6EE92FC91346007D0CB1 /* Build configuration list for PBXNativeTarget "Momentus Watch App" */;
+			buildPhases = (
+				8CAA6EC22FC91345007D0CB1 /* Sources */,
+				8CAA6EC32FC91345007D0CB1 /* Frameworks */,
+				8CAA6EC42FC91345007D0CB1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				8CAA6ECA2FC91345007D0CB1 /* Momentus Watch App */,
+			);
+			name = "Momentus Watch App";
+			packageProductDependencies = (
+			);
+			productName = "Momentus Watch App";
+			productReference = 8CAA6EC62FC91345007D0CB1 /* Momentus Watch App.app */;
+			productType = "com.apple.product-type.application";
+		};
+		8CAA6ED42FC91346007D0CB1 /* Momentus Watch AppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8CAA6EF62FC91346007D0CB1 /* Build configuration list for PBXNativeTarget "Momentus Watch AppTests" */;
+			buildPhases = (
+				8CAA6ED12FC91346007D0CB1 /* Sources */,
+				8CAA6ED22FC91346007D0CB1 /* Frameworks */,
+				8CAA6ED32FC91346007D0CB1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8CAA6ED72FC91346007D0CB1 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				8CAA6ED82FC91346007D0CB1 /* Momentus Watch AppTests */,
+			);
+			name = "Momentus Watch AppTests";
+			packageProductDependencies = (
+			);
+			productName = "Momentus Watch AppTests";
+			productReference = 8CAA6ED52FC91346007D0CB1 /* Momentus Watch AppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		8CAA6EDE2FC91346007D0CB1 /* Momentus Watch AppUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8CAA6EF92FC91346007D0CB1 /* Build configuration list for PBXNativeTarget "Momentus Watch AppUITests" */;
+			buildPhases = (
+				8CAA6EDB2FC91346007D0CB1 /* Sources */,
+				8CAA6EDC2FC91346007D0CB1 /* Frameworks */,
+				8CAA6EDD2FC91346007D0CB1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8CAA6EE12FC91346007D0CB1 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				8CAA6EE22FC91346007D0CB1 /* Momentus Watch AppUITests */,
+			);
+			name = "Momentus Watch AppUITests";
+			packageProductDependencies = (
+			);
+			productName = "Momentus Watch AppUITests";
+			productReference = 8CAA6EDF2FC91346007D0CB1 /* Momentus Watch AppUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		8CAA6E9B2FC91342007D0CB1 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2650;
+				LastUpgradeCheck = 2650;
+				TargetAttributes = {
+					8CAA6EA22FC91343007D0CB1 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+					8CAA6EAF2FC91345007D0CB1 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = 8CAA6EA22FC91343007D0CB1;
+					};
+					8CAA6EB92FC91345007D0CB1 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = 8CAA6EA22FC91343007D0CB1;
+					};
+					8CAA6EC52FC91345007D0CB1 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+					8CAA6ED42FC91346007D0CB1 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = 8CAA6EC52FC91345007D0CB1;
+					};
+					8CAA6EDE2FC91346007D0CB1 = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = 8CAA6EC52FC91345007D0CB1;
+					};
+				};
+			};
+			buildConfigurationList = 8CAA6E9E2FC91342007D0CB1 /* Build configuration list for PBXProject "Momentus" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 8CAA6E9A2FC91342007D0CB1;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 8CAA6EA42FC91343007D0CB1 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8CAA6EA22FC91343007D0CB1 /* Momentus */,
+				8CAA6EAF2FC91345007D0CB1 /* MomentusTests */,
+				8CAA6EB92FC91345007D0CB1 /* MomentusUITests */,
+				8CAA6EC52FC91345007D0CB1 /* Momentus Watch App */,
+				8CAA6ED42FC91346007D0CB1 /* Momentus Watch AppTests */,
+				8CAA6EDE2FC91346007D0CB1 /* Momentus Watch AppUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		8CAA6EA12FC91343007D0CB1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8CAA6EAE2FC91345007D0CB1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8CAA6EB82FC91345007D0CB1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8CAA6EC42FC91345007D0CB1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8CAA6ED32FC91346007D0CB1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8CAA6EDD2FC91346007D0CB1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8CAA6E9F2FC91343007D0CB1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8CAA6EAC2FC91345007D0CB1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8CAA6EB62FC91345007D0CB1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8CAA6EC22FC91345007D0CB1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8CAA6ED12FC91346007D0CB1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8CAA6EDB2FC91346007D0CB1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		8CAA6EB22FC91345007D0CB1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8CAA6EA22FC91343007D0CB1 /* Momentus */;
+			targetProxy = 8CAA6EB12FC91345007D0CB1 /* PBXContainerItemProxy */;
+		};
+		8CAA6EBC2FC91345007D0CB1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8CAA6EA22FC91343007D0CB1 /* Momentus */;
+			targetProxy = 8CAA6EBB2FC91345007D0CB1 /* PBXContainerItemProxy */;
+		};
+		8CAA6EC92FC91345007D0CB1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8CAA6EC52FC91345007D0CB1 /* Momentus Watch App */;
+			targetProxy = 8CAA6EC82FC91345007D0CB1 /* PBXContainerItemProxy */;
+		};
+		8CAA6ED72FC91346007D0CB1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8CAA6EC52FC91345007D0CB1 /* Momentus Watch App */;
+			targetProxy = 8CAA6ED62FC91346007D0CB1 /* PBXContainerItemProxy */;
+		};
+		8CAA6EE12FC91346007D0CB1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8CAA6EC52FC91345007D0CB1 /* Momentus Watch App */;
+			targetProxy = 8CAA6EE02FC91346007D0CB1 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		8CAA6EE72FC91346007D0CB1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		8CAA6EE82FC91346007D0CB1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		8CAA6EEA2FC91346007D0CB1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Momentus;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = jonahpaul.Momentus;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.Momentus.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.5;
+			};
+			name = Debug;
+		};
+		8CAA6EEB2FC91346007D0CB1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Momentus;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = jonahpaul.Momentus;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.Momentus.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 26.5;
+			};
+			name = Release;
+		};
+		8CAA6EEE2FC91346007D0CB1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Momentus;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.Momentus;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8CAA6EEF2FC91346007D0CB1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Momentus;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.Momentus;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		8CAA6EF12FC91346007D0CB1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.MomentusTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Momentus.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Momentus";
+			};
+			name = Debug;
+		};
+		8CAA6EF22FC91346007D0CB1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.MomentusTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Momentus.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Momentus";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		8CAA6EF42FC91346007D0CB1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.MomentusUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Momentus;
+			};
+			name = Debug;
+		};
+		8CAA6EF52FC91346007D0CB1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.MomentusUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Momentus;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		8CAA6EF72FC91346007D0CB1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "jonahpaul.Momentus-Watch-AppTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Momentus Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Momentus Watch App";
+				WATCHOS_DEPLOYMENT_TARGET = 26.5;
+			};
+			name = Debug;
+		};
+		8CAA6EF82FC91346007D0CB1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "jonahpaul.Momentus-Watch-AppTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Momentus Watch App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Momentus Watch App";
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 26.5;
+			};
+			name = Release;
+		};
+		8CAA6EFA2FC91346007D0CB1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "jonahpaul.Momentus-Watch-AppUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_TARGET_NAME = "Momentus Watch App";
+				WATCHOS_DEPLOYMENT_TARGET = 26.5;
+			};
+			name = Debug;
+		};
+		8CAA6EFB2FC91346007D0CB1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "jonahpaul.Momentus-Watch-AppUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				TEST_TARGET_NAME = "Momentus Watch App";
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 26.5;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		8CAA6E9E2FC91342007D0CB1 /* Build configuration list for PBXProject "Momentus" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8CAA6EE72FC91346007D0CB1 /* Debug */,
+				8CAA6EE82FC91346007D0CB1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8CAA6EE92FC91346007D0CB1 /* Build configuration list for PBXNativeTarget "Momentus Watch App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8CAA6EEA2FC91346007D0CB1 /* Debug */,
+				8CAA6EEB2FC91346007D0CB1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8CAA6EED2FC91346007D0CB1 /* Build configuration list for PBXNativeTarget "Momentus" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8CAA6EEE2FC91346007D0CB1 /* Debug */,
+				8CAA6EEF2FC91346007D0CB1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8CAA6EF02FC91346007D0CB1 /* Build configuration list for PBXNativeTarget "MomentusTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8CAA6EF12FC91346007D0CB1 /* Debug */,
+				8CAA6EF22FC91346007D0CB1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8CAA6EF32FC91346007D0CB1 /* Build configuration list for PBXNativeTarget "MomentusUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8CAA6EF42FC91346007D0CB1 /* Debug */,
+				8CAA6EF52FC91346007D0CB1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8CAA6EF62FC91346007D0CB1 /* Build configuration list for PBXNativeTarget "Momentus Watch AppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8CAA6EF72FC91346007D0CB1 /* Debug */,
+				8CAA6EF82FC91346007D0CB1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8CAA6EF92FC91346007D0CB1 /* Build configuration list for PBXNativeTarget "Momentus Watch AppUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8CAA6EFA2FC91346007D0CB1 /* Debug */,
+				8CAA6EFB2FC91346007D0CB1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 8CAA6E9B2FC91342007D0CB1 /* Project object */;
+}
