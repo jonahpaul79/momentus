@@ -52,7 +52,7 @@
       "role" : "appLauncher",
       "scale" : "2x",
       "size" : "44x44",
-      "subtype" : "42mm"
+      "subtype" : "40mm"
     },
     {
       "filename" : "AppIcon-100.png",
