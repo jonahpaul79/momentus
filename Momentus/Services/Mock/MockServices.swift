@@ -107,12 +107,20 @@ final class MockSummaryService: SummaryService {
 // MARK: - Mock Calendar Service
 
 final class MockCalendarContextService: CalendarContextService {
+    private let isDemoMode: Bool
+
+    init(isDemoMode: Bool = false) {
+        self.isDemoMode = isDemoMode
+    }
+
     func getCurrentMeetings() async -> [CalendarMeeting] {
-        MockMeetings.sampleCalendarMeetings.filter(\.isHappeningNow)
+        guard isDemoMode else { return [] }
+        return MockMeetings.sampleCalendarMeetings.filter(\.isHappeningNow)
     }
 
     func getUpcomingMeetings() async -> [CalendarMeeting] {
-        MockMeetings.sampleCalendarMeetings.filter(\.isStartingSoon)
+        guard isDemoMode else { return [] }
+        return MockMeetings.sampleCalendarMeetings.filter(\.isStartingSoon)
     }
 
     func requestAccess() async -> Bool { true }

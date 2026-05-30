@@ -18,6 +18,10 @@ struct RecordHomeView: View {
                     calendarCard(meeting, t: t)
                         .padding(.horizontal, t.spacing.l)
                         .padding(.top, t.spacing.l)
+                } else {
+                    howItWorksCard(t)
+                        .padding(.horizontal, t.spacing.l)
+                        .padding(.top, t.spacing.l)
                 }
                 recentSection(t)
             }
@@ -228,6 +232,29 @@ struct RecordHomeView: View {
         .padding(.horizontal, t.spacing.l)
         .animation(.easeInOut(duration: 0.2), value: vm.isMissingTranscriptionKey)
         .animation(.easeInOut(duration: 0.2), value: vm.isUsingSummaryFallback)
+    }
+
+    // MARK: - How It Works
+
+    private func howItWorksCard(_ t: AppTheme) -> some View {
+        HStack(spacing: t.spacing.m) {
+            VStack(alignment: .leading, spacing: t.spacing.xs) {
+                Text("How Momentus works")
+                    .font(t.typography.labelLarge)
+                    .foregroundStyle(t.colors.textSecondary)
+                Text("Tap Record, then just talk. Momentus transcribes your meeting and writes the summary for you.")
+                    .font(t.typography.bodySmall)
+                    .foregroundStyle(t.colors.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "sparkles")
+                .font(.system(size: 20))
+                .foregroundStyle(t.colors.accentPrimary.opacity(0.5))
+        }
+        .padding(t.spacing.l)
+        .surfaceCard()
+        .environment(themeManager)
     }
 
     // MARK: - Calendar Card

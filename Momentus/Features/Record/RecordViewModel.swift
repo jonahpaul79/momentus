@@ -71,7 +71,7 @@ import SwiftUI
         recordingService: any RecordingService = AVAudioRecorderService(),
         transcriptionService: any TranscriptionService = AppleSpeechTranscriptionService(),
         summaryService: any SummaryService = AppleFoundationModelsSummaryService(),
-        calendarService: any CalendarContextService = MockCalendarContextService()
+        calendarService: any CalendarContextService = MockCalendarContextService(isDemoMode: UserDefaults.standard.bool(forKey: "demoMode"))
     ) {
         self.recordingService = recordingService
         self.transcriptionService = transcriptionService

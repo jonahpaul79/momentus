@@ -175,6 +175,7 @@ struct MeetingSummaryDetailView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(t.spacing.l)
         .surfaceCard()
         .environment(themeManager)
@@ -243,6 +244,7 @@ struct MeetingSummaryDetailView: View {
                 .foregroundStyle(t.colors.textPrimary)
                 .lineSpacing(4)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(t.spacing.l)
         .surfaceCard()
         .environment(themeManager)
@@ -279,6 +281,7 @@ struct MeetingSummaryDetailView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(t.spacing.l)
         .surfaceCard()
         .environment(themeManager)
@@ -297,6 +300,7 @@ struct MeetingSummaryDetailView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(t.spacing.l)
         .surfaceCard()
         .environment(themeManager)
@@ -332,6 +336,7 @@ struct MeetingSummaryDetailView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(t.spacing.l)
         .surfaceCard()
         .environment(themeManager)
@@ -387,6 +392,7 @@ struct MeetingSummaryDetailView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(t.spacing.l)
         .surfaceCard()
         .environment(themeManager)
@@ -423,6 +429,7 @@ struct MeetingSummaryDetailView: View {
                     .foregroundStyle(t.colors.accentPrimary)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(t.spacing.l)
         .surfaceCard()
         .environment(themeManager)
@@ -443,6 +450,7 @@ struct MeetingSummaryDetailView: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(t.colors.textTertiary)
             }
+            .frame(maxWidth: .infinity)
             .padding(t.spacing.l)
             .surfaceCard()
             .environment(themeManager)
@@ -459,6 +467,7 @@ struct MeetingSummaryDetailView: View {
                 confidenceNoteRow(note, t: t)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(t.spacing.l)
         .surfaceCard(elevated: false)
         .environment(themeManager)
