@@ -142,15 +142,15 @@ private final class FallbackSummaryService: SummaryService {
             print("[FallbackSummaryService] \(primary.providerName) failed: \(error.localizedDescription)")
             print("[FallbackSummaryService] retrying with \(fallback.providerName)")
             var result = try await fallback.summarize(transcript: transcript, recordingId: recordingId)
-            let note = insufficientCreditsNote(for: error)
-                ?? "Note: Summary generated with \(fallback.providerName). \(primary.providerName) was unavailable."
+            let note = insufficientCreditsNote(for: error, actualProvider: result.provider)
+                ?? "Note: Summary generated with \(result.provider). \(primary.providerName) was unavailable."
             result.confidenceNotes.insert(note, at: 0)
             return result
         }
     }
 
-    private func insufficientCreditsNote(for error: Error) -> String? {
+    private func insufficientCreditsNote(for error: Error, actualProvider: String) -> String? {
         guard case AnthropicError.insufficientCredits = error else { return nil }
-        return "action:addCredits:Claude credit balance is too low — summary used \(fallback.providerName) as fallback."
+        return "action:addCredits:Claude credit balance is too low — final notes used \(actualProvider)."
     }
 }

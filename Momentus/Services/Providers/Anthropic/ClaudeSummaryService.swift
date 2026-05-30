@@ -51,13 +51,14 @@ final class ClaudeSummaryService: SummaryService {
         )
 
         print("[Claude] received \(responseText.count) chars — \(usage.inputTokens) in / \(usage.outputTokens) out tokens")
-        return parseSummary(from: responseText, usage: usage, recordingId: recordingId)
+        return parseSummary(from: responseText, transcript: transcript, usage: usage, recordingId: recordingId)
     }
 
     // MARK: - JSON Parsing
 
     private func parseSummary(
         from response: String,
+        transcript: Transcript,
         usage: AnthropicClient.MessageResponse.Usage,
         recordingId: UUID
     ) -> MeetingSummary {
@@ -65,7 +66,7 @@ final class ClaudeSummaryService: SummaryService {
 
         if let data = json.data(using: .utf8),
            let parsed = try? JSONDecoder().decode(ClaudeOutput.self, from: data) {
-            return buildSummary(from: parsed, usage: usage, recordingId: recordingId)
+            return buildSummary(from: parsed, transcript: transcript, usage: usage, recordingId: recordingId)
         }
 
         print("[Claude] JSON parse failed — using extractive fallback")
@@ -74,6 +75,7 @@ final class ClaudeSummaryService: SummaryService {
             recordingId: recordingId,
             suggestedTitle: nil,
             executiveSummary: response.prefix(500).trimmingCharacters(in: .whitespacesAndNewlines),
+            markedMoments: MeetingSummaryPromptBuilder.fallbackMarkedMoments(from: transcript),
             decisions: [], actionItems: [], openQuestions: [], risks: [],
             followUpDraft: "Hi team, following up on our meeting.",
             provider: providerName,
@@ -101,17 +103,26 @@ final class ClaudeSummaryService: SummaryService {
 
     private func buildSummary(
         from output: ClaudeOutput,
+        transcript: Transcript,
         usage: AnthropicClient.MessageResponse.Usage,
         recordingId: UUID
     ) -> MeetingSummary {
         var notes = output.confidenceNotes ?? []
         notes.append(tokenNote(usage))
+        let markedMoments = (output.markedMoments ?? []).map { moment in
+            MarkedMoment(
+                timestamp: moment.timestampValue,
+                summary: moment.summary,
+                transcriptExcerpt: moment.transcriptExcerpt.flatMap { $0.isEmpty ? nil : $0 }
+            )
+        }
 
         return MeetingSummary(
             id: UUID(),
             recordingId: recordingId,
             suggestedTitle: output.suggestedTitle.flatMap { $0.isEmpty ? nil : $0 },
             executiveSummary: output.executiveSummary ?? "Meeting processed by Claude.",
+            markedMoments: markedMoments.isEmpty ? MeetingSummaryPromptBuilder.fallbackMarkedMoments(from: transcript) : markedMoments,
             decisions: (output.decisions ?? []).map { d in
                 Decision(
                     id: UUID(),
@@ -165,6 +176,7 @@ final class ClaudeSummaryService: SummaryService {
     private struct ClaudeOutput: Decodable {
         let suggestedTitle: String?
         let executiveSummary: String?
+        let markedMoments: [MarkedMomentOutput]?
         let decisions: [DecisionOutput]?
         let actionItems: [ActionItemOutput]?
         let openQuestions: [QuestionOutput]?
@@ -173,8 +185,22 @@ final class ClaudeSummaryService: SummaryService {
         let confidenceNotes: [String]?
 
         enum CodingKeys: String, CodingKey {
-            case suggestedTitle, executiveSummary, decisions, actionItems,
+            case suggestedTitle, executiveSummary, markedMoments, decisions, actionItems,
                  openQuestions, risks, followUpDraft, confidenceNotes
+        }
+
+        struct MarkedMomentOutput: Decodable {
+            let timestamp: ConfidenceValue?
+            let summary: String
+            let transcriptExcerpt: String?
+
+            var timestampValue: TimeInterval {
+                switch timestamp {
+                case .number(let d): return d
+                case .string(let s): return TimeInterval(s) ?? 0
+                case nil: return 0
+                }
+            }
         }
 
         struct DecisionOutput: Decodable {

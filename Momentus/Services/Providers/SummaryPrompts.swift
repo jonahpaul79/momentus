@@ -20,6 +20,6 @@ enum SummaryPrompts {
 
     /// User turn that wraps the transcript text.
     static func userMessage(transcript: String) -> String {
-        "Extract structured information from this recording transcript:\n\n\(transcript)"
+        "Extract structured information from this recording transcript. If the transcript includes user-marked moments, summarize those moments explicitly:\n\n\(transcript)"
     }
 }

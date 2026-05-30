@@ -13,20 +13,28 @@ final class AssemblyAISummaryService: SummaryService {
     func summarize(transcript: Transcript, recordingId: UUID) async throws -> MeetingSummary {
         // Prefer calling LeMUR with the AssemblyAI transcript ID so LeMUR can access
         // the full word-level data. Fall back to sending the transcript text directly
-        // if the ID is not available (e.g. when paired with a non-AssemblyAI transcriber).
-        let request: AssemblyAILeMURRequest
-        if let transcriptID = transcript.providerData["assemblyai_transcript_id"] {
-            print("[AssemblyAI LeMUR] using transcript_id \(transcriptID)")
-            request = .withTranscriptIDs([transcriptID], prompt: lemurPrompt)
-        } else {
-            let text = transcript.fullText
-            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw AssemblyAIError.lemurFailed("Transcript is empty")
-            }
-            print("[AssemblyAI LeMUR] no transcript_id — sending input_text (\(text.count) chars)")
-            request = .withInputText(text, prompt: lemurPrompt)
+        // if the ID is not available, or if the transcript-ID LeMUR request fails.
+        let text = transcript.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            throw AssemblyAIError.lemurFailed("Transcript is empty")
         }
 
+        if let transcriptID = transcript.providerData["assemblyai_transcript_id"] {
+            print("[AssemblyAI LeMUR] using transcript_id \(transcriptID)")
+            do {
+                let request = AssemblyAILeMURRequest.withTranscriptIDs([transcriptID], prompt: lemurPrompt(for: transcript))
+                let responseText = try await client.lemurTask(request)
+                print("[AssemblyAI LeMUR] response received (\(responseText.count) chars)")
+                return parseSummary(from: responseText, transcript: transcript, recordingId: recordingId)
+            } catch {
+                print("[AssemblyAI LeMUR] transcript_id request failed: \(error.localizedDescription)")
+                print("[AssemblyAI LeMUR] retrying with input_text (\(text.count) chars)")
+            }
+        } else {
+            print("[AssemblyAI LeMUR] no transcript_id — sending input_text (\(text.count) chars)")
+        }
+
+        let request = AssemblyAILeMURRequest.withInputText(text, prompt: lemurPrompt(for: transcript))
         let responseText = try await client.lemurTask(request)
         print("[AssemblyAI LeMUR] response received (\(responseText.count) chars)")
         return parseSummary(from: responseText, transcript: transcript, recordingId: recordingId)
@@ -39,7 +47,7 @@ final class AssemblyAISummaryService: SummaryService {
         if let data = json.data(using: .utf8),
            let parsed = try? JSONDecoder().decode(LeMUROutput.self, from: data) {
             print("[AssemblyAI LeMUR] JSON parsed — \(parsed.actionItems?.count ?? 0) action items")
-            return buildSummary(from: parsed, recordingId: recordingId)
+            return buildSummary(from: parsed, transcript: transcript, recordingId: recordingId)
         }
         print("[AssemblyAI LeMUR] JSON parse failed — using extractive fallback")
         return extractiveFallback(transcript: transcript, recordingId: recordingId)
@@ -58,12 +66,15 @@ final class AssemblyAISummaryService: SummaryService {
         return stripped
     }
 
-    private func buildSummary(from output: LeMUROutput, recordingId: UUID) -> MeetingSummary {
+    private func buildSummary(from output: LeMUROutput, transcript: Transcript, recordingId: UUID) -> MeetingSummary {
         MeetingSummary(
             id: UUID(),
             recordingId: recordingId,
             suggestedTitle: output.title.flatMap { $0.isEmpty ? nil : $0 },
             executiveSummary: output.summary ?? "Meeting processed by AssemblyAI LeMUR.",
+            markedMoments: (output.markedMoments ?? []).map {
+                MarkedMoment(timestamp: $0.timestamp, summary: $0.summary, transcriptExcerpt: $0.transcriptExcerpt)
+            }.ifEmpty(use: MeetingSummaryPromptBuilder.fallbackMarkedMoments(from: transcript)),
             decisions: (output.decisions ?? []).map {
                 Decision(id: UUID(), text: $0, context: nil, confidence: 0.9)
             },
@@ -98,6 +109,7 @@ final class AssemblyAISummaryService: SummaryService {
             id: UUID(), recordingId: recordingId,
             suggestedTitle: nil,
             executiveSummary: preview.isEmpty ? "Meeting processed." : preview + ".",
+            markedMoments: MeetingSummaryPromptBuilder.fallbackMarkedMoments(from: transcript),
             decisions: [], actionItems: [], openQuestions: [], risks: [],
             followUpDraft: "Hi team, following up on our recent meeting.",
             provider: providerName, createdAt: Date(),
@@ -111,11 +123,19 @@ final class AssemblyAISummaryService: SummaryService {
     // MARK: - LeMUR Prompt
 
     // Keep the prompt in the service so it can be tuned independently per provider.
-    private let lemurPrompt = """
+    private func lemurPrompt(for transcript: Transcript) -> String {
+        let markerContext = MeetingSummaryPromptBuilder.fallbackMarkedMoments(from: transcript)
+            .map { "- [\(MeetingSummaryPromptBuilder.formatTimestamp($0.timestamp))] \($0.transcriptExcerpt ?? "")" }
+            .joined(separator: "\n")
+
+        return """
         Analyze this meeting transcript and return a JSON object with exactly this structure:
         {
           "title": "5-8 word meeting title",
           "summary": "2-4 sentence executive summary of what was discussed and decided",
+          "marked_moments": [
+            {"timestamp": 123.4, "summary": "Why this user-marked moment mattered", "transcript_excerpt": "Short nearby excerpt or null"}
+          ],
           "decisions": ["Decision or conclusion reached in the meeting"],
           "action_items": [
             {"task": "Specific action item description", "owner": "Person name or null"}
@@ -128,14 +148,20 @@ final class AssemblyAISummaryService: SummaryService {
         - Ground every item in what was actually spoken. Do not invent or assume anything.
         - Leave arrays empty ([]) if the transcript contains nothing relevant for that field.
         - Only include a name as action_item owner if that person was explicitly mentioned.
+        - If user-marked moments are listed below, summarize each one explicitly in marked_moments.
         - Return only the JSON object — no preamble, no explanation, no markdown fences.
+
+        User-marked moments:
+        \(markerContext.isEmpty ? "(none)" : markerContext)
         """
+    }
 
     // MARK: - Decodable Output Shape
 
     private struct LeMUROutput: Decodable {
         let title: String?
         let summary: String?
+        let markedMoments: [MarkedMomentOutput]?
         let decisions: [String]?
         let actionItems: [ActionItemOutput]?
         let openQuestions: [String]?
@@ -143,6 +169,7 @@ final class AssemblyAISummaryService: SummaryService {
 
         enum CodingKeys: String, CodingKey {
             case title, summary, decisions
+            case markedMoments = "marked_moments"
             case actionItems = "action_items"
             case openQuestions = "open_questions"
             case followUp = "follow_up"
@@ -152,5 +179,22 @@ final class AssemblyAISummaryService: SummaryService {
             let task: String
             let owner: String?
         }
+
+        struct MarkedMomentOutput: Decodable {
+            let timestamp: TimeInterval
+            let summary: String
+            let transcriptExcerpt: String?
+
+            enum CodingKeys: String, CodingKey {
+                case timestamp, summary
+                case transcriptExcerpt = "transcript_excerpt"
+            }
+        }
+    }
+}
+
+private extension Array {
+    func ifEmpty(use fallback: [Element]) -> [Element] {
+        isEmpty ? fallback : self
     }
 }

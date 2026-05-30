@@ -8,6 +8,7 @@ struct MeetingSummaryDetailView: View {
     @State private var showingTranscript = false
     @State private var showShareSheet = false
     @State private var exportedText = ""
+    @State private var playbackSeekTime: TimeInterval?
     @Environment(\.dismiss) private var dismiss
     @AppStorage("audioRetention") private var audioRetentionRaw: String = AudioRetentionPolicy.deleteAfterTranscript.rawValue
 
@@ -97,7 +98,12 @@ struct MeetingSummaryDetailView: View {
             }
 
             if hasAudio, let audioFileID = recording.audioFileID {
-                AudioPlayerView(seed: recording.id.hashValue, duration: recording.duration, audioFileID: audioFileID)
+                AudioPlayerView(
+                    seed: recording.id.hashValue,
+                    duration: recording.duration,
+                    audioFileID: audioFileID,
+                    seekTime: $playbackSeekTime
+                )
                     .environment(themeManager)
             }
         }
@@ -110,6 +116,7 @@ struct MeetingSummaryDetailView: View {
     private func summaryContent(_ summary: MeetingSummary, t: AppTheme) -> some View {
         VStack(alignment: .leading, spacing: t.spacing.l) {
             executiveSummaryCard(summary, t: t)
+            if !summary.markedMoments.isEmpty { markedMomentsSection(summary.markedMoments, t: t) }
             if !summary.decisions.isEmpty { decisionsSection(summary.decisions, t: t) }
             if !summary.actionItems.isEmpty { actionItemsSection(summary.actionItems, t: t) }
             if !summary.openQuestions.isEmpty { openQuestionsSection(summary.openQuestions, t: t) }
@@ -120,6 +127,57 @@ struct MeetingSummaryDetailView: View {
             providerProvenanceView(summary, t: t)
         }
         .padding(.horizontal, t.spacing.l)
+    }
+
+    // MARK: - Marked Moments
+
+    private func markedMomentsSection(_ moments: [MarkedMoment], t: AppTheme) -> some View {
+        VStack(alignment: .leading, spacing: t.spacing.m) {
+            sectionHeader("Marked Moments", icon: "bookmark.fill", t: t)
+            ForEach(moments) { moment in
+                Button {
+                    playbackSeekTime = moment.timestamp
+                    HapticStyle.light.trigger()
+                } label: {
+                    HStack(alignment: .top, spacing: t.spacing.m) {
+                        Text(formatTimestamp(moment.timestamp))
+                            .font(t.typography.labelSmall)
+                            .foregroundStyle(t.colors.accentPrimary)
+                            .monospacedDigit()
+                            .frame(width: 46, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(moment.summary)
+                                .font(t.typography.bodyMedium)
+                                .foregroundStyle(t.colors.textPrimary)
+                                .multilineTextAlignment(.leading)
+                            if let excerpt = moment.transcriptExcerpt, !excerpt.isEmpty {
+                                Text(excerpt)
+                                    .font(t.typography.caption)
+                                    .foregroundStyle(t.colors.textSecondary)
+                                    .lineLimit(3)
+                                    .multilineTextAlignment(.leading)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        if hasAudio {
+                            Image(systemName: "play.circle.fill")
+                                .font(.system(size: 18))
+                                .foregroundStyle(t.colors.accentPrimary)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(!hasAudio)
+
+                if moment.id != moments.last?.id {
+                    Divider().overlay(t.colors.divider)
+                }
+            }
+        }
+        .padding(t.spacing.l)
+        .surfaceCard()
+        .environment(themeManager)
     }
 
     // MARK: - Provider Provenance
@@ -137,13 +195,30 @@ struct MeetingSummaryDetailView: View {
                 }
                 providerChip("Notes", value: summaryProvider, t: t)
             }
-            Text("Processed locally · Audio never in a backend")
+            Text(processingDisclosure(transcriptProvider: transcriptProvider, summaryProvider: summaryProvider))
                 .font(t.typography.caption)
                 .foregroundStyle(t.colors.textTertiary)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, t.spacing.l)
         .padding(.bottom, t.spacing.m)
+    }
+
+    private func processingDisclosure(transcriptProvider: String?, summaryProvider: String) -> String {
+        let usedCloudTranscription = transcriptProvider == "AssemblyAI"
+        let usedCloudSummary = summaryProvider.contains("Claude") || summaryProvider.contains("AssemblyAI")
+
+        switch (usedCloudTranscription, usedCloudSummary) {
+        case (true, true):
+            return "Audio sent to AssemblyAI for transcript. Transcript text sent for notes. Saved locally."
+        case (true, false):
+            return "Audio sent to AssemblyAI for transcript. Notes generated locally from transcript. Saved locally."
+        case (false, true):
+            return "Audio stayed on device. Transcript text sent for notes. Saved locally."
+        case (false, false):
+            return "Processed on device. Saved locally."
+        }
     }
 
     private func providerChip(_ label: String, value: String, t: AppTheme) -> some View {
@@ -473,6 +548,13 @@ struct MeetingSummaryDetailView: View {
         var md = "# \(recording.title)\n"
         md += "_\(recording.startedAt.relativeLabel()) · \(recording.duration.shortString) · \(recording.mode.displayName)_\n\n"
         md += "## Summary\n\(summary.executiveSummary)\n\n"
+        if !summary.markedMoments.isEmpty {
+            md += "## Marked Moments\n"
+            summary.markedMoments.forEach { moment in
+                md += "- [\(formatTimestamp(moment.timestamp))] \(moment.summary)\n"
+            }
+            md += "\n"
+        }
         if !summary.decisions.isEmpty {
             md += "## Decisions\n"
             summary.decisions.forEach { md += "- \($0.text)\n" }
@@ -495,6 +577,13 @@ struct MeetingSummaryDetailView: View {
             md += "## Follow-up Draft\n\(summary.followUpDraft)\n"
         }
         return md
+    }
+
+    private func formatTimestamp(_ time: TimeInterval) -> String {
+        let t = max(0, time)
+        let m = Int(t) / 60
+        let s = Int(t) % 60
+        return String(format: "%d:%02d", m, s)
     }
 }
 
@@ -584,6 +673,7 @@ struct AudioPlayerView: View {
     let seed: Int
     let duration: TimeInterval
     let audioFileID: String
+    @Binding var seekTime: TimeInterval?
 
     @State private var player: AVAudioPlayer?
     @State private var isPlaying = false
@@ -634,11 +724,28 @@ struct AudioPlayerView: View {
             }
         }
         .task { preparePlayer() }
+        .onChange(of: seekTime) { _, newValue in
+            guard let newValue else { return }
+            seekAndPlay(to: newValue)
+            seekTime = nil
+        }
         .onDisappear {
             player?.stop()
             pollTask?.cancel()
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
+    }
+
+    private func seekAndPlay(to time: TimeInterval) {
+        guard let player else { return }
+        let target = min(max(0, time), player.duration)
+        currentTime = target
+        player.currentTime = target
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+        try? AVAudioSession.sharedInstance().setActive(true)
+        player.play()
+        isPlaying = true
+        startPolling()
     }
 
     private func preparePlayer() {

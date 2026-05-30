@@ -11,6 +11,8 @@ final class AppleFoundationModelsSummaryService: SummaryService {
         var suggestedTitle: String
         @Guide(description: "2-3 sentence summary")
         var executiveSummary: String
+        @Guide(description: "Bullet summaries of user-marked moments; empty if none")
+        var markedMoments: [String]
         @Guide(description: "Decisions or conclusions reached; empty if none")
         var decisions: [String]
         @Guide(description: "Action items with owner only if name was spoken; empty if none")
@@ -26,6 +28,10 @@ final class AppleFoundationModelsSummaryService: SummaryService {
         let isMac = ProcessInfo.processInfo.isiOSAppOnMac
         return isSimulator || isMac
     }()
+    private static let isSimulatorOrMac: Bool = {
+        ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] != nil
+        || ProcessInfo.processInfo.isiOSAppOnMac
+    }()
 
     func summarize(transcript: Transcript, recordingId: UUID) async throws -> MeetingSummary {
         print("[Summary] summarize called, segments: \(transcript.segments.count), chars: \(transcript.fullText.count), useFallback=\(Self.useFallback)")
@@ -34,9 +40,18 @@ final class AppleFoundationModelsSummaryService: SummaryService {
         // Require real spoken content. Stub/placeholder text and short transcripts
         // cause Foundation Models to hallucinate entire fake meetings.
         let isPlaceholder = text.hasPrefix("[")
-        if Self.useFallback || text.count < 50 || isPlaceholder {
-            print("[Summary] fallback path (useFallback=\(Self.useFallback), chars=\(text.count), placeholder=\(isPlaceholder))")
-            return extractiveSummary(from: transcript, text: text, recordingId: recordingId)
+        let isTooShortForGeneration = text.count < 50
+        if Self.useFallback || isTooShortForGeneration || isPlaceholder {
+            let reason: ExtractiveFallbackReason
+            if Self.isSimulatorOrMac {
+                reason = .simulator
+            } else if isTooShortForGeneration {
+                reason = .shortTranscript
+            } else {
+                reason = .placeholderTranscript
+            }
+            print("[Summary] fallback path (reason=\(reason.logValue), useFallback=\(Self.useFallback), chars=\(text.count), placeholder=\(isPlaceholder))")
+            return extractiveSummary(from: transcript, text: text, recordingId: recordingId, reason: reason)
         }
 
         guard case .available = SystemLanguageModel.default.availability else {
@@ -44,8 +59,14 @@ final class AppleFoundationModelsSummaryService: SummaryService {
         }
 
         let session = LanguageModelSession(instructions: SummaryPrompts.systemInstruction)
+        let markedContext = MeetingSummaryPromptBuilder.fallbackMarkedMoments(from: transcript)
+            .map { "- [\(MeetingSummaryPromptBuilder.formatTimestamp($0.timestamp))] \($0.transcriptExcerpt ?? "")" }
+            .joined(separator: "\n")
+        let promptText = markedContext.isEmpty
+            ? text
+            : "User-marked moments:\n\(markedContext)\n\nTranscript:\n\(text)"
         let response = try await session.respond(
-            to: SummaryPrompts.userMessage(transcript: text),
+            to: SummaryPrompts.userMessage(transcript: promptText),
             generating: Output.self
         )
         let output = response.content
@@ -55,6 +76,7 @@ final class AppleFoundationModelsSummaryService: SummaryService {
             recordingId: recordingId,
             suggestedTitle: output.suggestedTitle,
             executiveSummary: output.executiveSummary,
+            markedMoments: buildMarkedMoments(from: output.markedMoments, transcript: transcript),
             decisions: output.decisions.map {
                 Decision(id: UUID(), text: $0, context: nil, confidence: 0.9)
             },
@@ -83,7 +105,12 @@ final class AppleFoundationModelsSummaryService: SummaryService {
     }
 
     // Simple sentence-extraction fallback used in the simulator.
-    private func extractiveSummary(from transcript: Transcript, text: String, recordingId: UUID) -> MeetingSummary {
+    private func extractiveSummary(
+        from transcript: Transcript,
+        text: String,
+        recordingId: UUID,
+        reason: ExtractiveFallbackReason
+    ) -> MeetingSummary {
         let sentences = text.components(separatedBy: ". ")
         let preview = sentences.prefix(3).joined(separator: ". ")
             + (sentences.count > 3 ? "." : "")
@@ -97,15 +124,64 @@ final class AppleFoundationModelsSummaryService: SummaryService {
             recordingId: recordingId,
             suggestedTitle: title,
             executiveSummary: preview.isEmpty ? "No transcript content available." : preview,
+            markedMoments: MeetingSummaryPromptBuilder.fallbackMarkedMoments(from: transcript),
             decisions: [],
             actionItems: [],
             openQuestions: [],
             risks: [],
             followUpDraft: "Hi team, following up on our meeting today.",
-            provider: "\(providerName) (Simulator)",
+            provider: reason.providerName(base: providerName),
             createdAt: Date(),
-            confidenceNotes: ["Running on simulator — Foundation Models unavailable. Deploy to device for AI-generated summaries."]
+            confidenceNotes: [reason.confidenceNote]
         )
+    }
+
+    private func buildMarkedMoments(from summaries: [String], transcript: Transcript) -> [MarkedMoment] {
+        let timestamps = MeetingSummaryPromptBuilder.markerTimestamps(in: transcript)
+        guard !timestamps.isEmpty else { return [] }
+        return timestamps.enumerated().map { index, timestamp in
+            MarkedMoment(
+                timestamp: timestamp,
+                summary: summaries.indices.contains(index) ? summaries[index] : "Marked moment at \(MeetingSummaryPromptBuilder.formatTimestamp(timestamp))",
+                transcriptExcerpt: MeetingSummaryPromptBuilder.fallbackMarkedMoments(from: transcript)
+                    .first { abs($0.timestamp - timestamp) < 0.1 }?
+                    .transcriptExcerpt
+            )
+        }
+    }
+
+    private enum ExtractiveFallbackReason {
+        case simulator
+        case shortTranscript
+        case placeholderTranscript
+
+        var logValue: String {
+            switch self {
+            case .simulator: return "simulator"
+            case .shortTranscript: return "shortTranscript"
+            case .placeholderTranscript: return "placeholderTranscript"
+            }
+        }
+
+        var confidenceNote: String {
+            switch self {
+            case .simulator:
+                return "Running on simulator — Foundation Models unavailable. Deploy to device for AI-generated summaries."
+            case .shortTranscript:
+                return "Transcript was too short for reliable AI notes, so the summary mirrors the transcript."
+            case .placeholderTranscript:
+                return "Transcript did not contain enough spoken content for reliable AI notes."
+            }
+        }
+
+        func providerName(base: String) -> String {
+            switch self {
+            case .simulator:
+                return "\(base) (Simulator)"
+            case .shortTranscript, .placeholderTranscript:
+                return "Extractive Summary"
+            }
+        }
     }
 }
 

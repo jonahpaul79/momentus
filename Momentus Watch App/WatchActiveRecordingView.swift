@@ -31,10 +31,11 @@ struct WatchActiveRecordingView: View {
 
             // Waveform
             WatchWaveformView(
-                levels: vm.recordingState == .recording ? vm.waveformLevels : Array(repeating: 0.05, count: 16),
+                levels: vm.recordingState == .recording ? vm.waveformLevels : Array(repeating: 0.05, count: 40),
                 color: vm.recordingState == .recording ? t.accentRecording.opacity(0.8) : t.textSecondary.opacity(0.3)
             )
-            .frame(height: 22)
+            .frame(height: 36)
+            .padding(.horizontal, 2)
 
             // Controls
             HStack(spacing: 12) {
@@ -42,7 +43,7 @@ struct WatchActiveRecordingView: View {
                 Button {
                     Task {
                         if vm.recordingState == .paused {
-                            vm.recordingState = .recording
+                            await vm.resumeRecording()
                         } else {
                             await vm.pauseRecording()
                         }

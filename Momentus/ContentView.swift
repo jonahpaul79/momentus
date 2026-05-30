@@ -2,11 +2,22 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var themeManager = ThemeManager()
-    @State private var store = RecordingsStore(loadSamples: false)
+    @State private var store = RecordingsStore(loadSamples: ContentView.shouldLoadDemoData)
     @State private var selectedTab = Tab.record
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     enum Tab: String { case record, notes, settings }
+
+    private static var shouldLoadDemoData: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        return arguments.contains("-demoMode")
+            || arguments.contains("demoMode")
+            || UserDefaults.standard.bool(forKey: "demoMode")
+        #else
+        return false
+        #endif
+    }
 
     var body: some View {
         let t = themeManager.currentTheme

@@ -18,6 +18,13 @@ enum MeetingSummaryPromptBuilder {
         {
           "suggestedTitle": "string — concise 5-8 word title that describes what the meeting was about",
           "executiveSummary": "string — 2-4 sentences covering what was discussed, what was decided, and what comes next",
+          "markedMoments": [
+            {
+              "timestamp": number — seconds from start of recording,
+              "summary": "string — one concise bullet summarizing why this marked moment mattered",
+              "transcriptExcerpt": "string or null — short quote or paraphrased excerpt from nearby transcript"
+            }
+          ],
           "decisions": [
             {
               "text": "string — the decision or conclusion",
@@ -61,6 +68,7 @@ enum MeetingSummaryPromptBuilder {
         6. Flag low-confidence or unclear transcript areas in confidenceNotes.
         7. Use concise, professional language. Avoid filler phrases.
         8. Prioritize action items by urgency: high = blocking or time-sensitive, medium = clear next step, low = suggested.
+        9. If marked moments are provided, summarize each marked moment explicitly in markedMoments[] using only the nearby transcript context.
         """
 
     // MARK: - User Message
@@ -86,6 +94,14 @@ enum MeetingSummaryPromptBuilder {
         if !context.speakers.isEmpty {
             let names = context.speakers.map(\.name).joined(separator: ", ")
             parts.append("**Participants:** \(names)")
+        }
+
+        let markerContext = formatMarkedMomentContext(for: context.transcript)
+        if !markerContext.isEmpty {
+            parts.append("")
+            parts.append("**User-Marked Moments:**")
+            parts.append(markerContext)
+            parts.append("Treat these as moments the user intentionally flagged. Summarize them explicitly in markedMoments[].")
         }
 
         parts.append("")
@@ -117,13 +133,52 @@ enum MeetingSummaryPromptBuilder {
         return lines.joined(separator: "\n")
     }
 
-    // MARK: - Helpers
+    static func markerTimestamps(in transcript: Transcript) -> [TimeInterval] {
+        guard let raw = transcript.providerData["momentus_markers"], !raw.isEmpty else { return [] }
+        return raw
+            .split(separator: ",")
+            .compactMap { TimeInterval($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            .sorted()
+    }
 
-    private static func formatTimestamp(_ seconds: TimeInterval) -> String {
+    static func fallbackMarkedMoments(from transcript: Transcript) -> [MarkedMoment] {
+        markerTimestamps(in: transcript).map { timestamp in
+            MarkedMoment(
+                timestamp: timestamp,
+                summary: "Marked moment at \(formatTimestamp(timestamp))",
+                transcriptExcerpt: excerpt(near: timestamp, in: transcript)
+            )
+        }
+    }
+
+    static func formatTimestamp(_ seconds: TimeInterval) -> String {
         let total = max(0, Int(seconds))
         let m = total / 60
         let s = total % 60
         return String(format: "%02d:%02d", m, s)
+    }
+
+    // MARK: - Helpers
+
+    private static func formatMarkedMomentContext(for transcript: Transcript) -> String {
+        markerTimestamps(in: transcript).map { timestamp in
+            let text = excerpt(near: timestamp, in: transcript) ?? "(no nearby transcript text)"
+            return "- [\(formatTimestamp(timestamp))] \(text)"
+        }
+        .joined(separator: "\n")
+    }
+
+    private static func excerpt(near timestamp: TimeInterval, in transcript: Transcript) -> String? {
+        let window: TimeInterval = 20
+        let nearby = transcript.segments.filter { segment in
+            segment.endTime >= timestamp - window && segment.startTime <= timestamp + window
+        }
+        let selected = nearby.isEmpty
+            ? transcript.segments.min { abs($0.startTime - timestamp) < abs($1.startTime - timestamp) }.map { [$0] } ?? []
+            : nearby
+        let text = selected.map(\.text).joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
     }
 }
 

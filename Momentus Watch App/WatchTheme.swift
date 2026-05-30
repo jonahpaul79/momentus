@@ -62,16 +62,21 @@ extension TimeInterval {
 struct WatchWaveformView: View {
     let levels: [Float]
     let color: Color
+    private let barSpacing: CGFloat = 1.5
 
     var body: some View {
         GeometryReader { geo in
-            HStack(spacing: 1.5) {
+            let count = levels.count
+            let totalSpacing = barSpacing * CGFloat(count - 1)
+            let barWidth = max(1.5, (geo.size.width - totalSpacing) / CGFloat(count))
+
+            HStack(spacing: barSpacing) {
                 ForEach(Array(levels.enumerated()), id: \.offset) { _, level in
                     let h = max(2, CGFloat(level) * geo.size.height)
-                    RoundedRectangle(cornerRadius: 1)
+                    RoundedRectangle(cornerRadius: barWidth / 2)
                         .fill(color)
-                        .frame(height: h)
-                        .animation(.easeOut(duration: 0.1), value: level)
+                        .frame(width: barWidth, height: h)
+                        .animation(.easeOut(duration: 0.08), value: level)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)

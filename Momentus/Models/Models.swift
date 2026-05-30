@@ -119,6 +119,7 @@ struct MeetingSummary: Identifiable, Codable, Equatable {
     let recordingId: UUID
     var suggestedTitle: String?
     var executiveSummary: String
+    var markedMoments: [MarkedMoment]
     var decisions: [Decision]
     var actionItems: [ActionItem]
     var openQuestions: [OpenQuestion]
@@ -127,6 +128,75 @@ struct MeetingSummary: Identifiable, Codable, Equatable {
     var provider: String
     var createdAt: Date
     var confidenceNotes: [String]
+
+    init(
+        id: UUID = UUID(),
+        recordingId: UUID,
+        suggestedTitle: String? = nil,
+        executiveSummary: String,
+        markedMoments: [MarkedMoment] = [],
+        decisions: [Decision] = [],
+        actionItems: [ActionItem] = [],
+        openQuestions: [OpenQuestion] = [],
+        risks: [Risk] = [],
+        followUpDraft: String,
+        provider: String,
+        createdAt: Date = Date(),
+        confidenceNotes: [String] = []
+    ) {
+        self.id = id
+        self.recordingId = recordingId
+        self.suggestedTitle = suggestedTitle
+        self.executiveSummary = executiveSummary
+        self.markedMoments = markedMoments
+        self.decisions = decisions
+        self.actionItems = actionItems
+        self.openQuestions = openQuestions
+        self.risks = risks
+        self.followUpDraft = followUpDraft
+        self.provider = provider
+        self.createdAt = createdAt
+        self.confidenceNotes = confidenceNotes
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, recordingId, suggestedTitle, executiveSummary, markedMoments,
+             decisions, actionItems, openQuestions, risks, followUpDraft, provider,
+             createdAt, confidenceNotes
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        recordingId = try c.decode(UUID.self, forKey: .recordingId)
+        suggestedTitle = try c.decodeIfPresent(String.self, forKey: .suggestedTitle)
+        executiveSummary = try c.decode(String.self, forKey: .executiveSummary)
+        markedMoments = try c.decodeIfPresent([MarkedMoment].self, forKey: .markedMoments) ?? []
+        decisions = try c.decode([Decision].self, forKey: .decisions)
+        actionItems = try c.decode([ActionItem].self, forKey: .actionItems)
+        openQuestions = try c.decode([OpenQuestion].self, forKey: .openQuestions)
+        risks = try c.decode([Risk].self, forKey: .risks)
+        followUpDraft = try c.decode(String.self, forKey: .followUpDraft)
+        provider = try c.decode(String.self, forKey: .provider)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        confidenceNotes = try c.decode([String].self, forKey: .confidenceNotes)
+    }
+}
+
+// MARK: - MarkedMoment
+
+struct MarkedMoment: Identifiable, Codable, Equatable {
+    let id: UUID
+    var timestamp: TimeInterval
+    var summary: String
+    var transcriptExcerpt: String?
+
+    init(id: UUID = UUID(), timestamp: TimeInterval, summary: String, transcriptExcerpt: String? = nil) {
+        self.id = id
+        self.timestamp = timestamp
+        self.summary = summary
+        self.transcriptExcerpt = transcriptExcerpt
+    }
 }
 
 // MARK: - ActionItem

@@ -45,6 +45,7 @@ import SwiftUI
     var currentRecordingId: UUID?
     var suggestedMeetingTitle: String?
     var calendarMeeting: CalendarMeeting?
+    var markers: [TimeInterval] = []
 
     var isActive: Bool {
         switch state {
@@ -76,6 +77,9 @@ import SwiftUI
         self.transcriptionService = transcriptionService
         self.summaryService = summaryService
         self.calendarService = calendarService
+        PhoneWatchConnectivityService.shared.configure { [weak self] action, timestamp, mode in
+            self?.handleWatchAction(action, timestamp: timestamp, mode: mode)
+        }
     }
 
     func configure(store: RecordingsStore) {
@@ -136,6 +140,7 @@ import SwiftUI
             currentRecordingId = id
             state = .recording
             elapsedTime = 0
+            markers = []
             HapticStyle.medium.trigger()
             startTimers()
         } catch {
@@ -168,6 +173,9 @@ import SwiftUI
     }
 
     func addMarker() {
+        guard state == .recording || state == .paused else { return }
+        let marker = max(0, elapsedTime)
+        addMarker(at: marker)
         HapticStyle.medium.trigger()
     }
 
@@ -187,7 +195,8 @@ import SwiftUI
             endedAt: Date(),
             mode: selectedMode,
             micSource: selectedMicSource,
-            processingState: .savingAudio
+            processingState: .savingAudio,
+            markers: markers
         )
         store?.add(recording)
 
@@ -207,10 +216,11 @@ import SwiftUI
             processingStepIndex = 1
 
             print("[Pipeline] starting transcription")
-            let transcript = try await transcriptionService.transcribe(
+            var transcript = try await transcriptionService.transcribe(
                 audioFileID: audioFileID,
                 recordingId: recordingId
             )
+            transcript.providerData["momentus_markers"] = markers.map { String(format: "%.1f", $0) }.joined(separator: ",")
             print("[Pipeline] transcription done — \(transcript.segments.count) segments")
             recording.transcript = transcript
             recording.processingState = .summarizing
@@ -301,6 +311,7 @@ import SwiftUI
         state = .idle
         elapsedTime = 0
         waveformLevels = Array(repeating: 0.1, count: 40)
+        markers = []
         currentRecordingId = nil
         processingStepIndex = 0
     }
@@ -309,5 +320,40 @@ import SwiftUI
         let f = DateFormatter()
         f.dateFormat = "MMM d h:mm a"
         return "Recording — \(f.string(from: Date()))"
+    }
+
+    private func addMarker(at timestamp: TimeInterval) {
+        let marker = max(0, timestamp)
+        guard markers.last.map({ abs($0 - marker) > 1.0 }) ?? true else { return }
+        markers.append(marker)
+    }
+
+    private func handleWatchAction(_ action: String, timestamp: TimeInterval?, mode: String?) {
+        switch action {
+        case "startRecording":
+            if mode == WatchRecordingMode.bestQualityRawValue {
+                selectedMode = .bestQuality
+            } else if mode == WatchRecordingMode.onDeviceRawValue {
+                selectedMode = .onDevice
+            }
+            Task { await startRecording() }
+        case "stopRecording":
+            Task { await stopRecording() }
+        case "pauseRecording":
+            Task { await pauseRecording() }
+        case "resumeRecording":
+            Task { await resumeRecording() }
+        case "addMarker":
+            guard state == .recording || state == .paused else { return }
+            addMarker(at: timestamp ?? elapsedTime)
+            HapticStyle.medium.trigger()
+        default:
+            break
+        }
+    }
+
+    private enum WatchRecordingMode {
+        static let onDeviceRawValue = "Private"
+        static let bestQualityRawValue = "Quality"
     }
 }

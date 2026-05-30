@@ -14,8 +14,9 @@ enum WatchRecordingState: Equatable {
     var elapsedTime: TimeInterval = 0
     var micTarget: MicTarget = .iPhone
     var selectedMode: WatchRecordingMode = .onDevice
-    var waveformLevels: [Float] = Array(repeating: 0.1, count: 16)
+    var waveformLevels: [Float] = Array(repeating: 0.1, count: 40)
     var isConnectedToPhone = false
+    var markers: [TimeInterval] = []
 
     enum MicTarget { case iPhone, watch }
     enum WatchRecordingMode: String, CaseIterable {
@@ -37,6 +38,7 @@ enum WatchRecordingState: Equatable {
         guard recordingState == .idle else { return }
         recordingState = .recording
         elapsedTime = 0
+        markers = []
         startTimers()
         sendToPhone(["action": "startRecording", "mode": selectedMode.rawValue])
     }
@@ -58,7 +60,16 @@ enum WatchRecordingState: Equatable {
         sendToPhone(["action": "pauseRecording"])
     }
 
+    func resumeRecording() async {
+        guard recordingState == .paused else { return }
+        recordingState = .recording
+        startWaveformTimer()
+        sendToPhone(["action": "resumeRecording"])
+    }
+
     func addMarker() {
+        guard recordingState == .recording || recordingState == .paused else { return }
+        markers.append(elapsedTime)
         sendToPhone(["action": "addMarker", "timestamp": elapsedTime])
     }
 
@@ -81,13 +92,14 @@ enum WatchRecordingState: Equatable {
     }
 
     private func startWaveformTimer() {
+        stopWaveformTimer()
         waveformTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(100))
+                try? await Task.sleep(for: .milliseconds(80))
                 guard !Task.isCancelled, let self else { break }
                 var levels = self.waveformLevels
                 levels.removeFirst()
-                levels.append(Float.random(in: 0.1...0.9))
+                levels.append(Float.random(in: 0.08...0.95))
                 self.waveformLevels = levels
             }
         }
@@ -108,14 +120,27 @@ enum WatchRecordingState: Equatable {
     // MARK: - Watch Connectivity
 
     private func setupWatchConnectivity() {
-        // TODO: Implement WCSession activation for iOS ↔ watchOS communication
-        // guard WCSession.isSupported() else { return }
-        // WCSession.default.delegate = self
-        // WCSession.default.activate()
+        guard WCSession.isSupported() else { return }
+        WCSession.default.delegate = self
+        WCSession.default.activate()
     }
 
     private func sendToPhone(_ message: [String: Any]) {
-        // TODO: WCSession.default.sendMessage(message, replyHandler: nil)
-        _ = message
+        guard WCSession.isSupported() else { return }
+        if WCSession.default.isReachable {
+            WCSession.default.sendMessage(message, replyHandler: nil)
+        } else {
+            WCSession.default.transferUserInfo(message)
+        }
+    }
+}
+
+extension WatchViewModel: WCSessionDelegate {
+    func session(
+        _ session: WCSession,
+        activationDidCompleteWith activationState: WCSessionActivationState,
+        error: Error?
+    ) {
+        isConnectedToPhone = activationState == .activated
     }
 }

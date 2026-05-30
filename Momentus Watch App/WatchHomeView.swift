@@ -62,8 +62,7 @@ struct WatchHomeView: View {
 
             micTargetIndicator
         }
-        .navigationTitle("Momentus")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     private var modePill: some View {
