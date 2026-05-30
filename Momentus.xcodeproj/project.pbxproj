@@ -71,6 +71,16 @@
 		8CAA6EDF2FC91346007D0CB1 /* Momentus Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Momentus Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8CAA6F042FC9A401007D0CB1 /* Exceptions for "Momentus Watch App" folder in "Momentus Watch App" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 8CAA6EC52FC91345007D0CB1 /* Momentus Watch App */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		8CAA6EA52FC91343007D0CB1 /* Momentus */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -89,6 +99,9 @@
 		};
 		8CAA6ECA2FC91345007D0CB1 /* Momentus Watch App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8CAA6F042FC9A401007D0CB1 /* Exceptions for "Momentus Watch App" folder in "Momentus Watch App" target */,
+			);
 			path = "Momentus Watch App";
 			sourceTree = "<group>";
 		};
@@ -619,7 +632,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Momentus Watch App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Momentus;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
@@ -653,7 +667,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Momentus Watch App/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Momentus;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
