@@ -6,6 +6,8 @@ struct WaveformView: View {
     let levels: [Float]
     var color: Color = .white
     var barSpacing: CGFloat = 3
+    var highlightedBars: Set<Int> = []
+    var highlightColor: Color = .red
 
     var body: some View {
         GeometryReader { geo in
@@ -14,16 +16,64 @@ struct WaveformView: View {
             let barWidth = (geo.size.width - totalSpacing) / CGFloat(count)
 
             HStack(spacing: barSpacing) {
-                ForEach(Array(levels.enumerated()), id: \.offset) { _, level in
+                ForEach(Array(levels.enumerated()), id: \.offset) { index, level in
+                    let isHighlighted = highlightedBars.contains(index)
                     let height = max(4, CGFloat(level) * geo.size.height)
                     RoundedRectangle(cornerRadius: barWidth / 2)
-                        .fill(color)
+                        .fill(isHighlighted ? highlightColor : color)
                         .frame(width: barWidth, height: height)
-                        .animation(.easeOut(duration: 0.18), value: level)
+                        .animation(.easeOut(duration: 0.10), value: level)
+                        .animation(.easeInOut(duration: 0.12), value: isHighlighted)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
+    }
+}
+
+// MARK: - Playback Waveform (shows progress through a recording)
+
+struct PlaybackWaveformView: View {
+    var seed: Int = 42
+    var barCount: Int = 44
+    var progress: Double  // 0...1
+    var playedColor: Color
+    var unplayedColor: Color
+    var height: CGFloat = 40
+
+    private let staticLevels: [CGFloat]
+
+    init(seed: Int, barCount: Int = 44, progress: Double, playedColor: Color, unplayedColor: Color, height: CGFloat = 40) {
+        self.seed = seed
+        self.barCount = barCount
+        self.progress = max(0, min(1, progress))
+        self.playedColor = playedColor
+        self.unplayedColor = unplayedColor
+        self.height = height
+        var gen = SeededRandom(seed: seed)
+        staticLevels = (0..<barCount).map { i in
+            let base = sin(Double(i) / Double(barCount) * .pi)
+            let noise = gen.next()
+            return CGFloat(base * 0.65 + noise * 0.35).clamped(to: 0.12...1.0)
+        }
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let spacing: CGFloat = 2.5
+            let barWidth = (geo.size.width - spacing * CGFloat(barCount - 1)) / CGFloat(barCount)
+            let playedCount = Int(Double(barCount) * progress)
+            HStack(spacing: spacing) {
+                ForEach(Array(staticLevels.enumerated()), id: \.offset) { index, level in
+                    RoundedRectangle(cornerRadius: barWidth / 2)
+                        .fill(index <= playedCount ? playedColor : unplayedColor.opacity(0.28))
+                        .frame(width: barWidth, height: level * geo.size.height)
+                        .animation(.linear(duration: 0.1), value: playedCount)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        }
+        .frame(height: height)
     }
 }
 

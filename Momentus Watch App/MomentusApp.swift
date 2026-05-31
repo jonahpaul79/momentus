@@ -6,9 +6,14 @@
 //
 
 import SwiftUI
+import UserNotifications
 
 @main
 struct Momentus_Watch_AppApp: App {
+    init() {
+        UNUserNotificationCenter.current().delegate = WatchNotificationHandler.shared
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

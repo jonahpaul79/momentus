@@ -147,7 +147,7 @@ struct OnboardingView: View {
                     PermissionRow(
                         icon: "bell.fill",
                         title: "Notifications",
-                        description: "Notifies you when processing is complete",
+                        description: "Reminds you 1 minute before a meeting starts so you don't forget to record",
                         isGranted: notificationsGranted,
                         color: t.colors.accentWarning
                     ) {

@@ -8,7 +8,6 @@ import Foundation
 /// Production implementation: wrap `AVAudioSession` + `AVAudioRecorder`.
 /// Returns a `fileID` string (not a `URL`) so the storage layer controls paths.
 ///
-/// TODO: implement `AVAudioRecorderService` in `Services/Providers/`
 protocol RecordingService {
     /// Begin capture. Returns a stable ID for this recording session.
     func startRecording(mode: RecordingMode, source: MicSource) async throws -> UUID
@@ -93,8 +92,6 @@ protocol StorageService {
 /// Reads the user's calendar to suggest a meeting title when recording starts.
 /// Entirely optional — the UI degrades gracefully if access is denied.
 ///
-/// TODO: implement `EventKitCalendarService` using `EKEventStore`.
-/// Call `requestAccess()` during onboarding. Gate all reads behind the granted state.
 protocol CalendarContextService {
     /// Meetings that have already started and haven't ended.
     func getCurrentMeetings() async -> [CalendarMeeting]

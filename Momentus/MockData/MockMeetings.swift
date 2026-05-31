@@ -279,6 +279,13 @@ Let me know if I've missed anything.
                 endDate: now.addingTimeInterval(90 * 60),
                 attendees: ["Jonah", "Client"]
             ),
+            CalendarMeeting(
+                id: UUID(),
+                title: "Design review — onboarding flow",
+                startDate: now.addingTimeInterval(2 * 3600),
+                endDate: now.addingTimeInterval(2.5 * 3600),
+                attendees: ["Jonah", "Maya", "Jesse"]
+            ),
         ]
     }
 }

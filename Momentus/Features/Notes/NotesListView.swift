@@ -28,10 +28,17 @@ struct NotesListView: View {
                                 .padding(.vertical, t.spacing.xs)
                         }
                         .buttonStyle(PlainButtonStyle())
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                store.delete(recording)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
                 }
             }
-            .padding(.bottom, t.spacing.huge)
+            .padding(.bottom, t.spacing.hero + t.spacing.huge)
         }
         .background(t.colors.backgroundPrimary)
         .navigationTitle("Notes")
@@ -41,6 +48,11 @@ struct NotesListView: View {
             MeetingSummaryDetailView(recording: recording)
                 .environment(themeManager)
                 .environment(store)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .recordingProcessingCompleted)) { notification in
+            guard let id = notification.userInfo?["recordingId"] as? UUID,
+                  let recording = store.recording(for: id) else { return }
+            selectedRecording = recording
         }
     }
 

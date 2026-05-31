@@ -25,6 +25,7 @@ struct Recording: Identifiable, Codable, Equatable {
     var summary: MeetingSummary?
     var isFavorite: Bool
     var markers: [TimeInterval]
+    var calendarAttendees: [String]?
     var hasActionItems: Bool { (summary?.actionItems.isEmpty == false) }
     var actionItemCount: Int { summary?.actionItems.count ?? 0 }
     var duration: TimeInterval {
@@ -47,7 +48,8 @@ struct Recording: Identifiable, Codable, Equatable {
         transcript: Transcript? = nil,
         summary: MeetingSummary? = nil,
         isFavorite: Bool = false,
-        markers: [TimeInterval] = []
+        markers: [TimeInterval] = [],
+        calendarAttendees: [String]? = nil
     ) {
         self.id = id
         self.title = title
@@ -61,6 +63,7 @@ struct Recording: Identifiable, Codable, Equatable {
         self.summary = summary
         self.isFavorite = isFavorite
         self.markers = markers
+        self.calendarAttendees = calendarAttendees
     }
 }
 

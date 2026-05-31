@@ -20,6 +20,10 @@ struct WatchHomeView: View {
                 WatchSavedView(vm: vm)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .autoStartRecording)) { _ in
+            guard vm.recordingState == .idle else { return }
+            Task { await vm.startRecording() }
+        }
     }
 
     // MARK: - Idle View

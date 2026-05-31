@@ -1,7 +1,11 @@
+import AVFoundation
+import EventKit
 import SwiftUI
+import UserNotifications
 
 struct SettingsView: View {
     @Environment(ThemeManager.self) private var themeManager
+    @Environment(RecordingsStore.self) private var store
 
     @AppStorage("defaultRecordingMode") private var defaultModeRaw: String = RecordingMode.onDevice.rawValue
     @AppStorage("audioRetention") private var audioRetentionRaw: String = AudioRetentionPolicy.deleteAfterTranscript.rawValue
@@ -11,16 +15,14 @@ struct SettingsView: View {
     @AppStorage("iCloudSync") private var iCloudSync: Bool = false
 
     @State private var assemblyAIKey: String = ""
-    @State private var showAssemblyAIKey: Bool = false
     @State private var assemblyAIKeySaved: Bool = false
 
     @State private var claudeKey: String = ""
-    @State private var showClaudeKey: Bool = false
     @State private var claudeKeySaved: Bool = false
 
-    // Tracks which key field is focused so we can auto-save when the keyboard dismisses.
-    enum KeyField: Hashable { case assemblyAI, claude }
-    @FocusState private var focusedField: KeyField?
+    @State private var micPermission = AVAudioApplication.shared.recordPermission
+    @State private var calPermission = EKEventStore.authorizationStatus(for: .event)
+    @State private var notifStatus: UNAuthorizationStatus = .notDetermined
 
     private var defaultMode: RecordingMode {
         get { RecordingMode(rawValue: defaultModeRaw) ?? .onDevice }
@@ -39,6 +41,7 @@ struct SettingsView: View {
             bestQualitySection(t)
             claudeSection(t)
             privacySection(t)
+            permissionsSection(t)
             storageSection(t)
             providerSection(t)
             themeSection(t)
@@ -49,16 +52,9 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
-        .onAppear {
-            assemblyAIKey     = KeychainService.retrieve(.assemblyAIAPIKey) ?? ""
-            claudeKey         = KeychainService.retrieve(.anthropicAPIKey)  ?? ""
-            assemblyAIKeySaved = !assemblyAIKey.isEmpty
-            claudeKeySaved     = !claudeKey.isEmpty
-        }
-        .onChange(of: focusedField) { oldField, _ in
-            // Auto-save whichever field just lost focus
-            if oldField == .assemblyAI { saveAssemblyAIKey() }
-            if oldField == .claude     { saveClaudeKey() }
+        .onAppear { refreshPermissions(); loadKeys() }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            refreshPermissions()
         }
     }
 
@@ -95,6 +91,7 @@ struct SettingsView: View {
                         }
                     }
                     .padding(.vertical, t.spacing.xs)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
                 .listRowBackground(t.colors.surfacePrimary)
@@ -114,11 +111,11 @@ struct SettingsView: View {
         Section {
             apiKeyRow(
                 label: "AssemblyAI API Key",
-                placeholder: "Paste key…",
                 key: $assemblyAIKey,
-                show: $showAssemblyAIKey,
-                saved: assemblyAIKeySaved,
-                focusTag: KeyField.assemblyAI,
+                saved: $assemblyAIKeySaved,
+                onSave: { trimmed in
+                    assemblyAIKeySaved = KeychainService.store(trimmed, for: .assemblyAIAPIKey)
+                },
                 onRemove: {
                     assemblyAIKey = ""
                     KeychainService.delete(.assemblyAIAPIKey)
@@ -142,20 +139,12 @@ struct SettingsView: View {
         } header: {
             sectionHeader("Best Quality — Transcription (AssemblyAI)", t: t)
         } footer: {
-            Text("AssemblyAI transcribes your meetings with speaker labels. Audio is sent to AssemblyAI for processing. Transcripts are stored locally on your device only.\n\nKey saved automatically when you leave the field. Get a free key at assemblyai.com.")
+            Text("AssemblyAI transcribes your meetings with speaker labels. Audio is sent to AssemblyAI for processing. Transcripts are stored locally on your device only.\n\nCopy your key from assemblyai.com, then tap the row above to paste it.")
                 .font(t.typography.caption)
                 .foregroundStyle(t.colors.textTertiary)
         }
     }
 
-    private func saveAssemblyAIKey() {
-        let trimmed = assemblyAIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        assemblyAIKey = trimmed
-        let ok = KeychainService.store(trimmed, for: .assemblyAIAPIKey)
-        assemblyAIKeySaved = ok
-        print("[Settings] AssemblyAI key save: \(ok ? "success" : "FAILED")")
-    }
 
     // MARK: - Claude / Summary Section
 
@@ -163,11 +152,11 @@ struct SettingsView: View {
         Section {
             apiKeyRow(
                 label: "Anthropic API Key",
-                placeholder: "Paste key…",
                 key: $claudeKey,
-                show: $showClaudeKey,
-                saved: claudeKeySaved,
-                focusTag: KeyField.claude,
+                saved: $claudeKeySaved,
+                onSave: { trimmed in
+                    claudeKeySaved = KeychainService.store(trimmed, for: .anthropicAPIKey)
+                },
                 onRemove: {
                     claudeKey = ""
                     KeychainService.delete(.anthropicAPIKey)
@@ -197,90 +186,83 @@ struct SettingsView: View {
         } header: {
             sectionHeader("Best Quality — Summary (Claude Sonnet)", t: t)
         } footer: {
-            Text("Claude Sonnet generates structured meeting notes from the transcript. Only transcript text is sent to Anthropic — audio never leaves your device.\n\nAssemblyAI LeMUR is used automatically if no Claude key is set. Notes are stored locally only.\n\nKey saved automatically when you leave the field. Get a key at console.anthropic.com.")
+            Text("Claude Sonnet generates structured meeting notes from the transcript. Only transcript text is sent to Anthropic — audio never leaves your device.\n\nAssemblyAI LeMUR is used automatically if no Claude key is set. Notes are stored locally only.\n\nCopy your key from console.anthropic.com, then tap the row above to paste it.")
                 .font(t.typography.caption)
                 .foregroundStyle(t.colors.textTertiary)
         }
     }
 
-    private func saveClaudeKey() {
-        let trimmed = claudeKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        claudeKey = trimmed
-        let ok = KeychainService.store(trimmed, for: .anthropicAPIKey)
-        claudeKeySaved = ok
-        print("[Settings] Claude key save: \(ok ? "success" : "FAILED")")
-    }
-
     // MARK: - Shared API Key Row
 
-    /// Full-width, 44pt-minimum key entry row. Saves automatically on Return or focus loss.
     @ViewBuilder
     private func apiKeyRow(
         label: String,
-        placeholder: String,
         key: Binding<String>,
-        show: Binding<Bool>,
-        saved: Bool,
-        focusTag: KeyField,
+        saved: Binding<Bool>,
+        onSave: @escaping (String) -> Void,
         onRemove: @escaping () -> Void,
         t: AppTheme
     ) -> some View {
-        // Label + status/remove on one row
-        HStack {
-            Text(label)
-                .font(t.typography.headlineSmall)
-                .foregroundStyle(t.colors.textPrimary)
-            Spacer()
-            if saved {
+        if saved.wrappedValue {
+            HStack(spacing: t.spacing.m) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(label)
+                        .font(t.typography.headlineSmall)
+                        .foregroundStyle(t.colors.textPrimary)
+                    Text(maskedKey(key.wrappedValue))
+                        .font(.system(.callout, design: .monospaced))
+                        .foregroundStyle(t.colors.textSecondary)
+                }
+                Spacer()
                 Label("Saved", systemImage: "checkmark.circle.fill")
-                    .font(t.typography.caption)
+                    .font(t.typography.labelLarge)
                     .foregroundStyle(t.colors.accentSuccess)
-            } else if !key.wrappedValue.isEmpty {
-                Button("Remove") {
+            }
+            .padding(.vertical, t.spacing.s)
+            .listRowBackground(t.colors.surfacePrimary)
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button(role: .destructive) {
                     onRemove()
-                    HapticStyle.light.trigger()
+                    HapticStyle.medium.trigger()
+                } label: {
+                    Label("Delete", systemImage: "trash")
                 }
-                .font(t.typography.caption)
-                .foregroundStyle(t.colors.accentError)
-                .buttonStyle(PlainButtonStyle())
+                .tint(.red)
             }
-        }
-        .listRowBackground(t.colors.surfacePrimary)
-
-        // Text field row — full width with a guaranteed 44pt tap target
-        HStack(spacing: t.spacing.s) {
-            Group {
-                if show.wrappedValue {
-                    TextField(placeholder, text: key)
-                        .focused($focusedField, equals: focusTag)
-                } else {
-                    SecureField(placeholder, text: key)
-                        .focused($focusedField, equals: focusTag)
-                }
-            }
-            .autocorrectionDisabled()
-            .textInputAutocapitalization(.never)
-            .font(.system(.callout, design: .monospaced))
-            .foregroundStyle(t.colors.textPrimary)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .onSubmit {
-                if focusTag == .assemblyAI { saveAssemblyAIKey() }
-                if focusTag == .claude     { saveClaudeKey() }
-            }
-
+        } else {
             Button {
-                show.wrappedValue.toggle()
+                guard let pasted = UIPasteboard.general.string?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                      !pasted.isEmpty else { return }
+                key.wrappedValue = pasted
+                onSave(pasted)
+                HapticStyle.light.trigger()
             } label: {
-                Image(systemName: show.wrappedValue ? "eye.slash" : "eye")
-                    .font(.system(size: 18))
-                    .foregroundStyle(t.colors.textSecondary)
-                    .frame(width: 44, height: 44)
+                HStack(spacing: t.spacing.m) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(label)
+                            .font(t.typography.headlineSmall)
+                            .foregroundStyle(t.colors.textPrimary)
+                        Text("Tap to paste from clipboard")
+                            .font(t.typography.bodySmall)
+                            .foregroundStyle(t.colors.textTertiary)
+                    }
+                    Spacer()
+                    Image(systemName: "doc.on.clipboard")
+                        .font(.system(size: 22))
+                        .foregroundStyle(t.colors.accentPrimary)
+                }
+                .padding(.vertical, t.spacing.m)
+                .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
+            .listRowBackground(t.colors.surfacePrimary)
         }
-        .listRowBackground(t.colors.surfacePrimary)
-        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 8))
+    }
+
+    private func maskedKey(_ key: String) -> String {
+        guard key.count > 6 else { return String(repeating: "•", count: key.count) }
+        return String(key.prefix(6)) + "••••••••••••"
     }
 
     // MARK: - Privacy Section
@@ -330,27 +312,37 @@ struct SettingsView: View {
                 Label("Storage", systemImage: "internaldrive")
                     .foregroundStyle(t.colors.textPrimary)
                 Spacer()
-                Text("Local only")
+                Text("Local")
                     .font(t.typography.bodySmall)
                     .foregroundStyle(t.colors.textSecondary)
             }
             .listRowBackground(t.colors.surfacePrimary)
 
-            HStack {
-                Label("iCloud Sync", systemImage: "icloud")
-                    .foregroundStyle(t.colors.textSecondary)
-                Spacer()
-                Text("Coming soon")
-                    .font(t.typography.caption)
-                    .foregroundStyle(t.colors.textTertiary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(t.colors.surfaceSecondary)
-                    .clipShape(Capsule())
+            Toggle(isOn: $iCloudSync) {
+                HStack(spacing: t.spacing.s) {
+                    Label("iCloud Sync", systemImage: "icloud")
+                        .foregroundStyle(t.colors.textPrimary)
+                    if store.isSyncing {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .tint(t.colors.accentPrimary)
+                    }
+                }
             }
+            .tint(t.colors.accentPrimary)
             .listRowBackground(t.colors.surfacePrimary)
+            .onChange(of: iCloudSync) { _, enabled in
+                if enabled { Task { await store.enableCloudSync() } }
+            }
+
         } header: {
             sectionHeader("Storage", t: t)
+        } footer: {
+            Text(iCloudSync
+                 ? "Notes and transcripts sync across your devices via iCloud. Audio files are not synced."
+                 : "Enable to sync notes and transcripts across your devices.")
+                .font(t.typography.caption)
+                .foregroundStyle(t.colors.textTertiary)
         }
     }
 
@@ -449,6 +441,7 @@ struct SettingsView: View {
                                 .font(.system(size: 14, weight: .semibold))
                         }
                     }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
                 .listRowBackground(t.colors.surfacePrimary)
@@ -498,7 +491,121 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Permissions Section
+
+    private func permissionsSection(_ t: AppTheme) -> some View {
+        Section {
+            permissionRow(
+                icon: "mic.fill",
+                title: "Microphone",
+                description: "Required to record meetings",
+                isGranted: micPermission == .granted,
+                isDenied: micPermission == .denied,
+                t: t
+            ) {
+                Task {
+                    _ = await AVAudioApplication.requestRecordPermission()
+                    micPermission = AVAudioApplication.shared.recordPermission
+                }
+            }
+
+            permissionRow(
+                icon: "calendar",
+                title: "Calendar",
+                description: "Suggests meeting titles from your schedule",
+                isGranted: calPermission == .fullAccess,
+                isDenied: calPermission == .denied || calPermission == .restricted,
+                t: t
+            ) {
+                Task {
+                    _ = try? await EKEventStore().requestFullAccessToEvents()
+                    calPermission = EKEventStore.authorizationStatus(for: .event)
+                }
+            }
+
+            permissionRow(
+                icon: "bell.fill",
+                title: "Notifications",
+                description: "Reminds you 1 minute before meetings start",
+                isGranted: notifStatus == .authorized || notifStatus == .provisional,
+                isDenied: notifStatus == .denied,
+                t: t
+            ) {
+                Task {
+                    _ = await MeetingNotificationService.shared.requestAuthorization()
+                    notifStatus = await MeetingNotificationService.shared.authorizationStatus()
+                }
+            }
+        } header: {
+            sectionHeader("Permissions", t: t)
+        } footer: {
+            Text("Denied permissions can only be changed in iOS Settings.")
+                .font(t.typography.caption)
+                .foregroundStyle(t.colors.textTertiary)
+        }
+    }
+
+    @ViewBuilder
+    private func permissionRow(
+        icon: String,
+        title: String,
+        description: String,
+        isGranted: Bool,
+        isDenied: Bool,
+        t: AppTheme,
+        onRequest: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: t.spacing.m) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundStyle(isGranted ? t.colors.accentSuccess : t.colors.accentPrimary)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(t.typography.headlineSmall)
+                    .foregroundStyle(t.colors.textPrimary)
+                Text(description)
+                    .font(t.typography.caption)
+                    .foregroundStyle(t.colors.textSecondary)
+            }
+            Spacer()
+            if isGranted {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(t.colors.accentSuccess)
+                    .font(.system(size: 18))
+            } else if isDenied {
+                Button("Open Settings") {
+                    guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                    UIApplication.shared.open(url)
+                }
+                .font(t.typography.caption)
+                .foregroundStyle(t.colors.accentPrimary)
+                .buttonStyle(PlainButtonStyle())
+            } else {
+                Button("Allow") { onRequest() }
+                    .font(t.typography.caption)
+                    .foregroundStyle(t.colors.accentPrimary)
+                    .buttonStyle(PlainButtonStyle())
+            }
+        }
+        .padding(.vertical, t.spacing.xs)
+        .listRowBackground(t.colors.surfacePrimary)
+    }
+
     // MARK: - Helpers
+
+    private func loadKeys() {
+        assemblyAIKey      = KeychainService.retrieve(.assemblyAIAPIKey) ?? ""
+        claudeKey          = KeychainService.retrieve(.anthropicAPIKey)  ?? ""
+        assemblyAIKeySaved = !assemblyAIKey.isEmpty
+        claudeKeySaved     = !claudeKey.isEmpty
+    }
+
+    private func refreshPermissions() {
+        micPermission = AVAudioApplication.shared.recordPermission
+        calPermission = EKEventStore.authorizationStatus(for: .event)
+        Task { notifStatus = await MeetingNotificationService.shared.authorizationStatus() }
+    }
 
     private func sectionHeader(_ title: String, t: AppTheme) -> some View {
         Text(title)
@@ -521,5 +628,6 @@ struct SettingsView: View {
         SettingsView()
     }
     .environment(ThemeManager())
+    .environment(RecordingsStore(loadSamples: false))
     .preferredColorScheme(.dark)
 }

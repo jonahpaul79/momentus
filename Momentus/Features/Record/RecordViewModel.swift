@@ -1,5 +1,10 @@
 import SwiftUI
 
+extension Notification.Name {
+    static let recordingProcessingCompleted = Notification.Name("recordingProcessingCompleted")
+    static let autoStartRecording = Notification.Name("autoStartRecording")
+}
+
 /// Drives the entire record → process → save flow.
 ///
 /// **Lifecycle:** created as `@State` in `RecordHomeView`, receives `RecordingsStore`
@@ -31,7 +36,8 @@ import SwiftUI
 
     var state: State = .idle
     var elapsedTime: TimeInterval = 0
-    var waveformLevels: [Float] = Array(repeating: 0.1, count: 20)
+    var waveformLevels: [Float] = Array(repeating: 0.1, count: 24)
+    var markerHighlightedBars: Set<Int> = []
     var selectedMode: RecordingMode = {
         guard let raw = UserDefaults.standard.string(forKey: "defaultRecordingMode"),
               let mode = RecordingMode(rawValue: raw) else { return .onDevice }
@@ -44,7 +50,9 @@ import SwiftUI
     var errorMessage: String?
     var currentRecordingId: UUID?
     var suggestedMeetingTitle: String?
+    var suggestedSpeakers: [String] = []
     var calendarMeeting: CalendarMeeting?
+    var upcomingMeetings: [CalendarMeeting] = []
     var markers: [TimeInterval] = []
 
     var isActive: Bool {
@@ -71,7 +79,7 @@ import SwiftUI
         recordingService: any RecordingService = AVAudioRecorderService(),
         transcriptionService: any TranscriptionService = AppleSpeechTranscriptionService(),
         summaryService: any SummaryService = AppleFoundationModelsSummaryService(),
-        calendarService: any CalendarContextService = MockCalendarContextService(isDemoMode: UserDefaults.standard.bool(forKey: "demoMode"))
+        calendarService: any CalendarContextService = UserDefaults.standard.bool(forKey: "demoMode") ? MockCalendarContextService(isDemoMode: true) : EventKitCalendarService()
     ) {
         self.recordingService = recordingService
         self.transcriptionService = transcriptionService
@@ -118,15 +126,13 @@ import SwiftUI
     // MARK: Calendar Context
 
     func loadCalendarContext() async {
-        let meetings = await calendarService.getCurrentMeetings()
-        if let meeting = meetings.first {
-            calendarMeeting = meeting
-            suggestedMeetingTitle = meeting.title
-        } else {
-            let upcoming = await calendarService.getUpcomingMeetings()
-            calendarMeeting = upcoming.first
-            suggestedMeetingTitle = upcoming.first?.title
-        }
+        let current = await calendarService.getCurrentMeetings()
+        let upcoming = await calendarService.getUpcomingMeetings()
+        upcomingMeetings = current + upcoming
+        let primary = current.first ?? upcoming.first
+        calendarMeeting = primary
+        suggestedMeetingTitle = primary?.title
+        await MeetingNotificationService.shared.scheduleReminders(for: upcoming)
     }
 
     // MARK: Recording Control
@@ -177,6 +183,7 @@ import SwiftUI
         let marker = max(0, elapsedTime)
         addMarker(at: marker)
         HapticStyle.medium.trigger()
+        markerHighlightedBars.insert(waveformLevels.count - 1)
     }
 
     func stopRecording() async {
@@ -196,7 +203,8 @@ import SwiftUI
             mode: selectedMode,
             micSource: selectedMicSource,
             processingState: .savingAudio,
-            markers: markers
+            markers: markers,
+            calendarAttendees: suggestedSpeakers.isEmpty ? nil : suggestedSpeakers
         )
         store?.add(recording)
 
@@ -221,6 +229,9 @@ import SwiftUI
                 recordingId: recordingId
             )
             transcript.providerData["momentus_markers"] = markers.map { String(format: "%.1f", $0) }.joined(separator: ",")
+            if !suggestedSpeakers.isEmpty {
+                transcript.providerData["momentus_attendees"] = suggestedSpeakers.joined(separator: ",")
+            }
             print("[Pipeline] transcription done — \(transcript.segments.count) segments")
             recording.transcript = transcript
             recording.processingState = .summarizing
@@ -250,7 +261,13 @@ import SwiftUI
             HapticStyle.success.trigger()
             state = .completed
 
-            try await Task.sleep(for: .seconds(2))
+            try await Task.sleep(for: .milliseconds(700))
+            NotificationCenter.default.post(
+                name: .recordingProcessingCompleted,
+                object: nil,
+                userInfo: ["recordingId": recordingId]
+            )
+            try await Task.sleep(for: .milliseconds(1300))
             reset()
 
         } catch {
@@ -295,12 +312,16 @@ import SwiftUI
     private func startWaveformTimer() {
         waveformTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(200))
+                try? await Task.sleep(for: .milliseconds(100))
                 guard !Task.isCancelled, let self else { break }
                 var newLevels = self.waveformLevels
                 newLevels.removeFirst()
                 newLevels.append(recordingService.getCurrentLevel())
                 self.waveformLevels = newLevels
+                self.markerHighlightedBars = Set(self.markerHighlightedBars.compactMap { idx in
+                    let shifted = idx - 1
+                    return shifted >= 0 ? shifted : nil
+                })
             }
         }
     }
@@ -310,10 +331,12 @@ import SwiftUI
     private func reset() {
         state = .idle
         elapsedTime = 0
-        waveformLevels = Array(repeating: 0.1, count: 20)
+        waveformLevels = Array(repeating: 0.1, count: 24)
+        markerHighlightedBars = []
         markers = []
         currentRecordingId = nil
         processingStepIndex = 0
+        suggestedSpeakers = []
     }
 
     private func titleFromTime() -> String {

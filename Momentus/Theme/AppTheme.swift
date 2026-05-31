@@ -55,17 +55,17 @@ struct ThemeTypography {
         displayLarge: .system(size: 34, weight: .bold),
         displayMedium: .system(size: 28, weight: .bold),
         headlineLarge: .system(size: 22, weight: .bold),
-        headlineMedium: .system(size: 17, weight: .semibold),
-        headlineSmall: .system(size: 15, weight: .semibold),
+        headlineMedium: .system(size: 18, weight: .semibold),
+        headlineSmall: .system(size: 16, weight: .semibold),
         bodyLarge: .system(size: 17, weight: .regular),
-        bodyMedium: .system(size: 15, weight: .regular),
-        bodySmall: .system(size: 13, weight: .regular),
-        labelLarge: .system(size: 12, weight: .medium),
-        labelMedium: .system(size: 11, weight: .medium),
-        labelSmall: .system(size: 10, weight: .medium),
+        bodyMedium: .system(size: 16, weight: .regular),
+        bodySmall: .system(size: 14, weight: .regular),
+        labelLarge: .system(size: 14, weight: .medium),
+        labelMedium: .system(size: 13, weight: .medium),
+        labelSmall: .system(size: 12, weight: .medium),
         timer: .system(size: 64, weight: .thin, design: .monospaced),
         timerSmall: .system(size: 28, weight: .thin, design: .monospaced),
-        caption: .system(size: 11, weight: .regular)
+        caption: .system(size: 13, weight: .regular)
     )
 }
 
@@ -136,6 +136,7 @@ struct ThemeGradients {
 
 struct AppTheme {
     let name: String
+    let colorScheme: ColorScheme
     let colors: ThemeColors
     let typography: ThemeTypography
     let spacing: ThemeSpacing
@@ -209,6 +210,7 @@ extension AppTheme {
 
         return AppTheme(
             name: "Midnight Indigo",
+            colorScheme: .dark,
             colors: colors,
             typography: .default,
             spacing: .default,
@@ -280,6 +282,151 @@ extension AppTheme {
 
         return AppTheme(
             name: "Graphite Crimson",
+            colorScheme: .dark,
+            colors: colors,
+            typography: .default,
+            spacing: .default,
+            radius: .default,
+            shadows: shadows,
+            gradients: gradients
+        )
+    }()
+
+    static let electricLime: AppTheme = {
+        let lime = Color(red: 0.40, green: 0.65, blue: 0.0)            // #66A600 — electric lime (darkened for white text contrast)
+        let recordingAmber = Color(red: 1.0, green: 0.502, blue: 0.0) // #FF8000 — amber for live recording
+
+        let colors = ThemeColors(
+            backgroundPrimary:  Color(red: 0.039, green: 0.055, blue: 0.027),
+            backgroundSecondary: Color(red: 0.055, green: 0.075, blue: 0.039),
+            surfacePrimary:     Color(red: 0.082, green: 0.110, blue: 0.055),
+            surfaceSecondary:   Color(red: 0.110, green: 0.145, blue: 0.075),
+            surfaceTertiary:    Color(red: 0.137, green: 0.180, blue: 0.094),
+            accentPrimary:      lime,
+            accentSecondary:    Color(red: 0.0, green: 0.902, blue: 0.502),    // neon mint
+            accentRecording:    recordingAmber,
+            accentSuccess:      Color(red: 0.549, green: 0.902, blue: 0.0),
+            accentWarning:      Color(red: 1.0, green: 0.780, blue: 0.0),
+            accentError:        Color(red: 1.0, green: 0.255, blue: 0.255),
+            textPrimary:        Color(red: 0.922, green: 0.961, blue: 0.859),
+            textSecondary:      Color(red: 0.490, green: 0.569, blue: 0.376),
+            textTertiary:       Color(red: 0.318, green: 0.376, blue: 0.243),
+            textOnAccent:       .white,
+            textPlaceholder:    Color(red: 0.318, green: 0.376, blue: 0.243).opacity(0.7),
+            divider:            Color.white.opacity(0.08),
+            border:             Color.white.opacity(0.10),
+            borderStrong:       Color.white.opacity(0.20),
+            overlay:            Color.black.opacity(0.5),
+            scrim:              Color.black.opacity(0.75)
+        )
+
+        let shadows = ThemeShadow(
+            card:      .init(color: .black.opacity(0.35), radius: 12, x: 0, y: 4),
+            elevated:  .init(color: .black.opacity(0.45), radius: 20, x: 0, y: 8),
+            recording: .init(color: recordingAmber.opacity(0.50), radius: 32, x: 0, y: 0),
+            modal:     .init(color: .black.opacity(0.60), radius: 40, x: 0, y: -4)
+        )
+
+        let gradients = ThemeGradients(
+            recordingGlow: RadialGradient(
+                colors: [recordingAmber.opacity(0.30), .clear],
+                center: .center, startRadius: 55, endRadius: 140
+            ),
+            heroBackground: LinearGradient(
+                colors: [
+                    Color(red: 0.039, green: 0.055, blue: 0.027),
+                    Color(red: 0.055, green: 0.082, blue: 0.035)
+                ],
+                startPoint: .top, endPoint: .bottom
+            ),
+            activeRecording: LinearGradient(
+                colors: [
+                    Color(red: 0.071, green: 0.055, blue: 0.027),
+                    Color(red: 0.039, green: 0.055, blue: 0.027)
+                ],
+                startPoint: .top, endPoint: .bottom
+            ),
+            cardAccent: LinearGradient(
+                colors: [lime.opacity(0.07), .clear],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+        )
+
+        return AppTheme(
+            name: "Electric Lime",
+            colorScheme: .dark,
+            colors: colors,
+            typography: .default,
+            spacing: .default,
+            radius: .default,
+            shadows: shadows,
+            gradients: gradients
+        )
+    }()
+
+    static let daylightIndigo: AppTheme = {
+        let indigo = Color(red: 0.337, green: 0.290, blue: 0.898)        // vivid indigo
+        let recordingRed = Color(red: 0.937, green: 0.231, blue: 0.380)  // coral red
+
+        let colors = ThemeColors(
+            backgroundPrimary:   Color(red: 0.949, green: 0.949, blue: 0.969),
+            backgroundSecondary: Color(red: 0.929, green: 0.929, blue: 0.953),
+            surfacePrimary:      .white,
+            surfaceSecondary:    Color(red: 0.957, green: 0.957, blue: 0.980),
+            surfaceTertiary:     Color(red: 0.929, green: 0.929, blue: 0.961),
+            accentPrimary:       indigo,
+            accentSecondary:     Color(red: 0.439, green: 0.678, blue: 0.980), // sky blue
+            accentRecording:     recordingRed,
+            accentSuccess:       Color(red: 0.196, green: 0.659, blue: 0.416),
+            accentWarning:       Color(red: 0.918, green: 0.612, blue: 0.0),
+            accentError:         Color(red: 0.863, green: 0.200, blue: 0.200),
+            textPrimary:         Color(red: 0.086, green: 0.082, blue: 0.149),
+            textSecondary:       Color(red: 0.376, green: 0.369, blue: 0.518),
+            textTertiary:        Color(red: 0.573, green: 0.569, blue: 0.682),
+            textOnAccent:        .white,
+            textPlaceholder:     Color(red: 0.573, green: 0.569, blue: 0.682).opacity(0.7),
+            divider:             Color.black.opacity(0.08),
+            border:              Color.black.opacity(0.10),
+            borderStrong:        Color.black.opacity(0.22),
+            overlay:             Color.black.opacity(0.35),
+            scrim:               Color.black.opacity(0.55)
+        )
+
+        let shadows = ThemeShadow(
+            card:      .init(color: indigo.opacity(0.10), radius: 12, x: 0, y: 4),
+            elevated:  .init(color: indigo.opacity(0.16), radius: 20, x: 0, y: 8),
+            recording: .init(color: recordingRed.opacity(0.35), radius: 32, x: 0, y: 0),
+            modal:     .init(color: .black.opacity(0.20), radius: 40, x: 0, y: -4)
+        )
+
+        let gradients = ThemeGradients(
+            recordingGlow: RadialGradient(
+                colors: [recordingRed.opacity(0.18), .clear],
+                center: .center, startRadius: 55, endRadius: 140
+            ),
+            heroBackground: LinearGradient(
+                colors: [
+                    Color(red: 0.949, green: 0.949, blue: 0.969),
+                    Color(red: 0.929, green: 0.941, blue: 0.984)
+                ],
+                startPoint: .top, endPoint: .bottom
+            ),
+            activeRecording: LinearGradient(
+                colors: [
+                    Color(red: 0.980, green: 0.945, blue: 0.953),
+                    Color(red: 0.949, green: 0.949, blue: 0.969)
+                ],
+                startPoint: .top, endPoint: .bottom
+            ),
+            cardAccent: LinearGradient(
+                colors: [indigo.opacity(0.06), .clear],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+        )
+
+        return AppTheme(
+            name: "Daylight Indigo",
+            colorScheme: .light,
             colors: colors,
             typography: .default,
             spacing: .default,
@@ -298,20 +445,26 @@ extension AppTheme {
 enum ThemePreset: String, CaseIterable, Identifiable {
     case midnightIndigo
     case graphiteCrimson
+    case electricLime
+    case daylightIndigo
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .midnightIndigo: return "Midnight Indigo"
+        case .midnightIndigo:  return "Midnight Indigo"
         case .graphiteCrimson: return "Graphite Crimson"
+        case .electricLime:    return "Electric Lime"
+        case .daylightIndigo:  return "Daylight Indigo"
         }
     }
 
     var theme: AppTheme {
         switch self {
-        case .midnightIndigo: return .midnightIndigo
+        case .midnightIndigo:  return .midnightIndigo
         case .graphiteCrimson: return .graphiteCrimson
+        case .electricLime:    return .electricLime
+        case .daylightIndigo:  return .daylightIndigo
         }
     }
 
@@ -321,6 +474,10 @@ enum ThemePreset: String, CaseIterable, Identifiable {
             return (Color(red: 0.051, green: 0.051, blue: 0.071), Color(red: 0.424, green: 0.388, blue: 1.0))
         case .graphiteCrimson:
             return (Color(red: 0.059, green: 0.059, blue: 0.059), Color(red: 0.898, green: 0.243, blue: 0.243))
+        case .electricLime:
+            return (Color(red: 0.039, green: 0.055, blue: 0.027), Color(red: 0.749, green: 1.0, blue: 0.0))
+        case .daylightIndigo:
+            return (Color(red: 0.949, green: 0.949, blue: 0.969), Color(red: 0.337, green: 0.290, blue: 0.898))
         }
     }
 }

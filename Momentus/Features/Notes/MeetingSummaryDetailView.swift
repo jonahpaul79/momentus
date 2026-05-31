@@ -9,6 +9,7 @@ struct MeetingSummaryDetailView: View {
     @State private var showShareSheet = false
     @State private var exportedText = ""
     @State private var playbackSeekTime: TimeInterval?
+    @State private var speakerAssignments: [UUID: String] = [:]
     @Environment(\.dismiss) private var dismiss
     @AppStorage("audioRetention") private var audioRetentionRaw: String = AudioRetentionPolicy.deleteAfterTranscript.rawValue
 
@@ -54,7 +55,7 @@ struct MeetingSummaryDetailView: View {
                             )
                         }
                         Divider()
-                        Button(role: .destructive) { store.delete(id: recording.id); dismiss() } label: {
+                        Button(role: .destructive) { store.delete(recording); dismiss() } label: {
                             Label("Delete recording", systemImage: "trash")
                         }
                     } label: {
@@ -115,6 +116,12 @@ struct MeetingSummaryDetailView: View {
 
     private func summaryContent(_ summary: MeetingSummary, t: AppTheme) -> some View {
         VStack(alignment: .leading, spacing: t.spacing.l) {
+            if let attendees = recording.calendarAttendees,
+               !attendees.isEmpty,
+               let speakers = recording.transcript?.speakers.filter(\.isNameInferred),
+               !speakers.isEmpty {
+                speakerIdentificationCard(speakers: speakers, attendees: attendees, t: t)
+            }
             executiveSummaryCard(summary, t: t)
             if !summary.markedMoments.isEmpty { markedMomentsSection(summary.markedMoments, t: t) }
             if !summary.decisions.isEmpty { decisionsSection(summary.decisions, t: t) }
@@ -232,6 +239,89 @@ struct MeetingSummaryDetailView: View {
                 .font(t.typography.labelSmall)
                 .foregroundStyle(t.colors.textSecondary)
         }
+    }
+
+    // MARK: - Speaker Identification
+
+    private func speakerIdentificationCard(speakers: [Speaker], attendees: [String], t: AppTheme) -> some View {
+        VStack(alignment: .leading, spacing: t.spacing.m) {
+            HStack(spacing: t.spacing.s) {
+                Image(systemName: "person.2.wave.2")
+                    .font(.system(size: 13))
+                    .foregroundStyle(t.colors.accentPrimary)
+                Text("IDENTIFY SPEAKERS")
+                    .font(t.typography.labelLarge)
+                    .foregroundStyle(t.colors.textSecondary)
+                    .tracking(0.6)
+                Spacer()
+                Button("Apply") {
+                    applySpeakerAssignments()
+                }
+                .font(t.typography.labelLarge)
+                .foregroundStyle(speakerAssignments.isEmpty ? t.colors.textTertiary : t.colors.accentPrimary)
+                .disabled(speakerAssignments.isEmpty)
+            }
+
+            Text("Match each unidentified voice to someone from the invite.")
+                .font(t.typography.bodySmall)
+                .foregroundStyle(t.colors.textSecondary)
+
+            VStack(spacing: 0) {
+                ForEach(Array(speakers.enumerated()), id: \.element.id) { index, speaker in
+                    HStack {
+                        Text(speaker.name)
+                            .font(t.typography.bodyMedium)
+                            .foregroundStyle(t.colors.textPrimary)
+                        Spacer()
+                        Menu {
+                            ForEach(attendees, id: \.self) { attendee in
+                                Button(attendee) {
+                                    speakerAssignments[speaker.id] = attendee
+                                }
+                            }
+                            Divider()
+                            Button("Leave as \(speaker.name)") {
+                                speakerAssignments.removeValue(forKey: speaker.id)
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(speakerAssignments[speaker.id] ?? "Who is this?")
+                                    .font(t.typography.bodyMedium)
+                                    .foregroundStyle(speakerAssignments[speaker.id] != nil
+                                        ? t.colors.accentPrimary
+                                        : t.colors.textTertiary)
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(t.colors.textTertiary)
+                            }
+                        }
+                    }
+                    .padding(.vertical, t.spacing.m)
+
+                    if index < speakers.count - 1 {
+                        Divider()
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(t.spacing.l)
+        .surfaceCard()
+        .environment(themeManager)
+    }
+
+    private func applySpeakerAssignments() {
+        guard !speakerAssignments.isEmpty else { return }
+        var updated = recording
+        for (speakerId, name) in speakerAssignments {
+            guard let idx = updated.transcript?.speakers.firstIndex(where: { $0.id == speakerId }) else { continue }
+            updated.transcript?.speakers[idx].name = name
+            updated.transcript?.speakers[idx].isNameInferred = false
+        }
+        recording = updated
+        store.update(updated)
+        speakerAssignments = [:]
+        HapticStyle.success.trigger()
     }
 
     // MARK: - Executive Summary
@@ -692,8 +782,14 @@ struct AudioPlayerView: View {
 
     var body: some View {
         let t = themeManager.currentTheme
+        let progress = duration > 0 ? currentTime / duration : 0
         VStack(spacing: t.spacing.s) {
-            StaticWaveformView(seed: seed, color: t.colors.accentPrimary, height: 28)
+            PlaybackWaveformView(
+                seed: seed,
+                progress: progress,
+                playedColor: t.colors.accentPrimary,
+                unplayedColor: t.colors.accentPrimary
+            )
 
             Slider(value: $currentTime, in: 0...max(duration, 1)) { editing in
                 isDragging = editing
@@ -717,7 +813,7 @@ struct AudioPlayerView: View {
 
                 Button { togglePlayback() } label: {
                     Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                        .font(.system(size: 36))
+                        .font(.system(size: 52))
                         .foregroundStyle(player != nil ? t.colors.accentPrimary : t.colors.textTertiary)
                 }
                 .buttonStyle(PlainButtonStyle())
