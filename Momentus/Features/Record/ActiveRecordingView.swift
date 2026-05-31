@@ -107,9 +107,9 @@ struct ActiveRecordingView: View {
 
     private func waveformSection(_ t: AppTheme) -> some View {
         WaveformView(
-            levels: vm.state == .recording ? vm.waveformLevels : Array(repeating: 0.05, count: 40),
+            levels: vm.state == .recording ? vm.waveformLevels : Array(repeating: 0.05, count: 20),
             color: vm.state == .recording
-                ? t.colors.accentRecording.opacity(0.85)
+                ? t.colors.accentPrimary.opacity(0.85)
                 : t.colors.textTertiary
         )
         .frame(height: 56)

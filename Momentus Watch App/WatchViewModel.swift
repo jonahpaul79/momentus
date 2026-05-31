@@ -1,5 +1,6 @@
 import SwiftUI
 import WatchConnectivity
+import WatchKit
 
 enum WatchRecordingState: Equatable {
     case idle
@@ -14,7 +15,7 @@ enum WatchRecordingState: Equatable {
     var elapsedTime: TimeInterval = 0
     var micTarget: MicTarget = .iPhone
     var selectedMode: WatchRecordingMode = .onDevice
-    var waveformLevels: [Float] = Array(repeating: 0.1, count: 40)
+    var waveformLevels: [Float] = Array(repeating: 0.1, count: 20)
     var isConnectedToPhone = false
     var markers: [TimeInterval] = []
 
@@ -26,6 +27,7 @@ enum WatchRecordingState: Equatable {
 
     private var timerTask: Task<Void, Never>?
     private var waveformTask: Task<Void, Never>?
+    private var extendedRuntimeSession: WKExtendedRuntimeSession?
 
     override init() {
         super.init()
@@ -39,6 +41,9 @@ enum WatchRecordingState: Equatable {
         recordingState = .recording
         elapsedTime = 0
         markers = []
+        let session = WKExtendedRuntimeSession()
+        session.start()
+        extendedRuntimeSession = session
         startTimers()
         sendToPhone(["action": "startRecording", "mode": selectedMode.rawValue])
     }
@@ -46,6 +51,8 @@ enum WatchRecordingState: Equatable {
     func stopRecording() async {
         guard recordingState == .recording || recordingState == .paused else { return }
         stopTimers()
+        extendedRuntimeSession?.invalidate()
+        extendedRuntimeSession = nil
         sendToPhone(["action": "stopRecording"])
         recordingState = .processing
         // Simulate phone processing acknowledgment
@@ -95,7 +102,7 @@ enum WatchRecordingState: Equatable {
         stopWaveformTimer()
         waveformTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(80))
+                try? await Task.sleep(for: .milliseconds(200))
                 guard !Task.isCancelled, let self else { break }
                 var levels = self.waveformLevels
                 levels.removeFirst()

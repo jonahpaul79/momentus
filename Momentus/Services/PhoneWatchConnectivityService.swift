@@ -8,13 +8,13 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
 
     private override init() {
         super.init()
+        guard WCSession.isSupported() else { return }
+        WCSession.default.delegate = self
+        WCSession.default.activate()
     }
 
     func configure(actionHandler: @escaping (String, TimeInterval?, String?) -> Void) {
         self.actionHandler = actionHandler
-        guard WCSession.isSupported() else { return }
-        WCSession.default.delegate = self
-        WCSession.default.activate()
     }
 
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {

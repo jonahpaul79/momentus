@@ -14,8 +14,10 @@ enum SummaryPrompts {
         3. Names, dates, and owners only appear if explicitly spoken.
         4. Match the format to the content — a one-sentence voice memo shouldn't \
         look like a board meeting recap.
-        5. Decisions, action items, and open questions are only populated when \
-        the transcript clearly contains them.
+        5. Action items are only included when someone explicitly assigned or \
+        committed to a task. Open questions are only included when a question \
+        was explicitly raised and left unresolved. Do not infer either from \
+        general discussion — if none were stated, leave those arrays empty.
         """
 
     /// User turn that wraps the transcript text.

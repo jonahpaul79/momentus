@@ -61,7 +61,7 @@ enum MeetingSummaryPromptBuilder {
 
         Rules:
         1. Ground every item in what was actually spoken. Do not invent content.
-        2. Leave arrays empty ([]) when the transcript contains nothing relevant for that field.
+        2. Leave arrays empty ([]) when the transcript contains nothing explicit for that field. Action items require someone to have explicitly assigned or committed to a task. Open questions require a question to have been explicitly raised and left unresolved. Do not infer either from general discussion.
         3. Only assign an owner if that person was explicitly named in the transcript.
         4. Set isOwnerInferred: true when ownership was implied but not directly stated.
         5. Distinguish explicit decisions from tentative discussion — only populate decisions[] with clear conclusions.

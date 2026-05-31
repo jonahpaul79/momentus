@@ -15,9 +15,9 @@ final class AppleFoundationModelsSummaryService: SummaryService {
         var markedMoments: [String]
         @Guide(description: "Decisions or conclusions reached; empty if none")
         var decisions: [String]
-        @Guide(description: "Action items with owner only if name was spoken; empty if none")
+        @Guide(description: "Action items explicitly assigned or committed to in the conversation; empty if none were stated")
         var actionItems: [String]
-        @Guide(description: "Unresolved questions; empty if none")
+        @Guide(description: "Questions explicitly raised and left unresolved; empty if none were stated")
         var openQuestions: [String]
         @Guide(description: "Short follow-up note or next-step reminder")
         var followUpDraft: String

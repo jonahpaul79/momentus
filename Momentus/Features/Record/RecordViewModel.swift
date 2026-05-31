@@ -31,7 +31,7 @@ import SwiftUI
 
     var state: State = .idle
     var elapsedTime: TimeInterval = 0
-    var waveformLevels: [Float] = Array(repeating: 0.1, count: 40)
+    var waveformLevels: [Float] = Array(repeating: 0.1, count: 20)
     var selectedMode: RecordingMode = {
         guard let raw = UserDefaults.standard.string(forKey: "defaultRecordingMode"),
               let mode = RecordingMode(rawValue: raw) else { return .onDevice }
@@ -295,7 +295,7 @@ import SwiftUI
     private func startWaveformTimer() {
         waveformTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(80))
+                try? await Task.sleep(for: .milliseconds(200))
                 guard !Task.isCancelled, let self else { break }
                 var newLevels = self.waveformLevels
                 newLevels.removeFirst()
@@ -310,7 +310,7 @@ import SwiftUI
     private func reset() {
         state = .idle
         elapsedTime = 0
-        waveformLevels = Array(repeating: 0.1, count: 40)
+        waveformLevels = Array(repeating: 0.1, count: 20)
         markers = []
         currentRecordingId = nil
         processingStepIndex = 0

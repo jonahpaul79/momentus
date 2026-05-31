@@ -76,7 +76,7 @@ struct WatchWaveformView: View {
                     RoundedRectangle(cornerRadius: barWidth / 2)
                         .fill(color)
                         .frame(width: barWidth, height: h)
-                        .animation(.easeOut(duration: 0.08), value: level)
+                        .animation(.easeOut(duration: 0.18), value: level)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
