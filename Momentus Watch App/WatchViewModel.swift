@@ -16,6 +16,7 @@ enum WatchRecordingState: Equatable {
     var micTarget: MicTarget = .iPhone
     var selectedMode: WatchRecordingMode = .onDevice
     var waveformLevels: [Float] = Array(repeating: 0.1, count: 20)
+    var markerHighlightedBars: Set<Int> = []
     var isConnectedToPhone = false
     var markers: [TimeInterval] = []
 
@@ -77,12 +78,15 @@ enum WatchRecordingState: Equatable {
     func addMarker() {
         guard recordingState == .recording || recordingState == .paused else { return }
         markers.append(elapsedTime)
+        markerHighlightedBars.insert(waveformLevels.count - 1)
         sendToPhone(["action": "addMarker", "timestamp": elapsedTime])
     }
 
     func recordAnother() {
         recordingState = .idle
         elapsedTime = 0
+        markerHighlightedBars = []
+        markers = []
     }
 
     // MARK: - Timers
@@ -108,6 +112,10 @@ enum WatchRecordingState: Equatable {
                 levels.removeFirst()
                 levels.append(Float.random(in: 0.08...0.95))
                 self.waveformLevels = levels
+                self.markerHighlightedBars = Set(self.markerHighlightedBars.compactMap { idx in
+                    let shifted = idx - 1
+                    return shifted >= 0 ? shifted : nil
+                })
             }
         }
     }

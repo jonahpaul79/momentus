@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 extension Notification.Name {
     static let recordingProcessingCompleted = Notification.Name("recordingProcessingCompleted")
@@ -72,6 +73,7 @@ extension Notification.Name {
 
     private var timerTask: Task<Void, Never>?
     private var waveformTask: Task<Void, Never>?
+    private var watchActionTask: Task<Void, Never>?
 
     // MARK: Init
 
@@ -261,6 +263,13 @@ extension Notification.Name {
             HapticStyle.success.trigger()
             state = .completed
 
+            if UIApplication.shared.applicationState == .background {
+                await MeetingNotificationService.shared.notifySummaryReady(
+                    title: recording.title,
+                    recordingId: recordingId
+                )
+            }
+
             try await Task.sleep(for: .milliseconds(700))
             NotificationCenter.default.post(
                 name: .recordingProcessingCompleted,
@@ -352,26 +361,28 @@ extension Notification.Name {
     }
 
     private func handleWatchAction(_ action: String, timestamp: TimeInterval?, mode: String?) {
-        switch action {
-        case "startRecording":
-            if mode == WatchRecordingMode.bestQualityRawValue {
-                selectedMode = .bestQuality
-            } else if mode == WatchRecordingMode.onDeviceRawValue {
-                selectedMode = .onDevice
+        let prev = watchActionTask
+        watchActionTask = Task { [weak self] in
+            await prev?.value
+            guard let self else { return }
+            switch action {
+            case "startRecording":
+                if mode == WatchRecordingMode.bestQualityRawValue { self.selectedMode = .bestQuality }
+                else if mode == WatchRecordingMode.onDeviceRawValue { self.selectedMode = .onDevice }
+                await self.startRecording()
+            case "stopRecording":
+                await self.stopRecording()
+            case "pauseRecording":
+                await self.pauseRecording()
+            case "resumeRecording":
+                await self.resumeRecording()
+            case "addMarker":
+                guard self.state == .recording || self.state == .paused else { return }
+                self.addMarker(at: timestamp ?? self.elapsedTime)
+                HapticStyle.medium.trigger()
+            default:
+                break
             }
-            Task { await startRecording() }
-        case "stopRecording":
-            Task { await stopRecording() }
-        case "pauseRecording":
-            Task { await pauseRecording() }
-        case "resumeRecording":
-            Task { await resumeRecording() }
-        case "addMarker":
-            guard state == .recording || state == .paused else { return }
-            addMarker(at: timestamp ?? elapsedTime)
-            HapticStyle.medium.trigger()
-        default:
-            break
         }
     }
 

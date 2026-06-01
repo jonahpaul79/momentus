@@ -41,8 +41,19 @@ extension MomentusAppDelegate: UNUserNotificationCenterDelegate {
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let info = response.notification.request.content.userInfo
-        if (info["action"] as? String) == "startRecording" {
+        switch info["action"] as? String {
+        case "startRecording":
             NotificationCenter.default.post(name: .autoStartRecording, object: nil, userInfo: info)
+        case "viewSummary":
+            if let idStr = info["recordingId"] as? String, let id = UUID(uuidString: idStr) {
+                NotificationCenter.default.post(
+                    name: .recordingProcessingCompleted,
+                    object: nil,
+                    userInfo: ["recordingId": id]
+                )
+            }
+        default:
+            break
         }
         completionHandler()
     }

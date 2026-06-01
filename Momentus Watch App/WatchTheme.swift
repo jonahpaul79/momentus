@@ -62,6 +62,8 @@ extension TimeInterval {
 struct WatchWaveformView: View {
     let levels: [Float]
     let color: Color
+    var highlightedBars: Set<Int> = []
+    var highlightColor: Color = .red
     private let barSpacing: CGFloat = 1.5
 
     var body: some View {
@@ -71,12 +73,14 @@ struct WatchWaveformView: View {
             let barWidth = max(1.5, (geo.size.width - totalSpacing) / CGFloat(count))
 
             HStack(spacing: barSpacing) {
-                ForEach(Array(levels.enumerated()), id: \.offset) { _, level in
+                ForEach(Array(levels.enumerated()), id: \.offset) { index, level in
+                    let isHighlighted = highlightedBars.contains(index)
                     let h = max(2, CGFloat(level) * geo.size.height)
                     RoundedRectangle(cornerRadius: barWidth / 2)
-                        .fill(color)
+                        .fill(isHighlighted ? highlightColor : color)
                         .frame(width: barWidth, height: h)
                         .animation(.easeOut(duration: 0.18), value: level)
+                        .animation(.easeInOut(duration: 0.12), value: isHighlighted)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)

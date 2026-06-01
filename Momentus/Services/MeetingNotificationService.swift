@@ -50,6 +50,24 @@ final class MeetingNotificationService {
         }
     }
 
+    func notifySummaryReady(title: String, recordingId: UUID) async {
+        let center = UNUserNotificationCenter.current()
+        guard await center.notificationSettings().authorizationStatus == .authorized else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = "Summary ready — tap to view"
+        content.sound = .default
+        content.userInfo = ["action": "viewSummary", "recordingId": recordingId.uuidString]
+
+        let request = UNNotificationRequest(
+            identifier: "summary-\(recordingId.uuidString)",
+            content: content,
+            trigger: nil
+        )
+        try? await center.add(request)
+    }
+
     func cancelAll() {
         let center = UNUserNotificationCenter.current()
         Task {

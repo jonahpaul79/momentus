@@ -40,7 +40,9 @@ struct WatchActiveRecordingView: View {
                 // Waveform
                 WatchWaveformView(
                     levels: vm.recordingState == .recording ? vm.waveformLevels : Array(repeating: 0.05, count: 20),
-                    color: vm.recordingState == .recording ? t.accentPrimary.opacity(0.8) : t.textSecondary.opacity(0.3)
+                    color: vm.recordingState == .recording ? t.accentPrimary.opacity(0.8) : t.textSecondary.opacity(0.3),
+                    highlightedBars: vm.markerHighlightedBars,
+                    highlightColor: t.accentRecording
                 )
                 .frame(height: waveformHeight)
                 .padding(.horizontal, 2)
