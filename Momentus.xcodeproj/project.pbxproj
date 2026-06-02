@@ -705,6 +705,7 @@
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_ADDITIONAL_FILE = "Momentus/Momentus-Info-Additions.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Momentus: AI Notes";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
@@ -747,6 +748,7 @@
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_ADDITIONAL_FILE = "Momentus/Momentus-Info-Additions.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Momentus: AI Notes";
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;

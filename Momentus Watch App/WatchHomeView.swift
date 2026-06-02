@@ -92,9 +92,9 @@ struct WatchHomeView: View {
 
     private var micTargetIndicator: some View {
         HStack(spacing: 5) {
-            Image(systemName: vm.micTarget == .iPhone ? "iphone" : "applewatch")
+            Image(systemName: "applewatch")
                 .font(.system(size: 11))
-            Text(vm.micTarget == .iPhone ? "Recording on iPhone" : "Recording on Watch")
+            Text("Recording on Watch")
                 .font(.system(size: 11))
         }
         .foregroundStyle(t.textSecondary)

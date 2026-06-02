@@ -28,9 +28,24 @@ final class AppleSpeechTranscriptionService: TranscriptionService {
             throw SpeechTranscriptionError.authorizationDenied
         }
 
-        guard let recognizer = SFSpeechRecognizer(locale: Locale.current),
-              recognizer.isAvailable else {
-            print("[Speech] recognizer unavailable — using stub")
+        // Prefer current locale; fall back to en-US if no recognizer exists for it
+        let recognizer = SFSpeechRecognizer(locale: Locale.current)
+            ?? SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+
+        guard let recognizer else {
+            throw SpeechTranscriptionError.recognizerUnavailable
+        }
+
+        // isAvailable can be false immediately after init while the recognizer
+        // finishes its async setup. Wait up to 3 seconds before giving up.
+        var waited = 0
+        while !recognizer.isAvailable && waited < 6 {
+            try await Task.sleep(for: .milliseconds(500))
+            waited += 1
+        }
+
+        guard recognizer.isAvailable else {
+            print("[Speech] recognizer still unavailable after \(waited * 500)ms — using stub")
             return stubTranscript(recordingId: recordingId)
         }
 
@@ -38,18 +53,19 @@ final class AppleSpeechTranscriptionService: TranscriptionService {
         let request = SFSpeechURLRecognitionRequest(url: fileURL)
         request.shouldReportPartialResults = false
         request.addsPunctuation = true
+        // Use on-device model for privacy when the recognizer supports it
+        if recognizer.supportsOnDeviceRecognition {
+            request.requiresOnDeviceRecognition = true
+        }
 
-        // Box lets the @unchecked Sendable onCancel closure reach the SF task.
-        // All real access is on MainActor so the unsafety is nominal.
         let box = SFTaskBox()
 
         do {
+            // Timeout = 5 minutes. SF Speech processes file audio faster than real-time
+            // but a 30-minute meeting can take 60-90 seconds; 15s was far too short.
             let sfResult = try await withThrowingTaskGroup(of: SFSpeechRecognitionResult?.self) { group in
                 group.addTask {
                     return try await withTaskCancellationHandler {
-                        // When this task is cancelled (timeout branch wins),
-                        // onCancel calls sfTask.cancel() which forces the
-                        // result handler to fire and resumes the continuation.
                         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<SFSpeechRecognitionResult?, Error>) in
                             var done = false
                             box.task = recognizer.recognitionTask(with: request) { result, error in
@@ -67,8 +83,8 @@ final class AppleSpeechTranscriptionService: TranscriptionService {
                 }
 
                 group.addTask {
-                    try await Task.sleep(for: .seconds(15))
-                    print("[Speech] 15s timeout fired")
+                    try await Task.sleep(for: .seconds(300))
+                    print("[Speech] 5-minute timeout fired")
                     return nil
                 }
 

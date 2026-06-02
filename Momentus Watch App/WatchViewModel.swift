@@ -1,6 +1,7 @@
 import SwiftUI
 import WatchConnectivity
 import WatchKit
+import AVFoundation
 
 enum WatchRecordingState: Equatable {
     case idle
@@ -13,14 +14,12 @@ enum WatchRecordingState: Equatable {
 @Observable final class WatchViewModel: NSObject {
     var recordingState: WatchRecordingState = .idle
     var elapsedTime: TimeInterval = 0
-    var micTarget: MicTarget = .iPhone
     var selectedMode: WatchRecordingMode = .onDevice
     var waveformLevels: [Float] = Array(repeating: 0.1, count: 20)
     var markerHighlightedBars: Set<Int> = []
     var isConnectedToPhone = false
     var markers: [TimeInterval] = []
 
-    enum MicTarget { case iPhone, watch }
     enum WatchRecordingMode: String, CaseIterable {
         case onDevice = "Private"
         case bestQuality = "Quality"
@@ -29,10 +28,14 @@ enum WatchRecordingState: Equatable {
     private var timerTask: Task<Void, Never>?
     private var waveformTask: Task<Void, Never>?
     private var extendedRuntimeSession: WKExtendedRuntimeSession?
+    private var audioRecorder: AVAudioRecorder?
+    private var watchRecordingURL: URL?
 
     override init() {
         super.init()
-        setupWatchConnectivity()
+        guard WCSession.isSupported() else { return }
+        WCSession.default.delegate = self
+        WCSession.default.activate()
     }
 
     // MARK: - Actions
@@ -42,11 +45,14 @@ enum WatchRecordingState: Equatable {
         recordingState = .recording
         elapsedTime = 0
         markers = []
+        markerHighlightedBars = []
+
         let session = WKExtendedRuntimeSession()
         session.start()
         extendedRuntimeSession = session
+
+        startAudioCapture()
         startTimers()
-        sendToPhone(["action": "startRecording", "mode": selectedMode.rawValue])
     }
 
     func stopRecording() async {
@@ -54,32 +60,40 @@ enum WatchRecordingState: Equatable {
         stopTimers()
         extendedRuntimeSession?.invalidate()
         extendedRuntimeSession = nil
-        sendToPhone(["action": "stopRecording"])
         recordingState = .processing
-        // Simulate phone processing acknowledgment
-        try? await Task.sleep(for: .seconds(1))
+
+        if let url = stopAudioCapture() {
+            let markerStr = markers.map { String(format: "%.2f", $0) }.joined(separator: ",")
+            WCSession.default.transferFile(url, metadata: [
+                "action": "processWatchRecording",
+                "mode": selectedMode.rawValue,
+                "markers": markerStr,
+                "duration": String(format: "%.1f", elapsedTime)
+            ])
+        }
+
+        try? await Task.sleep(for: .seconds(2))
         recordingState = .saved
     }
 
     func pauseRecording() async {
         guard recordingState == .recording else { return }
         recordingState = .paused
+        audioRecorder?.pause()
         stopWaveformTimer()
-        sendToPhone(["action": "pauseRecording"])
     }
 
     func resumeRecording() async {
         guard recordingState == .paused else { return }
         recordingState = .recording
+        audioRecorder?.record()
         startWaveformTimer()
-        sendToPhone(["action": "resumeRecording"])
     }
 
     func addMarker() {
         guard recordingState == .recording || recordingState == .paused else { return }
         markers.append(elapsedTime)
         markerHighlightedBars.insert(waveformLevels.count - 1)
-        sendToPhone(["action": "addMarker", "timestamp": elapsedTime])
     }
 
     func recordAnother() {
@@ -87,6 +101,38 @@ enum WatchRecordingState: Equatable {
         elapsedTime = 0
         markerHighlightedBars = []
         markers = []
+    }
+
+    // MARK: - Audio
+
+    private func startAudioCapture() {
+        let avSession = AVAudioSession.sharedInstance()
+        try? avSession.setCategory(.record, mode: .default)
+        try? avSession.setActive(true)
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".m4a")
+        watchRecordingURL = url
+
+        let settings: [String: Any] = [
+            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+            AVSampleRateKey: 16000.0,
+            AVNumberOfChannelsKey: 1,
+            AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue
+        ]
+
+        if let recorder = try? AVAudioRecorder(url: url, settings: settings) {
+            recorder.isMeteringEnabled = true
+            recorder.record()
+            audioRecorder = recorder
+        }
+    }
+
+    private func stopAudioCapture() -> URL? {
+        audioRecorder?.stop()
+        audioRecorder = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        return watchRecordingURL
     }
 
     // MARK: - Timers
@@ -110,7 +156,16 @@ enum WatchRecordingState: Equatable {
                 guard !Task.isCancelled, let self else { break }
                 var levels = self.waveformLevels
                 levels.removeFirst()
-                levels.append(Float.random(in: 0.08...0.95))
+
+                let level: Float
+                if let recorder = self.audioRecorder, recorder.isRecording {
+                    recorder.updateMeters()
+                    let db = recorder.averagePower(forChannel: 0)
+                    level = max(0.05, min(1.0, (db + 80.0) / 80.0))
+                } else {
+                    level = Float.random(in: 0.08...0.95)
+                }
+                levels.append(level)
                 self.waveformLevels = levels
                 self.markerHighlightedBars = Set(self.markerHighlightedBars.compactMap { idx in
                     let shifted = idx - 1
@@ -131,24 +186,9 @@ enum WatchRecordingState: Equatable {
         timerTask = nil
         waveformTask = nil
     }
-
-    // MARK: - Watch Connectivity
-
-    private func setupWatchConnectivity() {
-        guard WCSession.isSupported() else { return }
-        WCSession.default.delegate = self
-        WCSession.default.activate()
-    }
-
-    private func sendToPhone(_ message: [String: Any]) {
-        guard WCSession.isSupported() else { return }
-        if WCSession.default.isReachable {
-            WCSession.default.sendMessage(message, replyHandler: nil)
-        } else {
-            WCSession.default.transferUserInfo(message)
-        }
-    }
 }
+
+// MARK: - WCSessionDelegate
 
 extension WatchViewModel: WCSessionDelegate {
     func session(

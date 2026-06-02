@@ -15,6 +15,14 @@ struct OnboardingView: View {
     @State private var calendarGranted = false
     @State private var notificationsGranted = false
 
+    // Toggles default ON — user opts out of what they don't want
+    @State private var micEnabled = true
+    @State private var speechEnabled = true
+    @State private var calendarEnabled = true
+    @State private var notificationsEnabled = true
+
+    @State private var isRequestingPermissions = false
+
     private let totalPages = 5
 
     var body: some View {
@@ -75,7 +83,7 @@ struct OnboardingView: View {
 
     private func permissionsPage(_ t: AppTheme) -> some View {
         ScrollView {
-            VStack(spacing: t.spacing.xxxl) {
+            VStack(spacing: t.spacing.xxl) {
                 VStack(spacing: t.spacing.m) {
                     iconCircle(systemName: "hand.raised.fill", color: t.colors.accentPrimary, t: t)
                         .padding(.top, t.spacing.huge)
@@ -85,11 +93,11 @@ struct OnboardingView: View {
                         .foregroundStyle(t.colors.textPrimary)
                         .multilineTextAlignment(.center)
 
-                    Text("Momentus needs these to work well. You can change them later in Settings.")
+                    Text("Toggle off anything you don't want, then tap Continue. You can change these later in Settings.")
                         .font(t.typography.bodyMedium)
                         .foregroundStyle(t.colors.textSecondary)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, t.spacing.xxxl)
+                        .padding(.horizontal, t.spacing.xxl)
                 }
 
                 VStack(spacing: t.spacing.m) {
@@ -98,14 +106,9 @@ struct OnboardingView: View {
                         title: "Microphone",
                         description: "Required for recording meetings",
                         isGranted: micGranted,
+                        isEnabled: $micEnabled,
                         color: t.colors.accentPrimary
-                    ) {
-                        Task {
-                            let granted = await AVAudioApplication.requestRecordPermission()
-                            micGranted = granted
-                            if granted { HapticStyle.success.trigger() }
-                        }
-                    }
+                    )
                     .environment(themeManager)
 
                     PermissionRow(
@@ -113,16 +116,9 @@ struct OnboardingView: View {
                         title: "Speech Recognition",
                         description: "Transcribes your meetings on-device",
                         isGranted: speechGranted,
+                        isEnabled: $speechEnabled,
                         color: t.colors.accentSecondary
-                    ) {
-                        Task {
-                            let status = await withCheckedContinuation { cont in
-                                SFSpeechRecognizer.requestAuthorization { cont.resume(returning: $0) }
-                            }
-                            speechGranted = status == .authorized
-                            if speechGranted { HapticStyle.success.trigger() }
-                        }
-                    }
+                    )
                     .environment(themeManager)
 
                     PermissionRow(
@@ -130,38 +126,19 @@ struct OnboardingView: View {
                         title: "Calendar",
                         description: "Suggests meeting titles from your schedule",
                         isGranted: calendarGranted,
+                        isEnabled: $calendarEnabled,
                         color: t.colors.accentSuccess
-                    ) {
-                        Task {
-                            do {
-                                let granted = try await EKEventStore().requestFullAccessToEvents()
-                                calendarGranted = granted
-                                if granted { HapticStyle.success.trigger() }
-                            } catch {
-                                calendarGranted = false
-                            }
-                        }
-                    }
+                    )
                     .environment(themeManager)
 
                     PermissionRow(
                         icon: "bell.fill",
                         title: "Notifications",
-                        description: "Reminds you 1 minute before a meeting starts so you don't forget to record",
+                        description: "Notifies you when your summary is ready and reminds you before meetings",
                         isGranted: notificationsGranted,
+                        isEnabled: $notificationsEnabled,
                         color: t.colors.accentWarning
-                    ) {
-                        Task {
-                            do {
-                                let granted = try await UNUserNotificationCenter.current()
-                                    .requestAuthorization(options: [.alert, .sound, .badge])
-                                notificationsGranted = granted
-                                if granted { HapticStyle.success.trigger() }
-                            } catch {
-                                notificationsGranted = false
-                            }
-                        }
-                    }
+                    )
                     .environment(themeManager)
                 }
                 .padding(.horizontal, t.spacing.l)
@@ -209,20 +186,63 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: - Permission Status Check
+    // MARK: - Permission Request
 
     private func refreshPermissionStatuses() async {
         micGranted = AVAudioApplication.shared.recordPermission == .granted
-
-
-        let speechStatus = SFSpeechRecognizer.authorizationStatus()
-        speechGranted = speechStatus == .authorized
-
-        let calStatus = EKEventStore.authorizationStatus(for: .event)
-        calendarGranted = calStatus == .fullAccess
-
+        speechGranted = SFSpeechRecognizer.authorizationStatus() == .authorized
+        calendarGranted = EKEventStore.authorizationStatus(for: .event) == .fullAccess
         let notifSettings = await UNUserNotificationCenter.current().notificationSettings()
         notificationsGranted = notifSettings.authorizationStatus == .authorized
+
+        // Reflect already-granted permissions in toggles (no point showing them as "off")
+        if micGranted { micEnabled = true }
+        if speechGranted { speechEnabled = true }
+        if calendarGranted { calendarEnabled = true }
+        if notificationsGranted { notificationsEnabled = true }
+    }
+
+    private func requestEnabledPermissions() async {
+        isRequestingPermissions = true
+        defer { isRequestingPermissions = false }
+
+        // Each request naturally pauses until the iOS dialog is dismissed.
+        // Permissions already granted return immediately without showing a dialog.
+
+        if micEnabled && !micGranted {
+            let granted = await AVAudioApplication.requestRecordPermission()
+            micGranted = granted
+            if granted { HapticStyle.success.trigger() }
+        }
+
+        if speechEnabled && !speechGranted {
+            let status = await withCheckedContinuation { cont in
+                SFSpeechRecognizer.requestAuthorization { cont.resume(returning: $0) }
+            }
+            speechGranted = status == .authorized
+            if speechGranted { HapticStyle.success.trigger() }
+        }
+
+        if calendarEnabled && !calendarGranted {
+            do {
+                let granted = try await EKEventStore().requestFullAccessToEvents()
+                calendarGranted = granted
+                if granted { HapticStyle.success.trigger() }
+            } catch {
+                calendarGranted = false
+            }
+        }
+
+        if notificationsEnabled && !notificationsGranted {
+            do {
+                let granted = try await UNUserNotificationCenter.current()
+                    .requestAuthorization(options: [.alert, .sound, .badge])
+                notificationsGranted = granted
+                if granted { HapticStyle.success.trigger() }
+            } catch {
+                notificationsGranted = false
+            }
+        }
     }
 
     // MARK: - Bottom Navigation
@@ -239,22 +259,39 @@ struct OnboardingView: View {
             }
 
             Button {
-                if currentPage < totalPages - 1 {
+                if currentPage == 3 {
+                    // Permissions page: request enabled permissions, then advance
+                    Task {
+                        await requestEnabledPermissions()
+                        withAnimation { currentPage += 1 }
+                    }
+                } else if currentPage < totalPages - 1 {
                     withAnimation { currentPage += 1 }
                 } else {
                     HapticStyle.success.trigger()
                     hasCompletedOnboarding = true
                 }
             } label: {
-                Text(currentPage < totalPages - 1 ? "Continue" : "Get started")
-                    .font(t.typography.headlineMedium)
-                    .foregroundStyle(t.colors.textOnAccent)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, t.spacing.l)
-                    .background(t.colors.accentPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: t.radius.l))
+                Group {
+                    if isRequestingPermissions {
+                        HStack(spacing: t.spacing.s) {
+                            ProgressView().tint(t.colors.textOnAccent).scaleEffect(0.85)
+                            Text("Setting up…")
+                        }
+                    } else {
+                        Text(currentPage < totalPages - 1 ? "Continue" : "Get started")
+                    }
+                }
+                .font(t.typography.headlineMedium)
+                .foregroundStyle(t.colors.textOnAccent)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, t.spacing.l)
+                .background(t.colors.accentPrimary)
+                .clipShape(RoundedRectangle(cornerRadius: t.radius.l))
             }
+            .disabled(isRequestingPermissions)
             .padding(.horizontal, t.spacing.xxxl)
+            .animation(.easeInOut(duration: 0.2), value: isRequestingPermissions)
 
             if currentPage < totalPages - 1 {
                 Button("Skip") {
@@ -331,20 +368,22 @@ struct PermissionRow: View {
     let title: String
     let description: String
     let isGranted: Bool
+    @Binding var isEnabled: Bool
     let color: Color
-    let onGrant: () -> Void
 
     var body: some View {
         let t = themeManager.currentTheme
         HStack(spacing: t.spacing.m) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(color.opacity(0.15))
+                    .fill((isGranted || isEnabled ? color : t.colors.textTertiary).opacity(0.15))
                     .frame(width: 44, height: 44)
                 Image(systemName: icon)
                     .font(.system(size: 18))
-                    .foregroundStyle(color)
+                    .foregroundStyle(isGranted || isEnabled ? color : t.colors.textTertiary)
             }
+            .animation(.easeInOut(duration: 0.2), value: isEnabled)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(t.typography.headlineSmall)
@@ -353,24 +392,24 @@ struct PermissionRow: View {
                     .font(t.typography.caption)
                     .foregroundStyle(t.colors.textSecondary)
             }
+
             Spacer()
+
             if isGranted {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(t.colors.accentSuccess)
                     .font(.system(size: 22))
+                    .transition(.scale.combined(with: .opacity))
             } else {
-                Button("Allow") { onGrant() }
-                    .font(t.typography.labelLarge)
-                    .foregroundStyle(t.colors.textOnAccent)
-                    .padding(.horizontal, t.spacing.m)
-                    .padding(.vertical, t.spacing.s)
-                    .background(color)
-                    .clipShape(Capsule())
+                Toggle("", isOn: $isEnabled)
+                    .labelsHidden()
+                    .tint(color)
             }
         }
         .padding(t.spacing.l)
         .surfaceCard()
         .environment(themeManager)
+        .animation(.easeInOut(duration: 0.2), value: isGranted)
     }
 }
 
