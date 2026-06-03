@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		8CAA6EC72FC91345007D0CB1 /* Momentus Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 8CAA6EC62FC91345007D0CB1 /* Momentus Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		8CCE68CD2FCF2BE40077F268 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 8CCE68CC2FCF2BE40077F268 /* WhisperKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -122,6 +123,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8CCE68CD2FCF2BE40077F268 /* WhisperKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -172,6 +174,7 @@
 				8CAA6ECA2FC91345007D0CB1 /* Momentus Watch App */,
 				8CAA6ED82FC91346007D0CB1 /* Momentus Watch AppTests */,
 				8CAA6EE22FC91346007D0CB1 /* Momentus Watch AppUITests */,
+				8CCE68CB2FCF2BE40077F268 /* Frameworks */,
 				8CAA6EA42FC91343007D0CB1 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -187,6 +190,13 @@
 				8CAA6EDF2FC91346007D0CB1 /* Momentus Watch AppUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		8CCE68CB2FCF2BE40077F268 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -211,6 +221,7 @@
 			);
 			name = Momentus;
 			packageProductDependencies = (
+				8CCE68CC2FCF2BE40077F268 /* WhisperKit */,
 			);
 			productName = Momentus;
 			productReference = 8CAA6EA32FC91343007D0CB1 /* Momentus.app */;
@@ -373,6 +384,9 @@
 			);
 			mainGroup = 8CAA6E9A2FC91342007D0CB1;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				8CCE68CA2FCF2A6B0077F268 /* XCRemoteSwiftPackageReference "WhisperKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8CAA6EA42FC91343007D0CB1 /* Products */;
 			projectDirPath = "";
@@ -1032,6 +1046,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		8CCE68CA2FCF2A6B0077F268 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/WhisperKit";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		8CCE68CC2FCF2BE40077F268 /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8CCE68CA2FCF2A6B0077F268 /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			productName = WhisperKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 8CAA6E9B2FC91342007D0CB1 /* Project object */;
 }

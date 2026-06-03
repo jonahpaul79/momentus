@@ -197,7 +197,7 @@ final class MockCalendarContextService: CalendarContextService {
 
     func getUpcomingMeetings() async -> [CalendarMeeting] {
         guard isDemoMode else { return [] }
-        return MockMeetings.sampleCalendarMeetings.filter { !$0.isHappeningNow }
+        return MockMeetings.sampleCalendarMeetings.filter { $0.startDate > Date() }
     }
 
     func requestAccess() async -> Bool { true }

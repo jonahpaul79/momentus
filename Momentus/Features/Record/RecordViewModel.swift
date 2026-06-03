@@ -81,7 +81,7 @@ extension Notification.Name {
         recordingService: any RecordingService = AVAudioRecorderService(),
         transcriptionService: any TranscriptionService = AppleSpeechTranscriptionService(),
         summaryService: any SummaryService = AppleFoundationModelsSummaryService(),
-        calendarService: any CalendarContextService = UserDefaults.standard.bool(forKey: "demoMode") ? MockCalendarContextService(isDemoMode: true) : EventKitCalendarService()
+        calendarService: any CalendarContextService = (ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] != nil || UserDefaults.standard.bool(forKey: "demoMode")) ? MockCalendarContextService(isDemoMode: true) : EventKitCalendarService()
     ) {
         self.recordingService = recordingService
         self.transcriptionService = transcriptionService
@@ -147,6 +147,12 @@ extension Notification.Name {
     func startRecording() async {
         guard state == .idle else { return }
         errorMessage = nil
+
+        // Start loading the Whisper model in the background while audio is being captured
+        // so it is ready (or nearly so) by the time stopRecording triggers transcription.
+        if selectedMode == .onDevice || selectedMode == .hybrid {
+            WhisperKitTranscriptionService.warmup()
+        }
 
         do {
             let id = try await recordingService.startRecording(mode: selectedMode, source: selectedMicSource)
@@ -377,6 +383,14 @@ extension Notification.Name {
     private func processWatchRecording(audioFileID: String, markers: [TimeInterval], mode: String?) async {
         guard let store else { return }
 
+        let fileURL = AVAudioRecorderService.recordingsDirectory.appendingPathComponent(audioFileID)
+        let fileSize = (try? fileURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+        guard fileSize > 1024 else {
+            print("[Watch Pipeline] audio file missing or empty (\(fileSize) bytes) — aborting")
+            return
+        }
+        print("[Watch Pipeline] audio file ready: \(audioFileID) (\(fileSize) bytes)")
+
         let recordingId = UUID()
         let recordingMode: RecordingMode = mode == "Quality" ? .bestQuality : .onDevice
 
@@ -424,12 +438,12 @@ extension Notification.Name {
             HapticStyle.success.trigger()
             state = .idle
 
-            if UIApplication.shared.applicationState == .background {
-                await MeetingNotificationService.shared.notifySummaryReady(
-                    title: recording.title,
-                    recordingId: recordingId
-                )
-            }
+            // Always notify — the app may have been woken by WatchConnectivity
+            // even when the user isn't actively looking at it.
+            await MeetingNotificationService.shared.notifySummaryReady(
+                title: recording.title,
+                recordingId: recordingId
+            )
 
             NotificationCenter.default.post(
                 name: .recordingProcessingCompleted,

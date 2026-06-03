@@ -33,7 +33,7 @@ enum ServiceFactory {
             return AppleSpeechTranscriptionService()
 
         case .onDevice, .hybrid:
-            return AppleSpeechTranscriptionService()
+            return WhisperKitTranscriptionService()
         }
     }
 

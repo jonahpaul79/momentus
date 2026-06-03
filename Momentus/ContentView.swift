@@ -4,12 +4,15 @@ struct ContentView: View {
     @State private var themeManager = ThemeManager()
     @State private var store = RecordingsStore(loadSamples: ContentView.shouldLoadDemoData)
     @State private var selectedTab = Tab.record
+    @State private var showingSplash = true
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     enum Tab: String { case record, notes, settings }
 
     private static var shouldLoadDemoData: Bool {
-        #if DEBUG
+        #if targetEnvironment(simulator)
+        return true
+        #elseif DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         return arguments.contains("-demoMode")
             || arguments.contains("demoMode")
@@ -32,6 +35,12 @@ struct ContentView: View {
         .environment(themeManager)
         .environment(store)
         .preferredColorScheme(themeManager.currentTheme.colorScheme)
+        .overlay {
+            if showingSplash {
+                SplashView(isVisible: $showingSplash)
+                    .environment(themeManager)
+            }
+        }
     }
 
     private func mainTabs(_ t: AppTheme) -> some View {

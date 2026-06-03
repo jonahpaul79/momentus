@@ -114,7 +114,7 @@ struct ActiveRecordingView: View {
             highlightedBars: vm.state == .recording ? vm.markerHighlightedBars : [],
             highlightColor: t.colors.accentRecording
         )
-        .frame(height: 56)
+        .frame(height: 80)
         .padding(.horizontal, t.spacing.xxl)
         .padding(.bottom, t.spacing.xxxl)
     }

@@ -75,11 +75,14 @@ final class AVAudioRecorderService: RecordingService {
     }
 
     func getCurrentLevel() -> Float {
-        guard let recorder, isRecording else { return 0.05 }
+        guard let recorder, isRecording else { return 0.03 }
         recorder.updateMeters()
         let db = recorder.averagePower(forChannel: 0)
-        let normalized = (db + 80.0) / 80.0
-        return max(0.05, min(1.0, normalized))
+        // Map -55 dB (noise floor) → 0.0 and -5 dB (loud voice) → 1.0,
+        // then apply a power curve so background noise stays near the bottom
+        // and voice peaks visibly dominate.
+        let normalized = max(0, min(1, (db + 55) / 50))
+        return pow(normalized, 1.7)
     }
 }
 

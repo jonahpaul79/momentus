@@ -10,7 +10,7 @@ struct WatchActiveRecordingView: View {
             let stopSize: CGFloat = isSmall ? 44 : 52
             let sideButtonSize: CGFloat = isSmall ? 34 : 40
             let timerFont: CGFloat = isSmall ? 26 : 32
-            let waveformHeight: CGFloat = isSmall ? 28 : 36
+            let waveformHeight: CGFloat = isSmall ? 44 : 56
             let vSpacing: CGFloat = isSmall ? 4 : 8
 
             VStack(spacing: vSpacing) {
@@ -103,8 +103,19 @@ struct WatchActiveRecordingView: View {
     }
 }
 
-#Preview {
+#Preview("Idle") {
     let vm = WatchViewModel()
+    return WatchActiveRecordingView(vm: vm)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Recording") {
+    let vm = WatchViewModel()
+    vm.recordingState = .recording
+    vm.elapsedTime = 142
+    vm.waveformLevels = [0.2, 0.5, 0.8, 0.4, 0.9, 0.6, 0.3, 0.7, 1.0, 0.5,
+                         0.8, 0.3, 0.6, 0.9, 0.4, 0.7, 0.2, 0.8, 0.5, 0.6]
+    vm.markerHighlightedBars = [6]
     return WatchActiveRecordingView(vm: vm)
         .preferredColorScheme(.dark)
 }

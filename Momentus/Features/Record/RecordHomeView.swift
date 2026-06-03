@@ -12,8 +12,9 @@ struct RecordHomeView: View {
             VStack(spacing: 0) {
                 heroSection(t)
                 controlsSection(t)
-                if !vm.upcomingMeetings.isEmpty {
-                    upNextSection(t)
+                let activeMeetings = vm.upcomingMeetings.filter { $0.isHappeningNow || $0.startDate > Date() }
+                if !activeMeetings.isEmpty {
+                    upNextSection(t, meetings: activeMeetings)
                 }
             }
             .padding(.bottom, t.spacing.hero + t.spacing.huge)
@@ -223,7 +224,7 @@ struct RecordHomeView: View {
 
     // MARK: - Up Next
 
-    private func upNextSection(_ t: AppTheme) -> some View {
+    private func upNextSection(_ t: AppTheme, meetings: [CalendarMeeting]) -> some View {
         VStack(alignment: .leading, spacing: t.spacing.m) {
             Text("Up Next")
                 .font(t.typography.headlineMedium)
@@ -232,7 +233,7 @@ struct RecordHomeView: View {
                 .padding(.top, t.spacing.xxl)
 
             VStack(spacing: 0) {
-                ForEach(Array(vm.upcomingMeetings.enumerated()), id: \.element.id) { index, meeting in
+                ForEach(Array(meetings.enumerated()), id: \.element.id) { index, meeting in
                     Button {
                         vm.suggestedMeetingTitle = meeting.title
                         vm.suggestedSpeakers = meeting.attendees
@@ -247,7 +248,7 @@ struct RecordHomeView: View {
                     }
                     .buttonStyle(.plain)
 
-                    if index < vm.upcomingMeetings.count - 1 {
+                    if index < meetings.count - 1 {
                         Divider()
                             .padding(.leading, t.spacing.l)
                     }
@@ -300,6 +301,7 @@ struct RecordHomeView: View {
     private func meetingTimeLabel(_ meeting: CalendarMeeting) -> String {
         if meeting.isHappeningNow { return "Happening now" }
         let minutes = Int(meeting.startDate.timeIntervalSinceNow / 60)
+        guard minutes > 0 else { return "Starting now" }
         if minutes < 60 { return "in \(minutes)m" }
         let hours = minutes / 60
         let rem = minutes % 60

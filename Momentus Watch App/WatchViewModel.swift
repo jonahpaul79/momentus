@@ -107,12 +107,16 @@ enum WatchRecordingState: Equatable {
 
     private func startAudioCapture() {
         let avSession = AVAudioSession.sharedInstance()
-        try? avSession.setCategory(.record, mode: .default)
-        try? avSession.setActive(true)
+        do {
+            try avSession.setCategory(.record, mode: .default)
+            try avSession.setActive(true)
+        } catch {
+            print("[Watch Audio] session setup failed: \(error)")
+            return
+        }
 
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".m4a")
-        watchRecordingURL = url
 
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
@@ -121,10 +125,18 @@ enum WatchRecordingState: Equatable {
             AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue
         ]
 
-        if let recorder = try? AVAudioRecorder(url: url, settings: settings) {
+        do {
+            let recorder = try AVAudioRecorder(url: url, settings: settings)
             recorder.isMeteringEnabled = true
-            recorder.record()
+            guard recorder.record() else {
+                print("[Watch Audio] recorder.record() returned false — mic permission may not be granted")
+                return
+            }
             audioRecorder = recorder
+            watchRecordingURL = url
+            print("[Watch Audio] recording started: \(url.lastPathComponent)")
+        } catch {
+            print("[Watch Audio] recorder init failed: \(error)")
         }
     }
 
@@ -132,7 +144,9 @@ enum WatchRecordingState: Equatable {
         audioRecorder?.stop()
         audioRecorder = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        return watchRecordingURL
+        let url = watchRecordingURL
+        watchRecordingURL = nil
+        return url
     }
 
     // MARK: - Timers
@@ -161,7 +175,8 @@ enum WatchRecordingState: Equatable {
                 if let recorder = self.audioRecorder, recorder.isRecording {
                     recorder.updateMeters()
                     let db = recorder.averagePower(forChannel: 0)
-                    level = max(0.05, min(1.0, (db + 80.0) / 80.0))
+                    let normalized = max(0, min(1, (db + 55) / 50))
+                    level = pow(normalized, 1.7)
                 } else {
                     level = Float.random(in: 0.08...0.95)
                 }
