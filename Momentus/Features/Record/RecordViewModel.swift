@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import AVFoundation
 
 extension Notification.Name {
     static let recordingProcessingCompleted = Notification.Name("recordingProcessingCompleted")
@@ -399,14 +400,27 @@ extension Notification.Name {
         }
         print("[Watch Pipeline] audio file ready: \(audioFileID) (\(fileSize) bytes)")
 
+        // Read actual audio duration so the recording's duration field is correct
+        // and the audio player shows the right length.
+        let audioDuration: TimeInterval
+        if let cmDuration = try? await AVURLAsset(url: fileURL).load(.duration) {
+            audioDuration = CMTimeGetSeconds(cmDuration)
+        } else {
+            audioDuration = 0
+        }
+
         let recordingId = UUID()
         let recordingMode: RecordingMode = mode == "Quality" ? .bestQuality : .onDevice
+        let recordingEnd = Date()
+        let recordingStart = audioDuration > 0
+            ? recordingEnd.addingTimeInterval(-audioDuration)
+            : recordingEnd
 
         var recording = Recording(
             id: recordingId,
             title: titleFromTime(),
-            startedAt: Date(),
-            endedAt: Date(),
+            startedAt: recordingStart,
+            endedAt: recordingEnd,
             mode: recordingMode,
             micSource: .watch,
             audioFileID: audioFileID,

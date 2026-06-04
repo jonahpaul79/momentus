@@ -64,9 +64,13 @@ final class ClaudeSummaryService: SummaryService {
     ) -> MeetingSummary {
         let json = extractJSON(from: response)
 
-        if let data = json.data(using: .utf8),
-           let parsed = try? JSONDecoder().decode(ClaudeOutput.self, from: data) {
-            return buildSummary(from: parsed, transcript: transcript, usage: usage, recordingId: recordingId)
+        if let data = json.data(using: .utf8) {
+            do {
+                let parsed = try JSONDecoder().decode(ClaudeOutput.self, from: data)
+                return buildSummary(from: parsed, transcript: transcript, usage: usage, recordingId: recordingId)
+            } catch {
+                print("[Claude] JSON decode failed: \(error)")
+            }
         }
 
         print("[Claude] JSON parse failed — using extractive fallback")
@@ -88,15 +92,32 @@ final class ClaudeSummaryService: SummaryService {
         )
     }
 
-    // Strip markdown code fences and find the outermost JSON object.
+    // Strip markdown fences and extract the outermost balanced JSON object.
+    // Using lastIndex(of:"}") is wrong — it finds the last *nested* closing brace,
+    // truncating the JSON. We walk the string tracking brace depth instead.
     private func extractJSON(from text: String) -> String {
         let stripped = text
             .replacingOccurrences(of: "```json", with: "")
             .replacingOccurrences(of: "```", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let start = stripped.firstIndex(of: "{"),
-           let end = stripped.lastIndex(of: "}") {
-            return String(stripped[start...end])
+
+        guard let startIdx = stripped.firstIndex(of: "{") else { return stripped }
+
+        var depth = 0
+        var inString = false
+        var escaped = false
+
+        for idx in stripped.indices[startIdx...] {
+            let ch = stripped[idx]
+            if escaped { escaped = false; continue }
+            if ch == "\\" && inString { escaped = true; continue }
+            if ch == "\"" { inString.toggle(); continue }
+            guard !inString else { continue }
+            if ch == "{" { depth += 1 }
+            else if ch == "}" {
+                depth -= 1
+                if depth == 0 { return String(stripped[startIdx...idx]) }
+            }
         }
         return stripped
     }
