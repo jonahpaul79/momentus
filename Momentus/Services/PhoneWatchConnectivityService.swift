@@ -1,11 +1,38 @@
 import Foundation
 import WatchConnectivity
 
+struct PendingWatchRecording: Codable {
+    let audioFileID: String
+    let markers: [TimeInterval]
+    let mode: String?
+}
+
 final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
     static let shared = PhoneWatchConnectivityService()
 
     private var actionHandler: ((String, TimeInterval?, String?) -> Void)?
     private var fileHandler: ((String, [TimeInterval], String?) -> Void)?
+
+    private let pendingKey = "momentus_pending_watch_recordings"
+
+    var pendingRecordings: [PendingWatchRecording] {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: pendingKey),
+                  let items = try? JSONDecoder().decode([PendingWatchRecording].self, from: data)
+            else { return [] }
+            return items
+        }
+        set {
+            UserDefaults.standard.set(
+                try? JSONEncoder().encode(newValue),
+                forKey: pendingKey
+            )
+        }
+    }
+
+    func clearPendingRecordings() {
+        UserDefaults.standard.removeObject(forKey: pendingKey)
+    }
 
     private override init() {
         super.init()
@@ -20,6 +47,23 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
     ) {
         self.actionHandler = actionHandler
         self.fileHandler = fileHandler
+    }
+
+    // MARK: - Notify Watch that processing finished
+
+    func notifyWatchRecordingComplete() {
+        guard WCSession.default.activationState == .activated,
+              WCSession.default.isWatchAppInstalled else { return }
+        let message = ["action": "recordingProcessed"]
+        if WCSession.default.isReachable {
+            WCSession.default.sendMessage(message, replyHandler: nil) { _ in
+                // Watch wasn't reachable in real-time — queue via transferUserInfo so it
+                // arrives when the Watch next wakes.
+                WCSession.default.transferUserInfo(message)
+            }
+        } else {
+            WCSession.default.transferUserInfo(message)
+        }
     }
 
     // MARK: - Receiving messages
@@ -53,8 +97,15 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
         }
 
         let audioFileID = destURL.lastPathComponent
-        Task { @MainActor in
-            self.fileHandler?(audioFileID, markers, mode)
+
+        if let handler = fileHandler {
+            Task { @MainActor in handler(audioFileID, markers, mode) }
+        } else {
+            // RecordViewModel hasn't initialised yet — queue for when it does.
+            var pending = pendingRecordings
+            pending.append(PendingWatchRecording(audioFileID: audioFileID, markers: markers, mode: mode))
+            pendingRecordings = pending
+            print("[WatchConnectivity] queued \(audioFileID) — RecordViewModel not ready yet")
         }
     }
 

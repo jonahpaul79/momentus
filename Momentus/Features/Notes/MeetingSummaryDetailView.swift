@@ -452,7 +452,7 @@ struct MeetingSummaryDetailView: View {
 
     private func risksSection(_ risks: [Risk], t: AppTheme) -> some View {
         VStack(alignment: .leading, spacing: t.spacing.m) {
-            sectionHeader("Risks & Blockers", icon: "exclamationmark.triangle.fill", t: t)
+            sectionHeader("Concerns", icon: "exclamationmark.triangle.fill", t: t)
             ForEach(risks) { risk in
                 HStack(alignment: .top, spacing: t.spacing.m) {
                     Image(systemName: "exclamationmark.triangle.fill")

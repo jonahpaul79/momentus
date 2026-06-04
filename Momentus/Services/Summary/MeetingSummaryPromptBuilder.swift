@@ -10,7 +10,7 @@ enum MeetingSummaryPromptBuilder {
     // MARK: - System Prompt
 
     static let systemPrompt = """
-        You are a meeting intelligence assistant. You extract structured, accurate information from spoken meeting transcripts.
+        You are a conversation intelligence assistant. You extract structured, accurate information from transcripts of meetings, lectures, interviews, and spoken conversations.
 
         You must return a single valid JSON object — no text before or after the JSON, no markdown fences.
 
@@ -50,12 +50,12 @@ enum MeetingSummaryPromptBuilder {
           ],
           "risks": [
             {
-              "title": "string — short risk label",
-              "description": "string — what could go wrong and why it matters",
+              "title": "string — short concern label",
+              "description": "string — the concern, obstacle, or issue raised and why it matters",
               "severity": "critical" | "high" | "medium" | "low"
             }
           ],
-          "followUpDraft": "string — a short 2-3 sentence follow-up email the organizer could send after the meeting",
+          "followUpDraft": "string — a short 2-3 sentence follow-up message or note summarising key outcomes and next steps",
           "confidenceNotes": ["string — any important caveats about transcript quality, speaker attribution, or uncertain content"]
         }
 

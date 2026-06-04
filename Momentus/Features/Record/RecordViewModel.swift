@@ -99,6 +99,14 @@ extension Notification.Name {
 
     func configure(store: RecordingsStore) {
         self.store = store
+        // Drain any Watch recordings that arrived before RecordViewModel was ready
+        let pending = PhoneWatchConnectivityService.shared.pendingRecordings
+        if !pending.isEmpty {
+            PhoneWatchConnectivityService.shared.clearPendingRecordings()
+            for rec in pending {
+                handleWatchRecording(audioFileID: rec.audioFileID, markers: rec.markers, mode: rec.mode)
+            }
+        }
     }
 
     /// Swaps in services built by ServiceFactory for the given mode.
@@ -437,6 +445,8 @@ extension Notification.Name {
 
             HapticStyle.success.trigger()
             state = .idle
+
+            PhoneWatchConnectivityService.shared.notifyWatchRecordingComplete()
 
             // Always notify — the app may have been woken by WatchConnectivity
             // even when the user isn't actively looking at it.

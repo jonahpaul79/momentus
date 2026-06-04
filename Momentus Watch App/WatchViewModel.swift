@@ -72,8 +72,13 @@ enum WatchRecordingState: Equatable {
             ])
         }
 
-        try? await Task.sleep(for: .seconds(2))
-        recordingState = .saved
+        // Stay in .processing until the phone confirms via WCSession.
+        // Fall back to .saved after 10 minutes in case phone is unreachable.
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(600))
+            guard let self, self.recordingState == .processing else { return }
+            self.recordingState = .saved
+        }
     }
 
     func pauseRecording() async {
@@ -212,5 +217,21 @@ extension WatchViewModel: WCSessionDelegate {
         error: Error?
     ) {
         isConnectedToPhone = activationState == .activated
+    }
+
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        handlePhoneMessage(message)
+    }
+
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        handlePhoneMessage(userInfo)
+    }
+
+    private func handlePhoneMessage(_ message: [String: Any]) {
+        guard (message["action"] as? String) == "recordingProcessed" else { return }
+        Task { @MainActor [weak self] in
+            guard let self, self.recordingState == .processing else { return }
+            self.recordingState = .saved
+        }
     }
 }

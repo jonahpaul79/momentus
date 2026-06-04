@@ -100,6 +100,7 @@ struct WatchActiveRecordingView: View {
             .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
         }
         .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 
