@@ -144,38 +144,31 @@ final class ClaudeSummaryService: SummaryService {
             suggestedTitle: output.suggestedTitle.flatMap { $0.isEmpty ? nil : $0 },
             executiveSummary: output.executiveSummary ?? "Meeting processed by Claude.",
             markedMoments: markedMoments.isEmpty ? MeetingSummaryPromptBuilder.fallbackMarkedMoments(from: transcript) : markedMoments,
-            decisions: (output.decisions ?? []).map { d in
-                Decision(
-                    id: UUID(),
+            decisions: (output.decisions ?? []).compactMap { d in
+                MeetingSummarySanitizer.cleanDecision(
                     text: d.text,
                     context: d.context,
                     confidence: d.confidenceFloat
                 )
             },
-            actionItems: (output.actionItems ?? []).map { a in
-                ActionItem(
-                    id: UUID(),
+            actionItems: (output.actionItems ?? []).compactMap { a in
+                MeetingSummarySanitizer.cleanActionItem(
                     title: a.title,
-                    owner: a.owner.flatMap { $0.isEmpty ? nil : $0 },
+                    owner: a.owner,
                     isOwnerInferred: a.isOwnerInferred ?? false,
-                    dueDate: nil,
-                    isDueDateInferred: false,
-                    isCompleted: false,
                     confidence: a.confidenceFloat,
                     priority: a.priorityValue
                 )
             },
-            openQuestions: (output.openQuestions ?? []).map { q in
-                OpenQuestion(
-                    id: UUID(),
+            openQuestions: (output.openQuestions ?? []).compactMap { q in
+                MeetingSummarySanitizer.cleanOpenQuestion(
                     text: q.text,
-                    owner: q.owner.flatMap { $0.isEmpty ? nil : $0 },
+                    owner: q.owner,
                     priority: q.priorityValue
                 )
             },
-            risks: (output.risks ?? []).map { r in
-                Risk(
-                    id: UUID(),
+            risks: (output.risks ?? []).compactMap { r in
+                MeetingSummarySanitizer.cleanRisk(
                     title: r.title,
                     description: r.description,
                     severity: r.severityValue

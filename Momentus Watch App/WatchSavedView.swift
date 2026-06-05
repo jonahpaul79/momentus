@@ -36,15 +36,8 @@ struct WatchSavedView: View {
                 .contentTransition(.opacity)
                 .animation(.easeInOut(duration: 0.4), value: phase.label)
 
-            Text(elapsedString(vm.processingElapsed))
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(t.textSecondary)
-                .monospacedDigit()
-                .contentTransition(.numericText(countsDown: false))
-                .animation(.linear(duration: 0.2), value: vm.processingElapsed)
-
             if vm.processingElapsed >= 60 {
-                Text("Normal for long meetings")
+                Text("You can keep using your Watch")
                     .font(.system(size: 10))
                     .foregroundStyle(t.textTertiary)
                     .multilineTextAlignment(.center)
@@ -63,16 +56,9 @@ struct WatchSavedView: View {
         switch elapsed {
         case ..<20:
             return ProcessingPhase(icon: "antenna.radiowaves.left.and.right", label: "Sending to iPhone")
-        case 20..<90:
-            return ProcessingPhase(icon: "waveform", label: "Transcribing")
         default:
-            return ProcessingPhase(icon: "sparkles", label: "Summarizing")
+            return ProcessingPhase(icon: "iphone", label: "Processing on iPhone")
         }
-    }
-
-    private func elapsedString(_ elapsed: TimeInterval) -> String {
-        let total = Int(elapsed)
-        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     // MARK: - Saved

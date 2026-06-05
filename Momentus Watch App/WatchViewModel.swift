@@ -253,6 +253,9 @@ extension WatchViewModel: WCSessionDelegate {
             case "recordingProcessed":
                 guard self.recordingState == .processing else { return }
                 self.recordingState = .saved
+            case "recordingFailed":
+                guard self.recordingState == .processing else { return }
+                self.recordingState = .idle
             case "startRecording":
                 if let mode = message["mode"] as? String {
                     if mode == WatchRecordingMode.bestQuality.rawValue {

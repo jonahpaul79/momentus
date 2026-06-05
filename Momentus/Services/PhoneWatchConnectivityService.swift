@@ -11,7 +11,6 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
     static let shared = PhoneWatchConnectivityService()
 
     private var actionHandler: ((String, TimeInterval?, String?) -> Void)?
-    private var fileHandler: ((String, [TimeInterval], String?) -> Void)?
 
     private let pendingKey = "momentus_pending_watch_recordings"
 
@@ -41,12 +40,8 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
         WCSession.default.activate()
     }
 
-    func configure(
-        actionHandler: @escaping (String, TimeInterval?, String?) -> Void,
-        fileHandler: @escaping (String, [TimeInterval], String?) -> Void
-    ) {
+    func configure(actionHandler: @escaping (String, TimeInterval?, String?) -> Void) {
         self.actionHandler = actionHandler
-        self.fileHandler = fileHandler
     }
 
     // MARK: - Notify Watch that processing finished
@@ -55,6 +50,17 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
         guard WCSession.default.activationState == .activated,
               WCSession.default.isWatchAppInstalled else { return }
         let message = ["action": "recordingProcessed"]
+        sendWatchStatusMessage(message)
+    }
+
+    func notifyWatchRecordingFailed() {
+        guard WCSession.default.activationState == .activated,
+              WCSession.default.isWatchAppInstalled else { return }
+        let message = ["action": "recordingFailed"]
+        sendWatchStatusMessage(message)
+    }
+
+    private func sendWatchStatusMessage(_ message: [String: String]) {
         if WCSession.default.isReachable {
             WCSession.default.sendMessage(message, replyHandler: nil) { _ in
                 // Watch wasn't reachable in real-time — queue via transferUserInfo so it
@@ -130,14 +136,8 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
 
         let audioFileID = destURL.lastPathComponent
 
-        if let handler = fileHandler {
-            Task { @MainActor in handler(audioFileID, markers, mode) }
-        } else {
-            // RecordViewModel hasn't initialised yet — queue for when it does.
-            var pending = pendingRecordings
-            pending.append(PendingWatchRecording(audioFileID: audioFileID, markers: markers, mode: mode))
-            pendingRecordings = pending
-            print("[WatchConnectivity] queued \(audioFileID) — RecordViewModel not ready yet")
+        Task { @MainActor in
+            WatchRecordingProcessor.shared.enqueue(audioFileID: audioFileID, markers: markers, mode: mode)
         }
     }
 

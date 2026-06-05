@@ -61,14 +61,16 @@ enum MeetingSummaryPromptBuilder {
 
         Rules:
         1. Ground every item in what was actually spoken. Do not invent content.
-        2. Leave arrays empty ([]) when the transcript contains nothing explicit for that field. Action items require someone to have explicitly assigned or committed to a task. Open questions require a question to have been explicitly raised and left unresolved. Do not infer either from general discussion.
+        2. Leave arrays empty ([]) when the transcript contains nothing explicit for that field. It is better to omit a section than to stretch weak evidence to fit the schema.
         3. Only assign an owner if that person was explicitly named in the transcript.
         4. Set isOwnerInferred: true when ownership was implied but not directly stated.
-        5. Distinguish explicit decisions from tentative discussion — only populate decisions[] with clear conclusions.
-        6. Flag low-confidence or unclear transcript areas in confidenceNotes.
-        7. Use concise, professional language. Avoid filler phrases.
-        8. Prioritize action items by urgency: high = blocking or time-sensitive, medium = clear next step, low = suggested.
-        9. If marked moments are provided, summarize each marked moment explicitly in markedMoments[] using only the nearby transcript context.
+        5. Action items require someone to have explicitly assigned or committed to a task. Open questions require a question to have been explicitly raised and left unresolved. Do not infer either from general discussion.
+        6. Decisions require an explicit choice, approval, commitment, scope call, or finalized conclusion. Positive feedback, preferences, observations, or low-confidence remarks are not decisions unless the speaker clearly chose or approved a course of action.
+        7. Do not convert phrases like "looks better", "seems good", "noted", or "interesting" into decisions.
+        8. Flag low-confidence or unclear transcript areas in confidenceNotes.
+        9. Use concise, professional language. Avoid filler phrases.
+        10. Prioritize action items by urgency: high = blocking or time-sensitive, medium = clear next step, low = suggested.
+        11. If marked moments are provided, summarize each marked moment explicitly in markedMoments[] using only the nearby transcript context.
         """
 
     // MARK: - User Message

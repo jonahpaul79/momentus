@@ -35,6 +35,9 @@ struct ContentView: View {
         .environment(themeManager)
         .environment(store)
         .preferredColorScheme(themeManager.currentTheme.colorScheme)
+        .task {
+            WatchRecordingProcessor.shared.configure(store: store)
+        }
         .overlay {
             if showingSplash {
                 SplashView(isVisible: $showingSplash)

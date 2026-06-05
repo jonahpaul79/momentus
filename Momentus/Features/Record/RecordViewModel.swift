@@ -89,26 +89,13 @@ extension Notification.Name {
         self.transcriptionService = transcriptionService
         self.summaryService = summaryService
         self.calendarService = calendarService
-        PhoneWatchConnectivityService.shared.configure(
-            actionHandler: { [weak self] action, timestamp, mode in
-                self?.handleWatchAction(action, timestamp: timestamp, mode: mode)
-            },
-            fileHandler: { [weak self] audioFileID, markers, mode in
-                self?.handleWatchRecording(audioFileID: audioFileID, markers: markers, mode: mode)
-            }
-        )
+        PhoneWatchConnectivityService.shared.configure { [weak self] action, timestamp, mode in
+            self?.handleWatchAction(action, timestamp: timestamp, mode: mode)
+        }
     }
 
     func configure(store: RecordingsStore) {
         self.store = store
-        // Drain any Watch recordings that arrived before RecordViewModel was ready
-        let pending = PhoneWatchConnectivityService.shared.pendingRecordings
-        if !pending.isEmpty {
-            PhoneWatchConnectivityService.shared.clearPendingRecordings()
-            for rec in pending {
-                handleWatchRecording(audioFileID: rec.audioFileID, markers: rec.markers, mode: rec.mode)
-            }
-        }
     }
 
     /// Swaps in services built by ServiceFactory for the given mode.
@@ -479,108 +466,6 @@ extension Notification.Name {
             errorMessage = error.localizedDescription
             state = .recording
             startTimers()
-        }
-    }
-
-    private func handleWatchRecording(audioFileID: String, markers: [TimeInterval], mode: String?) {
-        let prev = watchActionTask
-        watchActionTask = Task { [weak self] in
-            await prev?.value
-            guard let self else { return }
-            await self.processWatchRecording(audioFileID: audioFileID, markers: markers, mode: mode)
-        }
-    }
-
-    private func processWatchRecording(audioFileID: String, markers: [TimeInterval], mode: String?) async {
-        guard let store else { return }
-
-        let fileURL = AVAudioRecorderService.recordingsDirectory.appendingPathComponent(audioFileID)
-        let fileSize = (try? fileURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
-        guard fileSize > 1024 else {
-            print("[Watch Pipeline] audio file missing or empty (\(fileSize) bytes) — aborting")
-            return
-        }
-        print("[Watch Pipeline] audio file ready: \(audioFileID) (\(fileSize) bytes)")
-
-        // Read actual audio duration so the recording's duration field is correct
-        // and the audio player shows the right length.
-        let audioDuration: TimeInterval
-        if let cmDuration = try? await AVURLAsset(url: fileURL).load(.duration) {
-            audioDuration = CMTimeGetSeconds(cmDuration)
-        } else {
-            audioDuration = 0
-        }
-
-        let recordingId = UUID()
-        let recordingMode: RecordingMode = mode == "Quality" ? .bestQuality : .onDevice
-        let recordingEnd = Date()
-        let recordingStart = audioDuration > 0
-            ? recordingEnd.addingTimeInterval(-audioDuration)
-            : recordingEnd
-
-        var recording = Recording(
-            id: recordingId,
-            title: titleFromTime(),
-            startedAt: recordingStart,
-            endedAt: recordingEnd,
-            mode: recordingMode,
-            micSource: .watch,
-            audioFileID: audioFileID,
-            processingState: .transcribing,
-            markers: markers
-        )
-        store.add(recording)
-        state = .processing(.transcribing)
-        processingStepIndex = 1
-
-        do {
-            var transcript = try await transcriptionService.transcribe(
-                audioFileID: audioFileID,
-                recordingId: recordingId
-            )
-            if !markers.isEmpty {
-                transcript.providerData["momentus_markers"] = markers
-                    .map { String(format: "%.1f", $0) }.joined(separator: ",")
-            }
-            recording.transcript = transcript
-            recording.processingState = .summarizing
-            store.update(recording)
-            state = .processing(.summarizing)
-            processingStepIndex = 2
-
-            let summary = try await summaryService.summarize(
-                transcript: transcript,
-                recordingId: recordingId
-            )
-            recording.summary = summary
-            if let suggested = summary.suggestedTitle {
-                recording.title = suggested
-            }
-            recording.processingState = .completed
-            store.update(recording)
-
-            HapticStyle.success.trigger()
-            state = .idle
-
-            PhoneWatchConnectivityService.shared.notifyWatchRecordingComplete()
-
-            // Always notify — the app may have been woken by WatchConnectivity
-            // even when the user isn't actively looking at it.
-            await MeetingNotificationService.shared.notifySummaryReady(
-                title: recording.title,
-                recordingId: recordingId
-            )
-
-            NotificationCenter.default.post(
-                name: .recordingProcessingCompleted,
-                object: nil,
-                userInfo: ["recordingId": recordingId]
-            )
-        } catch {
-            recording.processingState = .failed
-            store.update(recording)
-            state = .idle
-            print("[Watch Pipeline] failed: \(error)")
         }
     }
 

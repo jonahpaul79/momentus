@@ -13,7 +13,7 @@ final class AppleFoundationModelsSummaryService: SummaryService {
         var executiveSummary: String
         @Guide(description: "Bullet summaries of user-marked moments; empty if none")
         var markedMoments: [String]
-        @Guide(description: "Decisions or conclusions reached; empty if none")
+        @Guide(description: "Explicit choices, approvals, commitments, scope calls, or finalized conclusions; empty if none")
         var decisions: [String]
         @Guide(description: "Action items explicitly assigned or committed to in the conversation; empty if none were stated")
         var actionItems: [String]
@@ -77,24 +77,20 @@ final class AppleFoundationModelsSummaryService: SummaryService {
             suggestedTitle: output.suggestedTitle,
             executiveSummary: output.executiveSummary,
             markedMoments: buildMarkedMoments(from: output.markedMoments, transcript: transcript),
-            decisions: output.decisions.map {
-                Decision(id: UUID(), text: $0, context: nil, confidence: 0.9)
+            decisions: output.decisions.compactMap {
+                MeetingSummarySanitizer.cleanDecision(text: $0, context: nil, confidence: 0.9)
             },
-            actionItems: output.actionItems.map { itemText in
-                ActionItem(
-                    id: UUID(),
+            actionItems: output.actionItems.compactMap { itemText in
+                MeetingSummarySanitizer.cleanActionItem(
                     title: itemText,
                     owner: nil,
                     isOwnerInferred: false,
-                    dueDate: nil,
-                    isDueDateInferred: false,
-                    isCompleted: false,
                     confidence: 0.85,
                     priority: .medium
                 )
             },
-            openQuestions: output.openQuestions.map {
-                OpenQuestion(id: UUID(), text: $0, owner: nil, priority: .medium)
+            openQuestions: output.openQuestions.compactMap {
+                MeetingSummarySanitizer.cleanOpenQuestion(text: $0, owner: nil, priority: .medium)
             },
             risks: [],
             followUpDraft: output.followUpDraft,

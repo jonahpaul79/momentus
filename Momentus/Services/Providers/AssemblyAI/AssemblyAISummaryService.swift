@@ -75,24 +75,20 @@ final class AssemblyAISummaryService: SummaryService {
             markedMoments: (output.markedMoments ?? []).map {
                 MarkedMoment(timestamp: $0.timestamp, summary: $0.summary, transcriptExcerpt: $0.transcriptExcerpt)
             }.ifEmpty(use: MeetingSummaryPromptBuilder.fallbackMarkedMoments(from: transcript)),
-            decisions: (output.decisions ?? []).map {
-                Decision(id: UUID(), text: $0, context: nil, confidence: 0.9)
+            decisions: (output.decisions ?? []).compactMap {
+                MeetingSummarySanitizer.cleanDecision(text: $0, context: nil, confidence: 0.9)
             },
-            actionItems: (output.actionItems ?? []).map { item in
-                ActionItem(
-                    id: UUID(),
+            actionItems: (output.actionItems ?? []).compactMap { item in
+                MeetingSummarySanitizer.cleanActionItem(
                     title: item.task,
-                    owner: item.owner.flatMap { $0.isEmpty ? nil : $0 },
+                    owner: item.owner,
                     isOwnerInferred: false,
-                    dueDate: nil,
-                    isDueDateInferred: false,
-                    isCompleted: false,
                     confidence: 0.85,
                     priority: .medium
                 )
             },
-            openQuestions: (output.openQuestions ?? []).map {
-                OpenQuestion(id: UUID(), text: $0, owner: nil, priority: .medium)
+            openQuestions: (output.openQuestions ?? []).compactMap {
+                MeetingSummarySanitizer.cleanOpenQuestion(text: $0, owner: nil, priority: .medium)
             },
             risks: [],
             followUpDraft: output.followUp ?? "Hi team, following up on our meeting.",
@@ -146,8 +142,10 @@ final class AssemblyAISummaryService: SummaryService {
 
         Rules:
         - Ground every item in what was actually spoken. Do not invent or assume anything.
-        - Leave arrays empty ([]) if the transcript contains nothing relevant for that field.
+        - Leave arrays empty ([]) if the transcript contains nothing relevant for that field. It is better to omit a section than to stretch weak evidence to fit the schema.
         - Only include a name as action_item owner if that person was explicitly mentioned.
+        - Decisions require an explicit choice, approval, commitment, scope call, or finalized conclusion. Positive feedback, preferences, observations, or low-confidence remarks are not decisions unless the speaker clearly chose or approved a course of action.
+        - Do not convert phrases like "looks better", "seems good", "noted", or "interesting" into decisions.
         - If user-marked moments are listed below, summarize each one explicitly in marked_moments.
         - Return only the JSON object — no preamble, no explanation, no markdown fences.
 
