@@ -84,10 +84,10 @@ enum WatchProcessingStatus: Equatable {
         startProcessingTimer()
 
         if let url = stopAudioCapture(), let transferURL = prepareTransferFile(from: url) {
-            if await phoneCanProcessNow() {
-                transferToPhone(transferURL)
-            } else if selectedMode == .bestQuality, !assemblyAIAPIKey.isEmpty {
+            if selectedMode == .bestQuality, !assemblyAIAPIKey.isEmpty {
                 await processDirectlyInCloud(transferURL)
+            } else if await phoneCanProcessNow() {
+                transferToPhone(transferURL)
             } else {
                 processingStatus = .needsPhoneWake
             }
