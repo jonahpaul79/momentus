@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import WatchConnectivity
 
 struct PendingWatchRecording: Codable {
@@ -164,7 +165,7 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
         replyHandler: @escaping ([String: Any]) -> Void
     ) {
         if (message["action"] as? String) == "watchRecordingPhoneProbe" {
-            replyHandler(["available": true])
+            replyHandler(["available": UIApplication.shared.applicationState == .active])
             return
         }
         handle(message)

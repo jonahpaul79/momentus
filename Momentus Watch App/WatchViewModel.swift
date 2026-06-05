@@ -21,6 +21,7 @@ enum WatchProcessingStatus: Equatable {
     case summarizingCloud
     case readyToSync
     case needsPhoneWake
+    case needsCloudConfig
     case failed
 }
 
@@ -84,8 +85,14 @@ enum WatchProcessingStatus: Equatable {
         startProcessingTimer()
 
         if let url = stopAudioCapture(), let transferURL = prepareTransferFile(from: url) {
-            if selectedMode == .bestQuality, !assemblyAIAPIKey.isEmpty {
-                await processDirectlyInCloud(transferURL)
+            if selectedMode == .bestQuality {
+                if !assemblyAIAPIKey.isEmpty {
+                    await processDirectlyInCloud(transferURL)
+                } else if await phoneCanProcessNow() {
+                    transferToPhone(transferURL)
+                } else {
+                    processingStatus = .needsCloudConfig
+                }
             } else if await phoneCanProcessNow() {
                 transferToPhone(transferURL)
             } else {

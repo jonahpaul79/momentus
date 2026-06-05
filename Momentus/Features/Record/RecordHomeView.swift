@@ -17,9 +17,11 @@ struct RecordHomeView: View {
                     upNextSection(t, meetings: activeMeetings)
                 }
             }
+            .frame(maxWidth: .infinity)
             .padding(.bottom, t.spacing.hero + t.spacing.huge)
         }
-        .background(t.gradients.heroBackground)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(t.gradients.heroBackground.ignoresSafeArea())
         .task {
             vm.configure(store: store)
             vm.configure(
@@ -111,6 +113,7 @@ struct RecordHomeView: View {
         }
         .padding(.horizontal, t.spacing.l)
         .padding(.bottom, t.spacing.xl)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Mode Pill
@@ -218,6 +221,7 @@ struct RecordHomeView: View {
             }
         }
         .padding(.horizontal, t.spacing.l)
+        .frame(maxWidth: .infinity)
         .animation(.easeInOut(duration: 0.2), value: vm.isMissingTranscriptionKey)
         .animation(.easeInOut(duration: 0.2), value: vm.isUsingSummaryFallback)
     }

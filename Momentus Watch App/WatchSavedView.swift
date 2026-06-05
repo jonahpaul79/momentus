@@ -66,15 +66,15 @@ struct WatchSavedView: View {
         case .sending:
             return ProcessingPhase(
                 icon: "antenna.radiowaves.left.and.right",
-                label: "Sending to iPhone",
-                detail: nil,
+                label: "Handing off",
+                detail: "Momentus is open on iPhone",
                 color: t.accentPrimary
             )
         case .received:
             return ProcessingPhase(
                 icon: "iphone",
-                label: "Sent to iPhone",
-                detail: "Waiting for Momentus",
+                label: "Waiting for processing",
+                detail: "Keep Momentus open on iPhone",
                 color: t.accentPrimary
             )
         case .processingOnPhone:
@@ -117,6 +117,13 @@ struct WatchSavedView: View {
                 icon: "iphone.gen3.radiowaves.left.and.right",
                 label: "Open Momentus",
                 detail: "On your iPhone",
+                color: t.accentRecording
+            )
+        case .needsCloudConfig:
+            return ProcessingPhase(
+                icon: "key.slash",
+                label: "Open Momentus",
+                detail: "Sync provider settings",
                 color: t.accentRecording
             )
         case .failed:

@@ -52,7 +52,10 @@ struct ContentView: View {
                 .tabItem { Label("Notes", systemImage: "doc.text") }
                 .tag(Tab.notes)
 
-            NavigationStack { RecordHomeView() }
+            NavigationStack {
+                RecordHomeView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
                 .tabItem { Label("Record", systemImage: "mic") }
                 .tag(Tab.record)
 
@@ -60,6 +63,8 @@ struct ContentView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag(Tab.settings)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(t.colors.backgroundPrimary.ignoresSafeArea())
         .tint(t.colors.accentPrimary)
         .toolbarBackground(t.colors.backgroundSecondary.opacity(0.97), for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
