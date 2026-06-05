@@ -71,6 +71,23 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
         sendWatchStatusMessage(message)
     }
 
+    func sendWatchCloudConfiguration() {
+        guard WCSession.default.activationState == .activated,
+              WCSession.default.isWatchAppInstalled else { return }
+
+        var message: [String: String] = [
+            "action": "watchCloudConfig",
+            "defaultMode": UserDefaults.standard.string(forKey: "defaultRecordingMode") ?? RecordingMode.onDevice.rawValue
+        ]
+        if let assemblyAIKey = KeychainService.retrieve(.assemblyAIAPIKey), !assemblyAIKey.isEmpty {
+            message["assemblyAIAPIKey"] = assemblyAIKey
+        }
+        if let anthropicKey = KeychainService.retrieve(.anthropicAPIKey), !anthropicKey.isEmpty {
+            message["anthropicAPIKey"] = anthropicKey
+        }
+        sendWatchStatusMessage(message)
+    }
+
     func notifyWatchRecordingReceived() {
         sendWatchRecordingStatus("watchRecordingReceived")
     }
@@ -141,6 +158,19 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
         handle(message)
     }
 
+    func session(
+        _ session: WCSession,
+        didReceiveMessage message: [String: Any],
+        replyHandler: @escaping ([String: Any]) -> Void
+    ) {
+        if (message["action"] as? String) == "watchRecordingPhoneProbe" {
+            replyHandler(["available": true])
+            return
+        }
+        handle(message)
+        replyHandler(["ok": true])
+    }
+
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         handle(userInfo)
     }
@@ -183,6 +213,19 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
 
     private func handle(_ message: [String: Any]) {
         guard let action = message["action"] as? String else { return }
+        if action == "watchRecordingTransferStarted" {
+            print("[WatchConnectivity] watch recording transfer starting")
+            MomentusAppDelegate.scheduleWatchRecordingProcessingTask()
+            WhisperKitTranscriptionService.warmup()
+            return
+        }
+        if action == "watchCloudRecordingProcessed" {
+            Task { @MainActor in
+                WatchRecordingProcessor.shared.importCloudProcessedRecording(message)
+            }
+            return
+        }
+
         let timestamp = message["timestamp"] as? TimeInterval
         let mode = message["mode"] as? String
         Task { @MainActor in
@@ -196,7 +239,11 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
         _ session: WCSession,
         activationDidCompleteWith activationState: WCSessionActivationState,
         error: Error?
-    ) {}
+    ) {
+        if activationState == .activated {
+            sendWatchCloudConfiguration()
+        }
+    }
 
     func sessionDidBecomeInactive(_ session: WCSession) {}
 

@@ -12,9 +12,14 @@ enum WatchRecordingState: Equatable {
 }
 
 enum WatchProcessingStatus: Equatable {
+    case checkingPhone
     case sending
     case received
     case processingOnPhone
+    case uploadingCloud
+    case transcribingCloud
+    case summarizingCloud
+    case readyToSync
     case needsPhoneWake
     case failed
 }
@@ -42,6 +47,8 @@ enum WatchProcessingStatus: Equatable {
     private var audioRecorder: AVAudioRecorder?
     private var watchRecordingURL: URL?
     private var activeTransferFileNames: Set<String> = []
+    private var assemblyAIAPIKey = UserDefaults.standard.string(forKey: "watchAssemblyAIAPIKey") ?? ""
+    private var anthropicAPIKey = UserDefaults.standard.string(forKey: "watchAnthropicAPIKey") ?? ""
 
     override init() {
         super.init()
@@ -73,18 +80,17 @@ enum WatchProcessingStatus: Equatable {
         extendedRuntimeSession?.invalidate()
         extendedRuntimeSession = nil
         recordingState = .processing
-        processingStatus = .sending
+        processingStatus = .checkingPhone
         startProcessingTimer()
 
         if let url = stopAudioCapture(), let transferURL = prepareTransferFile(from: url) {
-            let markerStr = markers.map { String(format: "%.2f", $0) }.joined(separator: ",")
-            activeTransferFileNames.insert(transferURL.lastPathComponent)
-            WCSession.default.transferFile(transferURL, metadata: [
-                "action": "processWatchRecording",
-                "mode": selectedMode.rawValue,
-                "markers": markerStr,
-                "duration": String(format: "%.1f", elapsedTime)
-            ])
+            if await phoneCanProcessNow() {
+                transferToPhone(transferURL)
+            } else if selectedMode == .bestQuality, !assemblyAIAPIKey.isEmpty {
+                await processDirectlyInCloud(transferURL)
+            } else {
+                processingStatus = .needsPhoneWake
+            }
         } else {
             processingStatus = .failed
         }
@@ -147,13 +153,94 @@ enum WatchProcessingStatus: Equatable {
 
     private func updateProcessingTimeout() {
         switch processingStatus {
-        case .sending where processingElapsed >= 35:
+        case .checkingPhone where processingElapsed >= 3,
+             .sending where processingElapsed >= 35:
             processingStatus = .needsPhoneWake
         case .received where processingElapsed >= 120,
              .processingOnPhone where processingElapsed >= 120:
             processingStatus = .needsPhoneWake
         default:
             break
+        }
+    }
+
+    private func phoneCanProcessNow() async -> Bool {
+        guard WCSession.default.activationState == .activated,
+              WCSession.default.isReachable else { return false }
+
+        return await withCheckedContinuation { continuation in
+            var didResume = false
+            let resume: (Bool) -> Void = { value in
+                guard !didResume else { return }
+                didResume = true
+                continuation.resume(returning: value)
+            }
+
+            WCSession.default.sendMessage(
+                ["action": "watchRecordingPhoneProbe"],
+                replyHandler: { reply in
+                    resume((reply["available"] as? Bool) == true)
+                },
+                errorHandler: { _ in
+                    resume(false)
+                }
+            )
+
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                resume(false)
+            }
+        }
+    }
+
+    private func transferToPhone(_ transferURL: URL) {
+        processingStatus = .sending
+        let markerStr = markers.map { String(format: "%.2f", $0) }.joined(separator: ",")
+        WCSession.default.transferUserInfo([
+            "action": "watchRecordingTransferStarted",
+            "fileName": transferURL.lastPathComponent,
+            "mode": selectedMode.rawValue,
+            "duration": String(format: "%.1f", elapsedTime)
+        ])
+        activeTransferFileNames.insert(transferURL.lastPathComponent)
+        WCSession.default.transferFile(transferURL, metadata: [
+            "action": "processWatchRecording",
+            "mode": selectedMode.rawValue,
+            "markers": markerStr,
+            "duration": String(format: "%.1f", elapsedTime)
+        ])
+    }
+
+    private func processDirectlyInCloud(_ fileURL: URL) async {
+        do {
+            processingStatus = .uploadingCloud
+            let service = WatchCloudAssemblyAIService(apiKey: assemblyAIAPIKey)
+            processingStatus = .transcribingCloud
+            let result = try await service.process(fileURL: fileURL)
+            processingStatus = result.summaryText == nil ? .readyToSync : .summarizingCloud
+
+            let now = Date()
+            let startedAt = now.addingTimeInterval(-elapsedTime)
+            let markerStr = markers.map { String(format: "%.2f", $0) }.joined(separator: ",")
+            let recordingID = UUID().uuidString
+            var payload: [String: Any] = [
+                "action": "watchCloudRecordingProcessed",
+                "recordingId": recordingID,
+                "title": result.title ?? "Watch Recording",
+                "startedAt": startedAt.timeIntervalSince1970,
+                "endedAt": now.timeIntervalSince1970,
+                "markers": markerStr,
+                "transcriptText": result.transcriptText
+            ]
+            if let summaryText = result.summaryText {
+                payload["summaryText"] = summaryText
+            }
+            WCSession.default.transferUserInfo(payload)
+            try? FileManager.default.removeItem(at: fileURL)
+            processingStatus = .readyToSync
+        } catch {
+            print("[Watch Cloud] direct processing failed: \(error)")
+            processingStatus = .failed
         }
     }
 
@@ -343,6 +430,18 @@ extension WatchViewModel: WCSessionDelegate {
             case "watchRecordingNeedsPhoneWake":
                 guard self.recordingState == .processing else { return }
                 self.processingStatus = .needsPhoneWake
+            case "watchCloudConfig":
+                if let defaultMode = message["defaultMode"] as? String {
+                    if defaultMode == "bestQuality" || defaultMode == WatchRecordingMode.bestQuality.rawValue {
+                        self.selectedMode = .bestQuality
+                    } else if defaultMode == "onDevice" || defaultMode == WatchRecordingMode.onDevice.rawValue {
+                        self.selectedMode = .onDevice
+                    }
+                }
+                self.assemblyAIAPIKey = (message["assemblyAIAPIKey"] as? String) ?? ""
+                self.anthropicAPIKey = (message["anthropicAPIKey"] as? String) ?? ""
+                UserDefaults.standard.set(self.assemblyAIAPIKey, forKey: "watchAssemblyAIAPIKey")
+                UserDefaults.standard.set(self.anthropicAPIKey, forKey: "watchAnthropicAPIKey")
             case "startRecording":
                 if let mode = message["mode"] as? String {
                     if mode == WatchRecordingMode.bestQuality.rawValue {

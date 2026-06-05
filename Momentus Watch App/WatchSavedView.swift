@@ -56,6 +56,13 @@ struct WatchSavedView: View {
 
     private func processingPhase(for status: WatchProcessingStatus) -> ProcessingPhase {
         switch status {
+        case .checkingPhone:
+            return ProcessingPhase(
+                icon: "iphone.gen3.radiowaves.left.and.right",
+                label: "Checking iPhone",
+                detail: nil,
+                color: t.accentPrimary
+            )
         case .sending:
             return ProcessingPhase(
                 icon: "antenna.radiowaves.left.and.right",
@@ -76,6 +83,34 @@ struct WatchSavedView: View {
                 label: "Processing on iPhone",
                 detail: "You can keep using your Watch",
                 color: t.accentPrimary
+            )
+        case .uploadingCloud:
+            return ProcessingPhase(
+                icon: "icloud.and.arrow.up",
+                label: "Uploading securely",
+                detail: "Using AssemblyAI",
+                color: t.accentPrimary
+            )
+        case .transcribingCloud:
+            return ProcessingPhase(
+                icon: "waveform.badge.mic",
+                label: "Transcribing",
+                detail: "Using AssemblyAI",
+                color: t.accentPrimary
+            )
+        case .summarizingCloud:
+            return ProcessingPhase(
+                icon: "sparkles",
+                label: "Summarizing",
+                detail: "Using AssemblyAI",
+                color: t.accentPrimary
+            )
+        case .readyToSync:
+            return ProcessingPhase(
+                icon: "checkmark.circle.fill",
+                label: "Notes ready",
+                detail: "Open Momentus to sync",
+                color: t.accentSuccess
             )
         case .needsPhoneWake:
             return ProcessingPhase(

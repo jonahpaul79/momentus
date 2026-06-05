@@ -20,6 +20,77 @@ final class WatchRecordingProcessor {
         await processingTask?.value
     }
 
+    func importCloudProcessedRecording(_ message: [String: Any]) {
+        if store == nil {
+            store = RecordingsStore(loadSamples: false)
+            print("[Watch Pipeline] created background store for cloud import")
+        }
+        guard let store else { return }
+
+        let recordingId = (message["recordingId"] as? String).flatMap(UUID.init(uuidString:)) ?? UUID()
+        let transcriptText = (message["transcriptText"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !transcriptText.isEmpty else { return }
+
+        let summaryText = (message["summaryText"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = (message["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let startedAt = Date(timeIntervalSince1970: message["startedAt"] as? TimeInterval ?? Date().timeIntervalSince1970)
+        let endedAt = Date(timeIntervalSince1970: message["endedAt"] as? TimeInterval ?? Date().timeIntervalSince1970)
+        let duration = max(1, endedAt.timeIntervalSince(startedAt))
+        let markers = ((message["markers"] as? String) ?? "")
+            .split(separator: ",")
+            .compactMap { TimeInterval($0) }
+
+        let speaker = Speaker(id: UUID(), name: "Speaker 1", isNameInferred: true, colorHex: "#6366F1")
+        let transcript = Transcript(
+            id: UUID(),
+            recordingId: recordingId,
+            segments: [
+                TranscriptSegment(
+                    id: UUID(),
+                    text: transcriptText,
+                    startTime: 0,
+                    endTime: duration,
+                    speakerId: speaker.id,
+                    confidence: 0.9
+                )
+            ],
+            speakers: [speaker],
+            language: "en",
+            provider: "AssemblyAI (Watch Cloud)",
+            createdAt: Date()
+        )
+
+        let summary = MeetingSummary(
+            recordingId: recordingId,
+            suggestedTitle: title?.isEmpty == false ? title : nil,
+            executiveSummary: summaryText?.isEmpty == false ? summaryText! : transcriptText,
+            followUpDraft: "Hi team, following up on our recent meeting.",
+            provider: summaryText?.isEmpty == false ? "AssemblyAI LeMUR (Watch Cloud)" : "Watch Cloud Transcript",
+            confidenceNotes: ["Processed directly from Apple Watch because the iPhone app was not reachable."]
+        )
+
+        let recording = Recording(
+            id: recordingId,
+            title: title?.isEmpty == false ? title! : titleFromTime(),
+            startedAt: startedAt,
+            endedAt: endedAt,
+            mode: .bestQuality,
+            micSource: .watch,
+            audioFileID: "",
+            processingState: .completed,
+            transcript: transcript,
+            summary: summary,
+            markers: markers
+        )
+
+        store.add(recording)
+        NotificationCenter.default.post(
+            name: .recordingProcessingCompleted,
+            object: nil,
+            userInfo: ["recordingId": recordingId]
+        )
+    }
+
     func enqueue(audioFileID: String, markers: [TimeInterval], mode: String?) {
         guard queuedAudioFileIDs.insert(audioFileID).inserted else {
             print("[Watch Pipeline] already queued \(audioFileID)")

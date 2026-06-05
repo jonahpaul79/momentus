@@ -43,7 +43,6 @@ struct SettingsView: View {
             privacySection(t)
             permissionsSection(t)
             storageSection(t)
-            providerSection(t)
             themeSection(t)
             aboutSection(t)
         }
@@ -65,6 +64,7 @@ struct SettingsView: View {
             ForEach(RecordingMode.allCases) { mode in
                 Button {
                     defaultModeRaw = mode.rawValue
+                    PhoneWatchConnectivityService.shared.sendWatchCloudConfiguration()
                     HapticStyle.light.trigger()
                 } label: {
                     HStack {
@@ -81,6 +81,10 @@ struct SettingsView: View {
                             Text(mode.description)
                                 .font(t.typography.caption)
                                 .foregroundStyle(t.colors.textSecondary)
+                                .padding(.leading, 28)
+                            Text(modeProviderSummary(mode))
+                                .font(t.typography.caption)
+                                .foregroundStyle(t.colors.textTertiary)
                                 .padding(.leading, 28)
                         }
                         Spacer()
@@ -99,9 +103,29 @@ struct SettingsView: View {
         } header: {
             sectionHeader("Default Recording Mode", t: t)
         } footer: {
-            Text("Private keeps all processing on-device. Best Quality sends audio to AssemblyAI for speaker-labeled transcripts and structured notes — requires an AssemblyAI API key (see below).")
+            Text("This is the single provider decision. Private stays on device. Quality uses AssemblyAI for transcription and Claude if configured for summaries, with fallbacks shown above.")
                 .font(t.typography.caption)
                 .foregroundStyle(t.colors.textTertiary)
+        }
+    }
+
+    private func modeProviderSummary(_ mode: RecordingMode) -> String {
+        switch mode {
+        case .onDevice:
+            return "Transcript: Whisper on device. Summary: Apple on device."
+        case .hybrid:
+            return "Transcript: Whisper on device. Summary: Apple on device."
+        case .bestQuality:
+            let transcript = assemblyAIKey.isEmpty ? "Apple fallback until AssemblyAI key is saved" : "AssemblyAI"
+            let summary: String
+            if !claudeKey.isEmpty {
+                summary = "Claude"
+            } else if !assemblyAIKey.isEmpty {
+                summary = "AssemblyAI LeMUR"
+            } else {
+                summary = "Apple fallback"
+            }
+            return "Transcript: \(transcript). Summary: \(summary)."
         }
     }
 
@@ -115,11 +139,13 @@ struct SettingsView: View {
                 saved: $assemblyAIKeySaved,
                 onSave: { trimmed in
                     assemblyAIKeySaved = KeychainService.store(trimmed, for: .assemblyAIAPIKey)
+                    PhoneWatchConnectivityService.shared.sendWatchCloudConfiguration()
                 },
                 onRemove: {
                     assemblyAIKey = ""
                     KeychainService.delete(.assemblyAIAPIKey)
                     assemblyAIKeySaved = false
+                    PhoneWatchConnectivityService.shared.sendWatchCloudConfiguration()
                 },
                 t: t
             )
@@ -156,11 +182,13 @@ struct SettingsView: View {
                 saved: $claudeKeySaved,
                 onSave: { trimmed in
                     claudeKeySaved = KeychainService.store(trimmed, for: .anthropicAPIKey)
+                    PhoneWatchConnectivityService.shared.sendWatchCloudConfiguration()
                 },
                 onRemove: {
                     claudeKey = ""
                     KeychainService.delete(.anthropicAPIKey)
                     claudeKeySaved = false
+                    PhoneWatchConnectivityService.shared.sendWatchCloudConfiguration()
                 },
                 t: t
             )
@@ -344,81 +372,6 @@ struct SettingsView: View {
                 .font(t.typography.caption)
                 .foregroundStyle(t.colors.textTertiary)
         }
-    }
-
-    // MARK: - Provider Section
-
-    private func providerSection(_ t: AppTheme) -> some View {
-        Section {
-            // Transcription
-            Picker(selection: $transcriptionProviderRaw) {
-                ForEach(TranscriptionProvider.allCases) { provider in
-                    VStack(alignment: .leading) {
-                        Text(provider.displayName)
-                    }
-                    .tag(provider.rawValue)
-                }
-            } label: {
-                Label("Transcription", systemImage: "waveform.badge.mic")
-                    .foregroundStyle(t.colors.textPrimary)
-            }
-            .tint(t.colors.accentPrimary)
-            .listRowBackground(t.colors.surfacePrimary)
-
-            if let provider = TranscriptionProvider(rawValue: transcriptionProviderRaw) {
-                providerPrivacyRow(provider.privacyLabels, t: t)
-            }
-
-            // Summary
-            Picker(selection: $summaryProviderRaw) {
-                ForEach(SummaryProvider.allCases) { provider in
-                    Text(provider.displayName).tag(provider.rawValue)
-                }
-            } label: {
-                Label("Summarization", systemImage: "sparkles")
-                    .foregroundStyle(t.colors.textPrimary)
-            }
-            .tint(t.colors.accentPrimary)
-            .listRowBackground(t.colors.surfacePrimary)
-
-            if let provider = SummaryProvider(rawValue: summaryProviderRaw), provider.requiresApiKey {
-                apiKeyNote(provider.displayName, t: t)
-            }
-
-        } header: {
-            sectionHeader("AI Providers", t: t)
-        } footer: {
-            Text("Bring-your-own API key support is coming. Providers marked \"On-device\" never send data externally.")
-                .font(t.typography.caption)
-                .foregroundStyle(t.colors.textTertiary)
-        }
-    }
-
-    private func providerPrivacyRow(_ labels: [String], t: AppTheme) -> some View {
-        HStack(spacing: t.spacing.s) {
-            ForEach(labels, id: \.self) { label in
-                Text(label)
-                    .font(t.typography.labelSmall)
-                    .foregroundStyle(t.colors.accentSuccess)
-                    .padding(.horizontal, 6).padding(.vertical, 3)
-                    .background(t.colors.accentSuccess.opacity(0.12))
-                    .clipShape(Capsule())
-            }
-            Spacer()
-        }
-        .listRowBackground(t.colors.surfacePrimary)
-    }
-
-    private func apiKeyNote(_ providerName: String, t: AppTheme) -> some View {
-        HStack(spacing: t.spacing.s) {
-            Image(systemName: "key")
-                .font(.system(size: 12))
-                .foregroundStyle(t.colors.accentWarning)
-            Text("\(providerName) requires an API key — BYOK coming soon")
-                .font(t.typography.caption)
-                .foregroundStyle(t.colors.accentWarning)
-        }
-        .listRowBackground(t.colors.accentWarning.opacity(0.08))
     }
 
     // MARK: - Theme Section
