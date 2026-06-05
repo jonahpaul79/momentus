@@ -5,6 +5,8 @@ struct ProcessingView: View {
     let vm: RecordViewModel
     var onDismiss: () -> Void
 
+    @State private var showingCancelAlert = false
+
     private var steps: [(title: String, subtitle: String, icon: String)] {
         let isBestQuality = vm.selectedMode == .bestQuality
         let summaryLabel = isBestQuality
@@ -114,11 +116,22 @@ struct ProcessingView: View {
 
                 Spacer(minLength: t.spacing.huge)
 
-                Button("Dismiss") { onDismiss() }
-                    .font(t.typography.bodyMedium)
-                    .foregroundStyle(t.colors.textSecondary)
-                    .padding(.bottom, t.spacing.huge)
+                Button("Cancel processing") {
+                    showingCancelAlert = true
+                }
+                .font(t.typography.bodyMedium)
+                .foregroundStyle(t.colors.accentError)
+                .padding(.bottom, t.spacing.huge)
             }
+        }
+        .alert("Discard this recording?", isPresented: $showingCancelAlert) {
+            Button("Discard", role: .destructive) {
+                vm.cancelProcessing()
+                onDismiss()
+            }
+            Button("Keep processing", role: .cancel) {}
+        } message: {
+            Text("Processing will stop and this recording will be deleted.")
         }
     }
 
