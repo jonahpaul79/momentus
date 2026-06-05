@@ -12,8 +12,17 @@ struct TranscriptDetailView: View {
 
     private var speakers: [Speaker] { transcript.speakers }
 
+    private var displaySegments: [TranscriptSegment] {
+        transcript.segments.compactMap { segment in
+            guard let cleanedText = TranscriptTextSanitizer.cleaned(segment.text) else { return nil }
+            var cleanedSegment = segment
+            cleanedSegment.text = cleanedText
+            return cleanedSegment
+        }
+    }
+
     private var filteredSegments: [TranscriptSegment] {
-        var segs = transcript.segments
+        var segs = displaySegments
         if let spk = selectedSpeakerId {
             segs = segs.filter { $0.speakerId == spk }
         }

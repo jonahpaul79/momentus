@@ -42,6 +42,7 @@ final class WatchRecordingProcessor {
     private func process(audioFileID: String, markers: [TimeInterval], mode: String?) async {
         let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "ProcessWatchRecording") {
             print("[Watch Pipeline] background task expiring")
+            PhoneWatchConnectivityService.shared.notifyWatchRecordingNeedsPhoneWake()
         }
         defer {
             if backgroundTask != .invalid {
@@ -85,6 +86,7 @@ final class WatchRecordingProcessor {
             markers: markers
         )
         store.add(recording)
+        PhoneWatchConnectivityService.shared.notifyWatchRecordingProcessing()
 
         let transcriptionService = ServiceFactory.makeTranscriptionService(for: recordingMode)
         let summaryService = ServiceFactory.makeSummaryService(for: recordingMode)

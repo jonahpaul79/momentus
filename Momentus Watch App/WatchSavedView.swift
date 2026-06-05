@@ -18,15 +18,15 @@ struct WatchSavedView: View {
     // MARK: - Processing
 
     private var processingView: some View {
-        let phase = processingPhase(for: vm.processingElapsed)
+        let phase = processingPhase(for: vm.processingStatus)
         return VStack(spacing: 6) {
             ZStack {
                 Circle()
-                    .fill(t.accentPrimary.opacity(0.12))
+                    .fill(phase.color.opacity(0.12))
                     .frame(width: 58, height: 58)
                 Image(systemName: phase.icon)
                     .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(t.accentPrimary)
+                    .foregroundStyle(phase.color)
                     .symbolEffect(.pulse)
             }
 
@@ -36,28 +36,61 @@ struct WatchSavedView: View {
                 .contentTransition(.opacity)
                 .animation(.easeInOut(duration: 0.4), value: phase.label)
 
-            if vm.processingElapsed >= 60 {
-                Text("You can keep using your Watch")
+            if let detail = phase.detail {
+                Text(detail)
                     .font(.system(size: 10))
                     .foregroundStyle(t.textTertiary)
                     .multilineTextAlignment(.center)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
-        .animation(.easeInOut(duration: 0.5), value: vm.processingElapsed >= 60)
+        .animation(.easeInOut(duration: 0.25), value: vm.processingStatus)
     }
 
     private struct ProcessingPhase {
         let icon: String
         let label: String
+        let detail: String?
+        let color: Color
     }
 
-    private func processingPhase(for elapsed: TimeInterval) -> ProcessingPhase {
-        switch elapsed {
-        case ..<20:
-            return ProcessingPhase(icon: "antenna.radiowaves.left.and.right", label: "Sending to iPhone")
-        default:
-            return ProcessingPhase(icon: "iphone", label: "Processing on iPhone")
+    private func processingPhase(for status: WatchProcessingStatus) -> ProcessingPhase {
+        switch status {
+        case .sending:
+            return ProcessingPhase(
+                icon: "antenna.radiowaves.left.and.right",
+                label: "Sending to iPhone",
+                detail: nil,
+                color: t.accentPrimary
+            )
+        case .received:
+            return ProcessingPhase(
+                icon: "iphone",
+                label: "Received by iPhone",
+                detail: "Waiting for processing",
+                color: t.accentPrimary
+            )
+        case .processingOnPhone:
+            return ProcessingPhase(
+                icon: "iphone",
+                label: "Processing on iPhone",
+                detail: "You can keep using your Watch",
+                color: t.accentPrimary
+            )
+        case .needsPhoneWake:
+            return ProcessingPhase(
+                icon: "iphone.gen3.radiowaves.left.and.right",
+                label: "Wake iPhone",
+                detail: "Open Momentus to finish notes",
+                color: t.accentRecording
+            )
+        case .failed:
+            return ProcessingPhase(
+                icon: "exclamationmark.triangle.fill",
+                label: "Could not process",
+                detail: "Open Momentus on iPhone",
+                color: t.accentRecording
+            )
         }
     }
 

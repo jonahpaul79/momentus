@@ -104,6 +104,34 @@ struct TranscriptSegment: Identifiable, Codable, Equatable {
     var isEdited: Bool = false
 }
 
+// MARK: - TranscriptTextSanitizer
+
+enum TranscriptTextSanitizer {
+    static func cleaned(_ rawText: String) -> String? {
+        var text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+
+        text = text.replacingOccurrences(
+            of: #"<\|[^|>]*\|>"#,
+            with: " ",
+            options: .regularExpression
+        )
+        text = text.replacingOccurrences(
+            of: #"\[(?:BLANK_AUDIO|SILENCE|NO[_ ]?SPEECH|INAUDIBLE|UNINTELLIGIBLE|MUSIC|NOISE|BACKGROUND NOISE)\]"#,
+            with: " ",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        text = text.replacingOccurrences(
+            of: #"\s+"#,
+            with: " ",
+            options: .regularExpression
+        )
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return text.isEmpty ? nil : text
+    }
+}
+
 // MARK: - Speaker
 
 struct Speaker: Identifiable, Codable, Equatable {

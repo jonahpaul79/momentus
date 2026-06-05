@@ -60,6 +60,24 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
         sendWatchStatusMessage(message)
     }
 
+    func notifyWatchRecordingReceived() {
+        sendWatchRecordingStatus("watchRecordingReceived")
+    }
+
+    func notifyWatchRecordingProcessing() {
+        sendWatchRecordingStatus("watchRecordingProcessing")
+    }
+
+    func notifyWatchRecordingNeedsPhoneWake() {
+        sendWatchRecordingStatus("watchRecordingNeedsPhoneWake")
+    }
+
+    private func sendWatchRecordingStatus(_ action: String) {
+        guard WCSession.default.activationState == .activated,
+              WCSession.default.isWatchAppInstalled else { return }
+        sendWatchStatusMessage(["action": action])
+    }
+
     private func sendWatchStatusMessage(_ message: [String: String]) {
         if WCSession.default.isReachable {
             WCSession.default.sendMessage(message, replyHandler: nil) { _ in
@@ -135,6 +153,7 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
         }
 
         let audioFileID = destURL.lastPathComponent
+        notifyWatchRecordingReceived()
 
         Task { @MainActor in
             WatchRecordingProcessor.shared.enqueue(audioFileID: audioFileID, markers: markers, mode: mode)

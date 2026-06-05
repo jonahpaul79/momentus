@@ -87,8 +87,7 @@ final class WhisperKitTranscriptionService: TranscriptionService {
         let speaker = Speaker(id: UUID(), name: "Speaker 1", isNameInferred: true, colorHex: "#6366F1")
 
         let segments: [TranscriptSegment] = (result?.segments ?? []).compactMap { seg in
-            let text = seg.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { return nil }
+            guard let text = TranscriptTextSanitizer.cleaned(seg.text) else { return nil }
             // avgLogprob is in (-∞, 0]; exp maps it to (0, 1].
             let confidence = Float(max(0.0, min(1.0, exp(Double(seg.avgLogprob)))))
             return TranscriptSegment(

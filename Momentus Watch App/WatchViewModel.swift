@@ -11,6 +11,14 @@ enum WatchRecordingState: Equatable {
     case saved
 }
 
+enum WatchProcessingStatus: Equatable {
+    case sending
+    case received
+    case processingOnPhone
+    case needsPhoneWake
+    case failed
+}
+
 @Observable final class WatchViewModel: NSObject {
     var recordingState: WatchRecordingState = .idle
     var elapsedTime: TimeInterval = 0
@@ -20,6 +28,7 @@ enum WatchRecordingState: Equatable {
     var isConnectedToPhone = false
     var markers: [TimeInterval] = []
     var processingElapsed: TimeInterval = 0
+    var processingStatus: WatchProcessingStatus = .sending
 
     enum WatchRecordingMode: String, CaseIterable {
         case onDevice = "Private"
@@ -63,6 +72,7 @@ enum WatchRecordingState: Equatable {
         extendedRuntimeSession?.invalidate()
         extendedRuntimeSession = nil
         recordingState = .processing
+        processingStatus = .sending
         startProcessingTimer()
 
         if let url = stopAudioCapture() {
@@ -122,7 +132,19 @@ enum WatchRecordingState: Equatable {
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled, let self, self.recordingState == .processing else { break }
                 self.processingElapsed += 1
+                self.updateProcessingTimeout()
             }
+        }
+    }
+
+    private func updateProcessingTimeout() {
+        switch processingStatus {
+        case .sending where processingElapsed >= 35:
+            processingStatus = .needsPhoneWake
+        case .received, .processingOnPhone where processingElapsed >= 120:
+            processingStatus = .needsPhoneWake
+        default:
+            break
         }
     }
 
@@ -255,7 +277,16 @@ extension WatchViewModel: WCSessionDelegate {
                 self.recordingState = .saved
             case "recordingFailed":
                 guard self.recordingState == .processing else { return }
-                self.recordingState = .idle
+                self.processingStatus = .failed
+            case "watchRecordingReceived":
+                guard self.recordingState == .processing else { return }
+                self.processingStatus = .received
+            case "watchRecordingProcessing":
+                guard self.recordingState == .processing else { return }
+                self.processingStatus = .processingOnPhone
+            case "watchRecordingNeedsPhoneWake":
+                guard self.recordingState == .processing else { return }
+                self.processingStatus = .needsPhoneWake
             case "startRecording":
                 if let mode = message["mode"] as? String {
                     if mode == WatchRecordingMode.bestQuality.rawValue {
