@@ -19,6 +19,7 @@ enum WatchRecordingState: Equatable {
     var markerHighlightedBars: Set<Int> = []
     var isConnectedToPhone = false
     var markers: [TimeInterval] = []
+    var processingElapsed: TimeInterval = 0
 
     enum WatchRecordingMode: String, CaseIterable {
         case onDevice = "Private"
@@ -27,6 +28,7 @@ enum WatchRecordingState: Equatable {
 
     private var timerTask: Task<Void, Never>?
     private var waveformTask: Task<Void, Never>?
+    private var processingTimerTask: Task<Void, Never>?
     private var extendedRuntimeSession: WKExtendedRuntimeSession?
     private var audioRecorder: AVAudioRecorder?
     private var watchRecordingURL: URL?
@@ -61,6 +63,7 @@ enum WatchRecordingState: Equatable {
         extendedRuntimeSession?.invalidate()
         extendedRuntimeSession = nil
         recordingState = .processing
+        startProcessingTimer()
 
         if let url = stopAudioCapture() {
             let markerStr = markers.map { String(format: "%.2f", $0) }.joined(separator: ",")
@@ -104,8 +107,23 @@ enum WatchRecordingState: Equatable {
     func recordAnother() {
         recordingState = .idle
         elapsedTime = 0
+        processingElapsed = 0
         markerHighlightedBars = []
         markers = []
+    }
+
+    // MARK: - Processing timer
+
+    private func startProcessingTimer() {
+        processingElapsed = 0
+        processingTimerTask?.cancel()
+        processingTimerTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, let self, self.recordingState == .processing else { break }
+                self.processingElapsed += 1
+            }
+        }
     }
 
     // MARK: - Audio

@@ -27,14 +27,15 @@ final class MeetingNotificationService {
         let existingIDs = pending.map(\.identifier).filter { $0.hasPrefix(requestPrefix) }
         center.removePendingNotificationRequests(withIdentifiers: existingIDs)
 
-        for meeting in meetings {
+        for meeting in meetings where !meeting.attendees.isEmpty {
             let fireDate = meeting.startDate.addingTimeInterval(-60)
             guard fireDate > Date() else { continue }
 
             let content = UNMutableNotificationContent()
             content.title = "Meeting starting soon"
-            content.body = "\"\(meeting.title)\" starts in 1 minute. Tap to record."
+            content.body = "\"\(meeting.title)\" starts in 1 minute."
             content.sound = .default
+            content.categoryIdentifier = "meetingReminder"
             content.userInfo = ["action": "startRecording", "meetingTitle": meeting.title]
 
             let comps = Calendar.current.dateComponents(

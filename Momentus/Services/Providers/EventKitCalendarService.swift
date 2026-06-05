@@ -43,7 +43,7 @@ private extension EKEvent {
             title: title ?? "Untitled",
             startDate: startDate,
             endDate: endDate,
-            attendees: attendees?.compactMap { $0.name } ?? []
+            attendees: attendees?.compactMap { $0.isCurrentUser ? nil : $0.name } ?? []
         )
     }
 }

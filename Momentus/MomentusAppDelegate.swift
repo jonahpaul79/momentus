@@ -7,9 +7,25 @@ final class MomentusAppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        UNUserNotificationCenter.current().delegate = self
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        center.setNotificationCategories([Self.meetingReminderCategory])
         return true
     }
+
+    static let meetingReminderCategory: UNNotificationCategory = {
+        let action = UNNotificationAction(
+            identifier: "startRecordingAction",
+            title: "Record",
+            options: [.foreground]
+        )
+        return UNNotificationCategory(
+            identifier: "meetingReminder",
+            actions: [action],
+            intentIdentifiers: [],
+            options: []
+        )
+    }()
 
     func applicationDidBecomeActive(_ application: UIApplication) {
         Task { await refreshNotificationSchedule() }

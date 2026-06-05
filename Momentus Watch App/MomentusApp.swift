@@ -11,7 +11,21 @@ import UserNotifications
 @main
 struct Momentus_Watch_AppApp: App {
     init() {
-        UNUserNotificationCenter.current().delegate = WatchNotificationHandler.shared
+        let center = UNUserNotificationCenter.current()
+        center.delegate = WatchNotificationHandler.shared
+        let action = UNNotificationAction(
+            identifier: "startRecordingAction",
+            title: "Record",
+            options: [.foreground]
+        )
+        center.setNotificationCategories([
+            UNNotificationCategory(
+                identifier: "meetingReminder",
+                actions: [action],
+                intentIdentifiers: [],
+                options: []
+            )
+        ])
     }
 
     var body: some Scene {

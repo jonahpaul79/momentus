@@ -18,23 +18,61 @@ struct WatchSavedView: View {
     // MARK: - Processing
 
     private var processingView: some View {
-        VStack(spacing: 10) {
+        let phase = processingPhase(for: vm.processingElapsed)
+        return VStack(spacing: 6) {
             ZStack {
                 Circle()
-                    .fill(t.accentPrimary.opacity(0.15))
-                    .frame(width: 56, height: 56)
-                ProgressView()
-                    .tint(t.accentPrimary)
-                    .scaleEffect(1.2)
+                    .fill(t.accentPrimary.opacity(0.12))
+                    .frame(width: 58, height: 58)
+                Image(systemName: phase.icon)
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(t.accentPrimary)
+                    .symbolEffect(.pulse)
             }
-            Text("Processing")
-                .font(.system(size: 16, weight: .semibold))
+
+            Text(phase.label)
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(t.textPrimary)
-            Text("Processing on iPhone")
-                .font(.system(size: 11))
+                .contentTransition(.opacity)
+                .animation(.easeInOut(duration: 0.4), value: phase.label)
+
+            Text(elapsedString(vm.processingElapsed))
+                .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(t.textSecondary)
-                .multilineTextAlignment(.center)
+                .monospacedDigit()
+                .contentTransition(.numericText(countsDown: false))
+                .animation(.linear(duration: 0.2), value: vm.processingElapsed)
+
+            if vm.processingElapsed >= 60 {
+                Text("Normal for long meetings")
+                    .font(.system(size: 10))
+                    .foregroundStyle(t.textTertiary)
+                    .multilineTextAlignment(.center)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
         }
+        .animation(.easeInOut(duration: 0.5), value: vm.processingElapsed >= 60)
+    }
+
+    private struct ProcessingPhase {
+        let icon: String
+        let label: String
+    }
+
+    private func processingPhase(for elapsed: TimeInterval) -> ProcessingPhase {
+        switch elapsed {
+        case ..<20:
+            return ProcessingPhase(icon: "antenna.radiowaves.left.and.right", label: "Sending to iPhone")
+        case 20..<90:
+            return ProcessingPhase(icon: "waveform", label: "Transcribing")
+        default:
+            return ProcessingPhase(icon: "sparkles", label: "Summarizing")
+        }
+    }
+
+    private func elapsedString(_ elapsed: TimeInterval) -> String {
+        let total = Int(elapsed)
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     // MARK: - Saved
@@ -79,8 +117,26 @@ struct WatchSavedView: View {
 // Show: recording duration when active, last recording time when idle
 // Entry point: app intent or WCSession message triggers complication update
 
-#Preview("Processing") {
+#Preview("Processing — early") {
     let vm = WatchViewModel()
+    vm.recordingState = .processing
+    vm.processingElapsed = 5
+    return WatchSavedView(vm: vm)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Processing — transcribing") {
+    let vm = WatchViewModel()
+    vm.recordingState = .processing
+    vm.processingElapsed = 45
+    return WatchSavedView(vm: vm)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Processing — long meeting") {
+    let vm = WatchViewModel()
+    vm.recordingState = .processing
+    vm.processingElapsed = 120
     return WatchSavedView(vm: vm)
         .preferredColorScheme(.dark)
 }

@@ -6,14 +6,17 @@ struct WatchActiveRecordingView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let isSmall = geo.size.height < 170
-            let stopSize: CGFloat = isSmall ? 44 : 52
-            let sideButtonSize: CGFloat = isSmall ? 34 : 40
-            let timerFont: CGFloat = isSmall ? 26 : 32
-            let waveformHeight: CGFloat = isSmall ? 44 : 56
-            let vSpacing: CGFloat = isSmall ? 4 : 8
+            let h = geo.size.height
+            let w = geo.size.width
 
-            VStack(spacing: vSpacing) {
+            // All sizes are proportional to the available height so the layout
+            // always fits, regardless of watch size (40mm SE through 49mm Ultra).
+            let stopSize: CGFloat   = min(h * 0.29, w * 0.30)
+            let sideSize: CGFloat   = min(h * 0.22, w * 0.23)
+            let timerSize: CGFloat  = h * 0.19
+            let waveH: CGFloat      = h * 0.25
+
+            VStack(spacing: 0) {
                 // Status row
                 HStack {
                     HStack(spacing: 4) {
@@ -29,26 +32,39 @@ struct WatchActiveRecordingView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(t.textSecondary)
                 }
+                .padding(.bottom, h * 0.02)
 
-                // Timer
+                // Timer — shrinks if needed but never wraps
                 Text(vm.elapsedTime.timerString)
-                    .font(.system(size: timerFont, weight: .thin, design: .monospaced))
+                    .font(.system(size: timerSize, weight: .thin, design: .monospaced))
                     .foregroundStyle(t.textPrimary)
                     .monospacedDigit()
                     .contentTransition(.numericText(countsDown: false))
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
 
                 // Waveform
                 WatchWaveformView(
-                    levels: vm.recordingState == .recording ? vm.waveformLevels : Array(repeating: 0.05, count: 20),
-                    color: vm.recordingState == .recording ? t.accentPrimary.opacity(0.8) : t.textSecondary.opacity(0.3),
+                    levels: vm.recordingState == .recording
+                        ? vm.waveformLevels
+                        : Array(repeating: 0.05, count: 20),
+                    color: vm.recordingState == .recording
+                        ? t.accentPrimary.opacity(0.8)
+                        : t.textSecondary.opacity(0.3),
                     highlightedBars: vm.markerHighlightedBars,
                     highlightColor: t.accentRecording
                 )
-                .frame(height: waveformHeight)
+                .frame(height: waveH)
                 .padding(.horizontal, 2)
 
-                // Controls
-                HStack(spacing: isSmall ? 8 : 12) {
+                Spacer(minLength: 0)
+
+                // Controls — spaced to fill the row width
+                let hPad: CGFloat = 8
+                let gap = max(6, (w - hPad * 2 - stopSize - sideSize * 2) / 2)
+                HStack(spacing: gap) {
                     // Pause / Resume
                     Button {
                         Task {
@@ -60,9 +76,9 @@ struct WatchActiveRecordingView: View {
                         }
                     } label: {
                         Image(systemName: vm.recordingState == .paused ? "play.fill" : "pause.fill")
-                            .font(.system(size: isSmall ? 13 : 16, weight: .medium))
+                            .font(.system(size: sideSize * 0.38, weight: .medium))
                             .foregroundStyle(t.textPrimary)
-                            .frame(width: sideButtonSize, height: sideButtonSize)
+                            .frame(width: sideSize, height: sideSize)
                             .background(t.surfacePrimary)
                             .clipShape(Circle())
                     }
@@ -73,7 +89,7 @@ struct WatchActiveRecordingView: View {
                         Task { await vm.stopRecording() }
                     } label: {
                         Image(systemName: "stop.fill")
-                            .font(.system(size: isSmall ? 15 : 18, weight: .medium))
+                            .font(.system(size: stopSize * 0.35, weight: .medium))
                             .foregroundStyle(.white)
                             .frame(width: stopSize, height: stopSize)
                             .background(t.accentRecording)
@@ -87,36 +103,27 @@ struct WatchActiveRecordingView: View {
                         vm.addMarker()
                     } label: {
                         Image(systemName: "bookmark.fill")
-                            .font(.system(size: isSmall ? 13 : 16, weight: .medium))
+                            .font(.system(size: sideSize * 0.38, weight: .medium))
                             .foregroundStyle(t.textPrimary)
-                            .frame(width: sideButtonSize, height: sideButtonSize)
+                            .frame(width: sideSize, height: sideSize)
                             .background(t.surfacePrimary)
                             .clipShape(Circle())
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
+                .padding(.top, h * 0.02)
             }
-            .padding(.horizontal, 8)
-            .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
+            .padding(.horizontal, hPad)
+            .padding(.vertical, h * 0.03)
+            .frame(width: w, height: h, alignment: .center)
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
     }
 }
 
-#Preview("Idle") {
+#Preview {
     let vm = WatchViewModel()
-    return WatchActiveRecordingView(vm: vm)
-        .preferredColorScheme(.dark)
-}
-
-#Preview("Recording") {
-    let vm = WatchViewModel()
-    vm.recordingState = .recording
-    vm.elapsedTime = 142
-    vm.waveformLevels = [0.2, 0.5, 0.8, 0.4, 0.9, 0.6, 0.3, 0.7, 1.0, 0.5,
-                         0.8, 0.3, 0.6, 0.9, 0.4, 0.7, 0.2, 0.8, 0.5, 0.6]
-    vm.markerHighlightedBars = [6]
     return WatchActiveRecordingView(vm: vm)
         .preferredColorScheme(.dark)
 }
