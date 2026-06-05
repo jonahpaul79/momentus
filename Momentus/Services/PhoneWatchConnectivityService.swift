@@ -29,6 +29,17 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
         }
     }
 
+    func addPendingRecording(_ recording: PendingWatchRecording) {
+        var items = pendingRecordings
+        guard !items.contains(where: { $0.audioFileID == recording.audioFileID }) else { return }
+        items.append(recording)
+        pendingRecordings = items
+    }
+
+    func removePendingRecording(audioFileID: String) {
+        pendingRecordings = pendingRecordings.filter { $0.audioFileID != audioFileID }
+    }
+
     func clearPendingRecordings() {
         UserDefaults.standard.removeObject(forKey: pendingKey)
     }
@@ -79,6 +90,8 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
     }
 
     private func sendWatchStatusMessage(_ message: [String: String]) {
+        try? WCSession.default.updateApplicationContext(message)
+
         if WCSession.default.isReachable {
             WCSession.default.sendMessage(message, replyHandler: nil) { _ in
                 // Watch wasn't reachable in real-time — queue via transferUserInfo so it
@@ -146,13 +159,19 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
         let destURL = AVAudioRecorderService.recordingsDirectory
             .appendingPathComponent(file.fileURL.lastPathComponent)
         do {
+            if FileManager.default.fileExists(atPath: destURL.path) {
+                try FileManager.default.removeItem(at: destURL)
+            }
             try FileManager.default.copyItem(at: file.fileURL, to: destURL)
         } catch {
             print("[WatchConnectivity] failed to copy audio file: \(error)")
+            notifyWatchRecordingFailed()
             return
         }
 
         let audioFileID = destURL.lastPathComponent
+        addPendingRecording(PendingWatchRecording(audioFileID: audioFileID, markers: markers, mode: mode))
+        MomentusAppDelegate.scheduleWatchRecordingProcessingTask()
         notifyWatchRecordingReceived()
 
         Task { @MainActor in

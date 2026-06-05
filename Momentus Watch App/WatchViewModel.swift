@@ -41,6 +41,7 @@ enum WatchProcessingStatus: Equatable {
     private var extendedRuntimeSession: WKExtendedRuntimeSession?
     private var audioRecorder: AVAudioRecorder?
     private var watchRecordingURL: URL?
+    private var activeTransferFileNames: Set<String> = []
 
     override init() {
         super.init()
@@ -75,14 +76,17 @@ enum WatchProcessingStatus: Equatable {
         processingStatus = .sending
         startProcessingTimer()
 
-        if let url = stopAudioCapture() {
+        if let url = stopAudioCapture(), let transferURL = prepareTransferFile(from: url) {
             let markerStr = markers.map { String(format: "%.2f", $0) }.joined(separator: ",")
-            WCSession.default.transferFile(url, metadata: [
+            activeTransferFileNames.insert(transferURL.lastPathComponent)
+            WCSession.default.transferFile(transferURL, metadata: [
                 "action": "processWatchRecording",
                 "mode": selectedMode.rawValue,
                 "markers": markerStr,
                 "duration": String(format: "%.1f", elapsedTime)
             ])
+        } else {
+            processingStatus = .failed
         }
 
         // Stay in .processing until the phone confirms via WCSession.
@@ -130,9 +134,13 @@ enum WatchProcessingStatus: Equatable {
         processingTimerTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
-                guard !Task.isCancelled, let self, self.recordingState == .processing else { break }
-                self.processingElapsed += 1
-                self.updateProcessingTimeout()
+                let shouldContinue = await MainActor.run {
+                    guard !Task.isCancelled, let self, self.recordingState == .processing else { return false }
+                    self.processingElapsed += 1
+                    self.updateProcessingTimeout()
+                    return true
+                }
+                guard shouldContinue else { break }
             }
         }
     }
@@ -141,7 +149,8 @@ enum WatchProcessingStatus: Equatable {
         switch processingStatus {
         case .sending where processingElapsed >= 35:
             processingStatus = .needsPhoneWake
-        case .received, .processingOnPhone where processingElapsed >= 120:
+        case .received where processingElapsed >= 120,
+             .processingOnPhone where processingElapsed >= 120:
             processingStatus = .needsPhoneWake
         default:
             break
@@ -192,6 +201,29 @@ enum WatchProcessingStatus: Equatable {
         let url = watchRecordingURL
         watchRecordingURL = nil
         return url
+    }
+
+    private func prepareTransferFile(from sourceURL: URL) -> URL? {
+        let outboxURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("WatchRecordingOutbox", isDirectory: true)
+
+        do {
+            try FileManager.default.createDirectory(at: outboxURL, withIntermediateDirectories: true)
+            let destURL = outboxURL.appendingPathComponent(sourceURL.lastPathComponent)
+            if FileManager.default.fileExists(atPath: destURL.path) {
+                try FileManager.default.removeItem(at: destURL)
+            }
+            try FileManager.default.copyItem(at: sourceURL, to: destURL)
+            let fileSize = (try? destURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+            guard fileSize > 1024 else {
+                print("[WatchConnectivity] transfer file is empty: \(fileSize) bytes")
+                return nil
+            }
+            return destURL
+        } catch {
+            print("[WatchConnectivity] failed to prepare transfer file: \(error)")
+            return nil
+        }
     }
 
     // MARK: - Timers
@@ -265,6 +297,30 @@ extension WatchViewModel: WCSessionDelegate {
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
         handlePhoneMessage(userInfo)
+    }
+
+    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        handlePhoneMessage(applicationContext)
+    }
+
+    func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: Error?) {
+        let fileName = fileTransfer.file.fileURL.lastPathComponent
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.activeTransferFileNames.remove(fileName)
+            if let error {
+                print("[WatchConnectivity] file transfer failed: \(error)")
+                if self.recordingState == .processing {
+                    self.processingStatus = .needsPhoneWake
+                }
+                return
+            }
+
+            try? FileManager.default.removeItem(at: fileTransfer.file.fileURL)
+            if self.recordingState == .processing, self.processingStatus == .sending {
+                self.processingStatus = .received
+            }
+        }
     }
 
     private func handlePhoneMessage(_ message: [String: Any]) {

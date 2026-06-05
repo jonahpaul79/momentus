@@ -66,8 +66,8 @@ struct WatchSavedView: View {
         case .received:
             return ProcessingPhase(
                 icon: "iphone",
-                label: "Received by iPhone",
-                detail: "Waiting for processing",
+                label: "Sent to iPhone",
+                detail: "Waiting for Momentus",
                 color: t.accentPrimary
             )
         case .processingOnPhone:
@@ -80,15 +80,15 @@ struct WatchSavedView: View {
         case .needsPhoneWake:
             return ProcessingPhase(
                 icon: "iphone.gen3.radiowaves.left.and.right",
-                label: "Wake iPhone",
-                detail: "Open Momentus to finish notes",
+                label: "Open Momentus",
+                detail: "On your iPhone",
                 color: t.accentRecording
             )
         case .failed:
             return ProcessingPhase(
                 icon: "exclamationmark.triangle.fill",
                 label: "Could not process",
-                detail: "Open Momentus on iPhone",
+                detail: "Open Momentus on your iPhone",
                 color: t.accentRecording
             )
         }

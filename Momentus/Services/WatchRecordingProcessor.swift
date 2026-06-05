@@ -7,6 +7,7 @@ final class WatchRecordingProcessor {
 
     private var store: RecordingsStore?
     private var processingTask: Task<Void, Never>?
+    private var queuedAudioFileIDs: Set<String> = []
 
     private init() {}
 
@@ -15,7 +16,16 @@ final class WatchRecordingProcessor {
         drainPendingRecordings()
     }
 
+    func waitForCurrentProcessing() async {
+        await processingTask?.value
+    }
+
     func enqueue(audioFileID: String, markers: [TimeInterval], mode: String?) {
+        guard queuedAudioFileIDs.insert(audioFileID).inserted else {
+            print("[Watch Pipeline] already queued \(audioFileID)")
+            return
+        }
+
         if store == nil {
             store = RecordingsStore(loadSamples: false)
             print("[Watch Pipeline] created background store")
@@ -32,7 +42,6 @@ final class WatchRecordingProcessor {
     private func drainPendingRecordings() {
         let pending = PhoneWatchConnectivityService.shared.pendingRecordings
         guard !pending.isEmpty else { return }
-        PhoneWatchConnectivityService.shared.clearPendingRecordings()
         print("[Watch Pipeline] draining \(pending.count) queued recording(s)")
         for rec in pending {
             enqueue(audioFileID: rec.audioFileID, markers: rec.markers, mode: rec.mode)
@@ -40,6 +49,11 @@ final class WatchRecordingProcessor {
     }
 
     private func process(audioFileID: String, markers: [TimeInterval], mode: String?) async {
+        defer {
+            queuedAudioFileIDs.remove(audioFileID)
+            PhoneWatchConnectivityService.shared.removePendingRecording(audioFileID: audioFileID)
+        }
+
         let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "ProcessWatchRecording") {
             print("[Watch Pipeline] background task expiring")
             PhoneWatchConnectivityService.shared.notifyWatchRecordingNeedsPhoneWake()
@@ -56,6 +70,7 @@ final class WatchRecordingProcessor {
         let fileSize = (try? fileURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
         guard fileSize > 1024 else {
             print("[Watch Pipeline] audio file missing or empty (\(fileSize) bytes) - aborting")
+            PhoneWatchConnectivityService.shared.notifyWatchRecordingFailed()
             return
         }
         print("[Watch Pipeline] processing \(audioFileID) (\(fileSize) bytes)")

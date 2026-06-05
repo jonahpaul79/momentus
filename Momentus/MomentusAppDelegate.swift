@@ -1,8 +1,11 @@
+import BackgroundTasks
 import EventKit
 import UIKit
 import UserNotifications
 
 final class MomentusAppDelegate: NSObject, UIApplicationDelegate {
+    static let watchRecordingProcessingTaskID = "jonahpaul.momentus.watch-recording-processing"
+
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -10,6 +13,7 @@ final class MomentusAppDelegate: NSObject, UIApplicationDelegate {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
         center.setNotificationCategories([Self.meetingReminderCategory])
+        registerBackgroundTasks()
         return true
     }
 
@@ -36,6 +40,46 @@ final class MomentusAppDelegate: NSObject, UIApplicationDelegate {
         let service = EventKitCalendarService()
         let meetings = await service.getCurrentMeetings() + service.getUpcomingMeetings()
         await MeetingNotificationService.shared.scheduleReminders(for: meetings)
+    }
+
+    private func registerBackgroundTasks() {
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: Self.watchRecordingProcessingTaskID,
+            using: nil
+        ) { task in
+            self.handleWatchRecordingProcessingTask(task)
+        }
+    }
+
+    private func handleWatchRecordingProcessingTask(_ task: BGTask) {
+        Self.scheduleWatchRecordingProcessingTask()
+
+        let processorTask = Task { @MainActor in
+            WatchRecordingProcessor.shared.configure(store: RecordingsStore(loadSamples: false))
+            await WatchRecordingProcessor.shared.waitForCurrentProcessing()
+            task.setTaskCompleted(success: true)
+        }
+
+        task.expirationHandler = {
+            processorTask.cancel()
+            Task { @MainActor in
+                PhoneWatchConnectivityService.shared.notifyWatchRecordingNeedsPhoneWake()
+            }
+            task.setTaskCompleted(success: false)
+        }
+    }
+
+    static func scheduleWatchRecordingProcessingTask() {
+        let request = BGProcessingTaskRequest(identifier: watchRecordingProcessingTaskID)
+        request.requiresNetworkConnectivity = true
+        request.requiresExternalPower = false
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 60)
+
+        do {
+            try BGTaskScheduler.shared.submit(request)
+        } catch {
+            print("[Watch Pipeline] failed to schedule background processing: \(error)")
+        }
     }
 }
 
