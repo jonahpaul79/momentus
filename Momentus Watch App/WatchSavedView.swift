@@ -153,7 +153,7 @@ struct WatchSavedView: View {
                 Text("Saved")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(t.textPrimary)
-                Text("Notes ready on iPhone")
+                Text("Notes ready to sync")
                     .font(.system(size: 11))
                     .foregroundStyle(t.textSecondary)
             }

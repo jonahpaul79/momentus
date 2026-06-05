@@ -2,8 +2,37 @@ import Foundation
 
 struct WatchCloudProcessingResult {
     let transcriptText: String
-    let summaryText: String?
+    let summary: WatchCloudSummary?
+}
+
+struct WatchCloudSummary {
     let title: String?
+    let executiveSummary: String
+    let decisions: [String]
+    let actionItems: [ActionItem]
+    let openQuestions: [String]
+    let followUp: String?
+
+    struct ActionItem {
+        let task: String
+        let owner: String?
+    }
+
+    var propertyList: [String: Any] {
+        var payload: [String: Any] = [
+            "executiveSummary": executiveSummary,
+            "decisions": decisions,
+            "actionItems": actionItems.map { item in
+                var dict: [String: String] = ["task": item.task]
+                if let owner = item.owner { dict["owner"] = owner }
+                return dict
+            },
+            "openQuestions": openQuestions
+        ]
+        if let title { payload["title"] = title }
+        if let followUp { payload["followUp"] = followUp }
+        return payload
+    }
 }
 
 final class WatchCloudAssemblyAIService {
@@ -29,8 +58,7 @@ final class WatchCloudAssemblyAIService {
         let summary = try? await summarize(transcriptID: transcriptID, transcriptText: text)
         return WatchCloudProcessingResult(
             transcriptText: text,
-            summaryText: summary?.summary,
-            title: summary?.title
+            summary: summary
         )
     }
 
@@ -77,28 +105,57 @@ final class WatchCloudAssemblyAIService {
         throw WatchCloudAssemblyAIError.timeout
     }
 
-    private func summarize(transcriptID: String, transcriptText: String) async throws -> (title: String?, summary: String) {
+    private func summarize(transcriptID: String, transcriptText: String) async throws -> WatchCloudSummary {
         let prompt = """
-        Summarize this recording. Return JSON only with:
-        {"title":"5-8 word title","summary":"2-4 sentence summary"}
+        Analyze this meeting transcript and return only a valid JSON object with this exact structure:
+        {
+          "title": "5-8 word title",
+          "executive_summary": "2-4 sentence summary of what was discussed, decided, and what comes next",
+          "decisions": ["Explicit decision or conclusion from the meeting"],
+          "action_items": [{"task": "Specific next step", "owner": "Person name or null"}],
+          "open_questions": ["Explicit unresolved question"],
+          "follow_up": "Short 2-3 sentence follow-up note"
+        }
+
+        Rules:
+        - Do not paste or continue the transcript.
+        - Ground every item in what was spoken.
+        - Leave arrays empty when there is no explicit evidence.
+        - Return JSON only. No markdown fences, no preamble.
         """
+
+        if let parsed = try await requestSummary(
+            LeMURRequest(transcriptIDs: [transcriptID], inputText: nil, prompt: prompt)
+        ) {
+            return parsed
+        }
+
+        if let parsed = try await requestSummary(
+            LeMURRequest(transcriptIDs: nil, inputText: transcriptText, prompt: prompt)
+        ) {
+            return parsed
+        }
+
+        throw WatchCloudAssemblyAIError.providerError("Summary response was not valid JSON")
+    }
+
+    private func requestSummary(_ body: LeMURRequest) async throws -> WatchCloudSummary? {
         var request = URLRequest(url: baseURL.appending(path: "/lemur/v3/generate/task"))
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(LeMURRequest(transcriptIDs: [transcriptID], inputText: nil, prompt: prompt))
+        request.httpBody = try JSONEncoder().encode(body)
 
         let (responseData, response) = try await session.data(for: request)
         try validate(response, data: responseData)
         let responseText = try JSONDecoder().decode(LeMURResponse.self, from: responseData).response
         let jsonText = extractJSON(responseText)
         guard let data = jsonText.data(using: .utf8),
-              let parsed = try? JSONDecoder().decode(SummaryResponse.self, from: data),
-              !parsed.summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+              let parsed = try? JSONDecoder().decode(SummaryResponse.self, from: data)
         else {
-            return (nil, transcriptText)
+            return nil
         }
-        return (parsed.title, parsed.summary)
+        return parsed.summaryPayload
     }
 
     private func validate(_ response: URLResponse, data: Data) throws {
@@ -173,7 +230,50 @@ final class WatchCloudAssemblyAIService {
 
     private struct SummaryResponse: Decodable {
         let title: String?
-        let summary: String
+        let executiveSummary: String?
+        let summary: String?
+        let decisions: [String]?
+        let actionItems: [ActionItemResponse]?
+        let openQuestions: [String]?
+        let followUp: String?
+
+        enum CodingKeys: String, CodingKey {
+            case title, summary, decisions
+            case executiveSummary = "executive_summary"
+            case actionItems = "action_items"
+            case openQuestions = "open_questions"
+            case followUp = "follow_up"
+        }
+
+        var summaryPayload: WatchCloudSummary? {
+            let text = (executiveSummary ?? summary ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            return WatchCloudSummary(
+                title: title.flatMap { Self.cleanedOptional($0) },
+                executiveSummary: text,
+                decisions: (decisions ?? []).compactMap(Self.cleanedOptional),
+                actionItems: (actionItems ?? []).compactMap { item in
+                    guard let task = Self.cleanedOptional(item.task) else { return nil }
+                    return WatchCloudSummary.ActionItem(
+                        task: task,
+                        owner: item.owner.flatMap(Self.cleanedOptional)
+                    )
+                },
+                openQuestions: (openQuestions ?? []).compactMap(Self.cleanedOptional),
+                followUp: followUp.flatMap(Self.cleanedOptional)
+            )
+        }
+
+        nonisolated private static func cleanedOptional(_ raw: String) -> String? {
+            let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            return cleaned.isEmpty || cleaned.lowercased() == "null" ? nil : cleaned
+        }
+
+        struct ActionItemResponse: Decodable {
+            let task: String
+            let owner: String?
+        }
     }
 
     private struct ErrorBody: Decodable {

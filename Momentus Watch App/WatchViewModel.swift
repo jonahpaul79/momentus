@@ -224,7 +224,7 @@ enum WatchProcessingStatus: Equatable {
             let service = WatchCloudAssemblyAIService(apiKey: assemblyAIAPIKey)
             processingStatus = .transcribingCloud
             let result = try await service.process(fileURL: fileURL)
-            processingStatus = result.summaryText == nil ? .readyToSync : .summarizingCloud
+            processingStatus = result.summary == nil ? .readyToSync : .summarizingCloud
 
             let now = Date()
             let startedAt = now.addingTimeInterval(-elapsedTime)
@@ -233,18 +233,18 @@ enum WatchProcessingStatus: Equatable {
             var payload: [String: Any] = [
                 "action": "watchCloudRecordingProcessed",
                 "recordingId": recordingID,
-                "title": result.title ?? "Watch Recording",
                 "startedAt": startedAt.timeIntervalSince1970,
                 "endedAt": now.timeIntervalSince1970,
                 "markers": markerStr,
                 "transcriptText": result.transcriptText
             ]
-            if let summaryText = result.summaryText {
-                payload["summaryText"] = summaryText
+            if let summary = result.summary {
+                payload["summary"] = summary.propertyList
             }
             WCSession.default.transferUserInfo(payload)
             try? FileManager.default.removeItem(at: fileURL)
             processingStatus = .readyToSync
+            recordingState = .saved
         } catch {
             print("[Watch Cloud] direct processing failed: \(error)")
             processingStatus = .failed
