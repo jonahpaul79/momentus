@@ -10,11 +10,6 @@ struct WatchHomeView: View {
             case .idle:
                 idleView
             case .recording, .paused:
-                NavigationLink(destination: WatchActiveRecordingView(vm: vm)) {
-                    EmptyView()
-                }
-                .opacity(0)
-                .onAppear { /* auto-push handled below */ }
                 WatchActiveRecordingView(vm: vm)
             case .processing, .saved:
                 WatchSavedView(vm: vm)
