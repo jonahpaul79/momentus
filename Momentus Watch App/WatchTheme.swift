@@ -9,6 +9,7 @@ struct WatchTheme {
     let accentSuccess: Color
     let textPrimary: Color
     let textSecondary: Color
+    let textTertiary: Color
 
     static let midnightIndigo = WatchTheme(
         backgroundPrimary: Color(red: 0.051, green: 0.051, blue: 0.071),
@@ -17,7 +18,8 @@ struct WatchTheme {
         accentRecording: Color(red: 1.0, green: 0.302, blue: 0.427),
         accentSuccess: Color(red: 0.0, green: 0.784, blue: 0.588),
         textPrimary: Color(red: 0.941, green: 0.937, blue: 0.910),
-        textSecondary: Color(red: 0.545, green: 0.561, blue: 0.659)
+        textSecondary: Color(red: 0.545, green: 0.561, blue: 0.659),
+        textTertiary: Color(red: 0.318, green: 0.329, blue: 0.408)
     )
 }
 

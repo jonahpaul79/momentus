@@ -502,7 +502,7 @@ struct MeetingSummaryDetailView: View {
     private func followUpSection(_ draft: String, t: AppTheme) -> some View {
         VStack(alignment: .leading, spacing: t.spacing.m) {
             sectionHeader("Follow-up Draft", icon: "envelope.fill", t: t)
-            Text(draft)
+            Text(LocalizedStringKey(draft))
                 .font(t.typography.bodySmall)
                 .foregroundStyle(t.colors.textSecondary)
                 .lineSpacing(3)

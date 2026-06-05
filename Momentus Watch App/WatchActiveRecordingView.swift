@@ -16,6 +16,8 @@ struct WatchActiveRecordingView: View {
             let timerSize: CGFloat  = h * 0.19
             let waveH: CGFloat      = h * 0.25
 
+            let hPad: CGFloat = 8
+
             VStack(spacing: 0) {
                 // Status row
                 HStack {
@@ -62,7 +64,6 @@ struct WatchActiveRecordingView: View {
                 Spacer(minLength: 0)
 
                 // Controls — spaced to fill the row width
-                let hPad: CGFloat = 8
                 let gap = max(6, (w - hPad * 2 - stopSize - sideSize * 2) / 2)
                 HStack(spacing: gap) {
                     // Pause / Resume
