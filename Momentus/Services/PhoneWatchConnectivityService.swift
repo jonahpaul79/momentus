@@ -66,6 +66,38 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
         }
     }
 
+    func sendWatchRecordingAction(
+        _ action: String,
+        timestamp: TimeInterval? = nil,
+        mode: RecordingMode? = nil
+    ) async throws {
+        guard WCSession.default.activationState == .activated else {
+            throw PhoneWatchConnectivityError.watchSessionInactive
+        }
+        guard WCSession.default.isWatchAppInstalled else {
+            throw PhoneWatchConnectivityError.watchAppNotInstalled
+        }
+        guard WCSession.default.isReachable else {
+            throw PhoneWatchConnectivityError.watchNotReachable
+        }
+
+        var message: [String: Any] = ["action": action]
+        if let timestamp {
+            message["timestamp"] = timestamp
+        }
+        if let mode {
+            message["mode"] = mode == .bestQuality ? "Quality" : "Private"
+        }
+
+        try await withCheckedThrowingContinuation { continuation in
+            WCSession.default.sendMessage(message, replyHandler: { _ in
+                continuation.resume()
+            }, errorHandler: { error in
+                continuation.resume(throwing: error)
+            })
+        }
+    }
+
     // MARK: - Receiving messages
 
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
@@ -132,5 +164,22 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
 
     func sessionDidDeactivate(_ session: WCSession) {
         WCSession.default.activate()
+    }
+}
+
+enum PhoneWatchConnectivityError: LocalizedError {
+    case watchSessionInactive
+    case watchAppNotInstalled
+    case watchNotReachable
+
+    var errorDescription: String? {
+        switch self {
+        case .watchSessionInactive:
+            return "Apple Watch connection is not ready yet."
+        case .watchAppNotInstalled:
+            return "Momentus is not installed on your Apple Watch."
+        case .watchNotReachable:
+            return "Apple Watch is not reachable. Open Momentus on the Watch and try again."
+        }
     }
 }

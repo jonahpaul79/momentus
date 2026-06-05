@@ -14,7 +14,7 @@ struct WatchActiveRecordingView: View {
             let stopSize: CGFloat   = min(h * 0.29, w * 0.30)
             let sideSize: CGFloat   = min(h * 0.22, w * 0.23)
             let timerSize: CGFloat  = h * 0.19
-            let waveH: CGFloat      = h * 0.25
+            let waveH: CGFloat      = h * 0.31
 
             let hPad: CGFloat = 8
 

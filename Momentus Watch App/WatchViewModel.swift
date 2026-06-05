@@ -198,8 +198,8 @@ enum WatchRecordingState: Equatable {
                 if let recorder = self.audioRecorder, recorder.isRecording {
                     recorder.updateMeters()
                     let db = recorder.averagePower(forChannel: 0)
-                    let normalized = max(0, min(1, (db + 55) / 50))
-                    level = pow(normalized, 1.7)
+                    let normalized = max(0, min(1, (db + 58) / 46))
+                    level = max(0.12, pow(normalized, 0.75))
                 } else {
                     level = Float.random(in: 0.08...0.95)
                 }
@@ -246,10 +246,38 @@ extension WatchViewModel: WCSessionDelegate {
     }
 
     private func handlePhoneMessage(_ message: [String: Any]) {
-        guard (message["action"] as? String) == "recordingProcessed" else { return }
+        guard let action = message["action"] as? String else { return }
         Task { @MainActor [weak self] in
-            guard let self, self.recordingState == .processing else { return }
-            self.recordingState = .saved
+            guard let self else { return }
+            switch action {
+            case "recordingProcessed":
+                guard self.recordingState == .processing else { return }
+                self.recordingState = .saved
+            case "startRecording":
+                if let mode = message["mode"] as? String {
+                    if mode == WatchRecordingMode.bestQuality.rawValue {
+                        self.selectedMode = .bestQuality
+                    } else if mode == WatchRecordingMode.onDevice.rawValue {
+                        self.selectedMode = .onDevice
+                    }
+                }
+                await self.startRecording()
+            case "stopRecording":
+                await self.stopRecording()
+            case "pauseRecording":
+                await self.pauseRecording()
+            case "resumeRecording":
+                await self.resumeRecording()
+            case "addMarker":
+                if let timestamp = message["timestamp"] as? TimeInterval {
+                    self.markers.append(timestamp)
+                    self.markerHighlightedBars.insert(self.waveformLevels.count - 1)
+                } else {
+                    self.addMarker()
+                }
+            default:
+                break
+            }
         }
     }
 }

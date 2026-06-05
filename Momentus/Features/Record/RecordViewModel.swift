@@ -164,6 +164,11 @@ extension Notification.Name {
             WhisperKitTranscriptionService.warmup()
         }
 
+        if selectedMicSource == .watch {
+            await startWatchMicRecording()
+            return
+        }
+
         do {
             let id = try await recordingService.startRecording(mode: selectedMode, source: selectedMicSource)
             currentRecordingId = id
@@ -179,6 +184,18 @@ extension Notification.Name {
 
     func pauseRecording() async {
         guard state == .recording else { return }
+        if selectedMicSource == .watch {
+            do {
+                try await PhoneWatchConnectivityService.shared.sendWatchRecordingAction("pauseRecording")
+                state = .paused
+                stopWaveformTimer()
+                HapticStyle.light.trigger()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            return
+        }
+
         do {
             try await recordingService.pauseRecording()
             state = .paused
@@ -191,6 +208,18 @@ extension Notification.Name {
 
     func resumeRecording() async {
         guard state == .paused else { return }
+        if selectedMicSource == .watch {
+            do {
+                try await PhoneWatchConnectivityService.shared.sendWatchRecordingAction("resumeRecording")
+                state = .recording
+                startWaveformTimer()
+                HapticStyle.light.trigger()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            return
+        }
+
         do {
             try await recordingService.resumeRecording()
             state = .recording
@@ -205,12 +234,29 @@ extension Notification.Name {
         guard state == .recording || state == .paused else { return }
         let marker = max(0, elapsedTime)
         addMarker(at: marker)
+        if selectedMicSource == .watch {
+            Task {
+                do {
+                    try await PhoneWatchConnectivityService.shared.sendWatchRecordingAction(
+                        "addMarker",
+                        timestamp: marker
+                    )
+                } catch {
+                    errorMessage = error.localizedDescription
+                }
+            }
+        }
         HapticStyle.medium.trigger()
         markerHighlightedBars.insert(waveformLevels.count - 1)
     }
 
     func stopRecording() async {
         guard state == .recording || state == .paused else { return }
+        if selectedMicSource == .watch {
+            await stopWatchMicRecording()
+            return
+        }
+
         stopTimers()
         HapticStyle.heavy.trigger()
 
@@ -367,7 +413,10 @@ extension Notification.Name {
                 guard !Task.isCancelled, let self else { break }
                 var newLevels = self.waveformLevels
                 newLevels.removeFirst()
-                newLevels.append(recordingService.getCurrentLevel())
+                let level = self.selectedMicSource == .watch
+                    ? Float.random(in: 0.08...0.75)
+                    : recordingService.getCurrentLevel()
+                newLevels.append(level)
                 self.waveformLevels = newLevels
                 self.markerHighlightedBars = Set(self.markerHighlightedBars.compactMap { idx in
                     let shifted = idx - 1
@@ -400,6 +449,37 @@ extension Notification.Name {
         let marker = max(0, timestamp)
         guard markers.last.map({ abs($0 - marker) > 1.0 }) ?? true else { return }
         markers.append(marker)
+    }
+
+    private func startWatchMicRecording() async {
+        do {
+            try await PhoneWatchConnectivityService.shared.sendWatchRecordingAction(
+                "startRecording",
+                mode: selectedMode
+            )
+            currentRecordingId = UUID()
+            state = .recording
+            elapsedTime = 0
+            markers = []
+            HapticStyle.medium.trigger()
+            startTimers()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func stopWatchMicRecording() async {
+        stopTimers()
+        HapticStyle.heavy.trigger()
+        do {
+            try await PhoneWatchConnectivityService.shared.sendWatchRecordingAction("stopRecording")
+            state = .processing(.savingAudio)
+            processingStepIndex = 0
+        } catch {
+            errorMessage = error.localizedDescription
+            state = .recording
+            startTimers()
+        }
     }
 
     private func handleWatchRecording(audioFileID: String, markers: [TimeInterval], mode: String?) {
