@@ -182,7 +182,13 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
     // MARK: - Receiving audio file from watch
 
     func session(_ session: WCSession, didReceive file: WCSessionFile) {
-        guard (file.metadata?["action"] as? String) == "processWatchRecording" else { return }
+        let action = file.metadata?["action"] as? String
+        if action == "syncWatchCloudRecordingAudio" {
+            receiveCloudProcessedAudio(file)
+            return
+        }
+
+        guard action == "processWatchRecording" else { return }
 
         let mode = file.metadata?["mode"] as? String
         let markersStr = (file.metadata?["markers"] as? String) ?? ""
@@ -210,6 +216,40 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
 
         Task { @MainActor in
             WatchRecordingProcessor.shared.enqueue(audioFileID: audioFileID, markers: markers, mode: mode)
+        }
+    }
+
+    private func receiveCloudProcessedAudio(_ file: WCSessionFile) {
+        let recordingID = (file.metadata?["recordingId"] as? String).flatMap(UUID.init(uuidString:))
+        let requestedFileName = (file.metadata?["audioFileID"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let fileName = requestedFileName?.isEmpty == false
+            ? requestedFileName!
+            : file.fileURL.lastPathComponent
+        let destURL = AVAudioRecorderService.recordingsDirectory
+            .appendingPathComponent(fileName)
+
+        do {
+            if FileManager.default.fileExists(atPath: destURL.path) {
+                try FileManager.default.removeItem(at: destURL)
+            }
+            try FileManager.default.copyItem(at: file.fileURL, to: destURL)
+            let fileSize = (try? destURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+            guard fileSize >= 1024 else {
+                print("[WatchConnectivity] synced watch audio too small: \(fileSize) bytes")
+                return
+            }
+        } catch {
+            print("[WatchConnectivity] failed to sync watch audio: \(error)")
+            return
+        }
+
+        guard let recordingID else { return }
+        Task { @MainActor in
+            WatchRecordingProcessor.shared.attachAudio(
+                recordingID: recordingID,
+                audioFileID: fileName
+            )
         }
     }
 

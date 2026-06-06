@@ -35,6 +35,7 @@ final class WatchRecordingProcessor {
         let legacySummaryText = (message["summaryText"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let title = cleanedString(watchSummary?["title"] as? String)
             ?? cleanedString(message["title"] as? String)
+        let audioFileID = cleanedString(message["audioFileID"] as? String)
         let startedAt = Date(timeIntervalSince1970: message["startedAt"] as? TimeInterval ?? Date().timeIntervalSince1970)
         let endedAt = Date(timeIntervalSince1970: message["endedAt"] as? TimeInterval ?? Date().timeIntervalSince1970)
         let duration = max(1, endedAt.timeIntervalSince(startedAt))
@@ -75,7 +76,7 @@ final class WatchRecordingProcessor {
             endedAt: endedAt,
             mode: .bestQuality,
             micSource: .watch,
-            audioFileID: "",
+            audioFileID: audioFileID,
             processingState: summary == nil ? .summarizing : .completed,
             transcript: transcript,
             summary: summary,
@@ -95,6 +96,21 @@ final class WatchRecordingProcessor {
                 userInfo: ["recordingId": recordingId]
             )
         }
+    }
+
+    func attachAudio(recordingID: UUID, audioFileID: String) {
+        if store == nil {
+            store = RecordingsStore(loadSamples: false)
+            print("[Watch Pipeline] created background store for audio attach")
+        }
+        guard let store, var recording = store.recording(for: recordingID) else { return }
+        recording.audioFileID = audioFileID
+        store.update(recording)
+        NotificationCenter.default.post(
+            name: .recordingProcessingCompleted,
+            object: nil,
+            userInfo: ["recordingId": recordingID]
+        )
     }
 
     func enqueue(audioFileID: String, markers: [TimeInterval], mode: String?) {

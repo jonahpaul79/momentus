@@ -14,7 +14,9 @@ struct MeetingSummaryDetailView: View {
     @AppStorage("audioRetention") private var audioRetentionRaw: String = AudioRetentionPolicy.deleteAfterTranscript.rawValue
 
     private var hasAudio: Bool {
-        guard recording.audioFileID != nil else { return false }
+        guard let audioFileID = recording.audioFileID,
+              !audioFileID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return false }
         let policy = AudioRetentionPolicy(rawValue: audioRetentionRaw) ?? .deleteAfterTranscript
         return policy != .deleteAfterTranscript
     }
@@ -76,6 +78,13 @@ struct MeetingSummaryDetailView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             if let updated = store.recording(for: recording.id) { recording = updated }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .recordingProcessingCompleted)) { notification in
+            guard let id = notification.userInfo?["recordingId"] as? UUID,
+                  id == recording.id,
+                  let updated = store.recording(for: recording.id)
+            else { return }
+            recording = updated
         }
     }
 

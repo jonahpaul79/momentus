@@ -290,6 +290,7 @@ enum WatchProcessingStatus: Equatable {
             var payload: [String: Any] = [
                 "action": "watchCloudRecordingProcessed",
                 "recordingId": recordingID,
+                "audioFileID": fileURL.lastPathComponent,
                 "startedAt": startedAt.timeIntervalSince1970,
                 "endedAt": now.timeIntervalSince1970,
                 "markers": markerStr,
@@ -308,7 +309,12 @@ enum WatchProcessingStatus: Equatable {
                 summary: result.summary
             )
             WCSession.default.transferUserInfo(payload)
-            try? FileManager.default.removeItem(at: fileURL)
+            activeTransferFileNames.insert(fileURL.lastPathComponent)
+            WCSession.default.transferFile(fileURL, metadata: [
+                "action": "syncWatchCloudRecordingAudio",
+                "recordingId": recordingID,
+                "audioFileID": fileURL.lastPathComponent
+            ])
             processingStatus = .readyToSync
             recordingState = .saved
         } catch {
