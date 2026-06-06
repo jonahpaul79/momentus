@@ -76,17 +76,16 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
         guard WCSession.default.activationState == .activated,
               WCSession.default.isWatchAppInstalled else { return }
 
-        var message: [String: String] = [
+        sendWatchStatusMessage(watchCloudConfigurationPayload())
+    }
+
+    private func watchCloudConfigurationPayload() -> [String: String] {
+        [
             "action": "watchCloudConfig",
-            "defaultMode": UserDefaults.standard.string(forKey: "defaultRecordingMode") ?? RecordingMode.onDevice.rawValue
+            "defaultMode": UserDefaults.standard.string(forKey: "defaultRecordingMode") ?? RecordingMode.onDevice.rawValue,
+            "assemblyAIAPIKey": KeychainService.retrieve(.assemblyAIAPIKey) ?? "",
+            "anthropicAPIKey": KeychainService.retrieve(.anthropicAPIKey) ?? ""
         ]
-        if let assemblyAIKey = KeychainService.retrieve(.assemblyAIAPIKey), !assemblyAIKey.isEmpty {
-            message["assemblyAIAPIKey"] = assemblyAIKey
-        }
-        if let anthropicKey = KeychainService.retrieve(.anthropicAPIKey), !anthropicKey.isEmpty {
-            message["anthropicAPIKey"] = anthropicKey
-        }
-        sendWatchStatusMessage(message)
     }
 
     func notifyWatchRecordingReceived() {
@@ -166,6 +165,10 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
     ) {
         if (message["action"] as? String) == "watchRecordingPhoneProbe" {
             replyHandler(["available": UIApplication.shared.applicationState == .active])
+            return
+        }
+        if (message["action"] as? String) == "watchCloudConfigRequest" {
+            replyHandler(watchCloudConfigurationPayload())
             return
         }
         handle(message)

@@ -62,33 +62,39 @@ final class WatchRecordingProcessor {
             createdAt: Date()
         )
 
-        let summary = buildWatchCloudSummary(
-            recordingId: recordingId,
-            payload: watchSummary,
-            legacySummaryText: legacySummaryText,
-            transcriptText: transcriptText
-        )
+        let summary = watchSummary.map {
+            buildWatchCloudSummary(recordingId: recordingId, payload: $0, legacySummaryText: nil)
+        } ?? legacySummaryText.flatMap {
+            buildLegacyWatchCloudSummary(recordingId: recordingId, summaryText: $0, transcriptText: transcriptText)
+        }
 
-        let recording = Recording(
+        var recording = Recording(
             id: recordingId,
-            title: summary.suggestedTitle ?? titleFromTime(),
+            title: summary?.suggestedTitle ?? title ?? titleFromTime(),
             startedAt: startedAt,
             endedAt: endedAt,
             mode: .bestQuality,
             micSource: .watch,
             audioFileID: "",
-            processingState: .completed,
+            processingState: summary == nil ? .summarizing : .completed,
             transcript: transcript,
             summary: summary,
             markers: markers
         )
 
         store.add(recording)
-        NotificationCenter.default.post(
-            name: .recordingProcessingCompleted,
-            object: nil,
-            userInfo: ["recordingId": recordingId]
-        )
+
+        if summary == nil {
+            Task { [weak self] in
+                await self?.summarizeImportedWatchRecording(recording, transcript: transcript)
+            }
+        } else {
+            NotificationCenter.default.post(
+                name: .recordingProcessingCompleted,
+                object: nil,
+                userInfo: ["recordingId": recordingId]
+            )
+        }
     }
 
     func enqueue(audioFileID: String, markers: [TimeInterval], mode: String?) {
@@ -228,21 +234,61 @@ final class WatchRecordingProcessor {
         return "Recording - \(f.string(from: Date()))"
     }
 
+    private func summarizeImportedWatchRecording(_ recording: Recording, transcript: Transcript) async {
+        guard let store else { return }
+        var recording = recording
+        do {
+            let summary = try await ServiceFactory.makeSummaryService(for: .bestQuality).summarize(
+                transcript: transcript,
+                recordingId: recording.id
+            )
+            recording.summary = summary
+            if let suggested = summary.suggestedTitle {
+                recording.title = suggested
+            }
+            recording.processingState = .completed
+            store.update(recording)
+            NotificationCenter.default.post(
+                name: .recordingProcessingCompleted,
+                object: nil,
+                userInfo: ["recordingId": recording.id]
+            )
+        } catch {
+            print("[Watch Pipeline] phone summary failed for cloud transcript: \(error)")
+            recording.summary = MeetingSummary(
+                recordingId: recording.id,
+                executiveSummary: "Summary could not be generated yet. The transcript is available.",
+                followUpDraft: "Hi team, following up on our recent meeting.",
+                provider: "Watch Cloud Transcript",
+                confidenceNotes: [
+                    "Transcript was processed directly from Apple Watch.",
+                    "Phone summary generation failed: \(error.localizedDescription)"
+                ]
+            )
+            recording.processingState = .completed
+            store.update(recording)
+            NotificationCenter.default.post(
+                name: .recordingProcessingCompleted,
+                object: nil,
+                userInfo: ["recordingId": recording.id]
+            )
+        }
+    }
+
     private func buildWatchCloudSummary(
         recordingId: UUID,
-        payload: [String: Any]?,
-        legacySummaryText: String?,
-        transcriptText: String
+        payload: [String: Any],
+        legacySummaryText: String?
     ) -> MeetingSummary {
-        let title = cleanedString(payload?["title"] as? String)
-        let executiveSummary = cleanedString(payload?["executiveSummary"] as? String)
-            ?? cleanedLegacySummary(legacySummaryText, transcriptText: transcriptText)
-            ?? "Summary could not be generated directly from the Watch. The transcript is available."
+        let title = cleanedString(payload["title"] as? String)
+        let executiveSummary = cleanedString(payload["executiveSummary"] as? String)
+            ?? cleanedString(legacySummaryText)
+            ?? "Summary could not be generated yet. The transcript is available."
 
-        let decisions = (payload?["decisions"] as? [String] ?? []).compactMap {
+        let decisions = (payload["decisions"] as? [String] ?? []).compactMap {
             MeetingSummarySanitizer.cleanDecision(text: $0, context: nil, confidence: 0.85)
         }
-        let actionItems = (payload?["actionItems"] as? [[String: String]] ?? []).compactMap { item in
+        let actionItems = (payload["actionItems"] as? [[String: String]] ?? []).compactMap { item in
             MeetingSummarySanitizer.cleanActionItem(
                 title: item["task"] ?? "",
                 owner: item["owner"],
@@ -251,16 +297,13 @@ final class WatchRecordingProcessor {
                 priority: .medium
             )
         }
-        let openQuestions = (payload?["openQuestions"] as? [String] ?? []).compactMap {
+        let openQuestions = (payload["openQuestions"] as? [String] ?? []).compactMap {
             MeetingSummarySanitizer.cleanOpenQuestion(text: $0, owner: nil, priority: .medium)
         }
-        let followUp = cleanedString(payload?["followUp"] as? String)
+        let followUp = cleanedString(payload["followUp"] as? String)
             ?? "Hi team, following up on our recent meeting."
 
         var confidenceNotes = ["Processed directly from Apple Watch because the iPhone app was not reachable."]
-        if payload == nil {
-            confidenceNotes.append("Watch cloud summary was unavailable; transcript was not used as a fake summary.")
-        }
 
         return MeetingSummary(
             recordingId: recordingId,
@@ -275,7 +318,20 @@ final class WatchRecordingProcessor {
         )
     }
 
-    private func cleanedLegacySummary(_ summary: String?, transcriptText: String) -> String? {
+    private func buildLegacyWatchCloudSummary(
+        recordingId: UUID,
+        summaryText: String,
+        transcriptText: String
+    ) -> MeetingSummary? {
+        guard let summary = cleanedLegacySummary(summaryText, transcriptText: transcriptText) else { return nil }
+        return buildWatchCloudSummary(
+            recordingId: recordingId,
+            payload: ["executiveSummary": summary],
+            legacySummaryText: summary
+        )
+    }
+
+    private func cleanedLegacySummary(_ summary: String, transcriptText: String) -> String? {
         guard let summary = cleanedString(summary) else { return nil }
         let transcript = transcriptText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard summary != transcript else { return nil }

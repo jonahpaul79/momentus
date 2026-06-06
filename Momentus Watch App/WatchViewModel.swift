@@ -86,6 +86,9 @@ enum WatchProcessingStatus: Equatable {
 
         if let url = stopAudioCapture(), let transferURL = prepareTransferFile(from: url) {
             if selectedMode == .bestQuality {
+                if assemblyAIAPIKey.isEmpty {
+                    await refreshCloudConfigFromPhone()
+                }
                 if !assemblyAIAPIKey.isEmpty {
                     await processDirectlyInCloud(transferURL)
                 } else if await phoneCanProcessNow() {
@@ -197,6 +200,54 @@ enum WatchProcessingStatus: Equatable {
                 try? await Task.sleep(for: .seconds(2))
                 resume(false)
             }
+        }
+    }
+
+    private func refreshCloudConfigFromPhone() async {
+        guard WCSession.default.activationState == .activated,
+              WCSession.default.isReachable else { return }
+
+        await withCheckedContinuation { continuation in
+            var didResume = false
+            let resume: () -> Void = {
+                guard !didResume else { return }
+                didResume = true
+                continuation.resume()
+            }
+
+            WCSession.default.sendMessage(
+                ["action": "watchCloudConfigRequest"],
+                replyHandler: { [weak self] reply in
+                    Task { @MainActor in
+                        self?.applyCloudConfig(reply)
+                        resume()
+                    }
+                },
+                errorHandler: { _ in resume() }
+            )
+
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                resume()
+            }
+        }
+    }
+
+    private func applyCloudConfig(_ message: [String: Any]) {
+        if let defaultMode = message["defaultMode"] as? String {
+            if defaultMode == "bestQuality" || defaultMode == WatchRecordingMode.bestQuality.rawValue {
+                selectedMode = .bestQuality
+            } else if defaultMode == "onDevice" || defaultMode == WatchRecordingMode.onDevice.rawValue {
+                selectedMode = .onDevice
+            }
+        }
+        if let assemblyKey = message["assemblyAIAPIKey"] as? String {
+            assemblyAIAPIKey = assemblyKey
+            UserDefaults.standard.set(assemblyAIAPIKey, forKey: "watchAssemblyAIAPIKey")
+        }
+        if let anthropicKey = message["anthropicAPIKey"] as? String {
+            anthropicAPIKey = anthropicKey
+            UserDefaults.standard.set(anthropicAPIKey, forKey: "watchAnthropicAPIKey")
         }
     }
 
@@ -438,17 +489,7 @@ extension WatchViewModel: WCSessionDelegate {
                 guard self.recordingState == .processing else { return }
                 self.processingStatus = .needsPhoneWake
             case "watchCloudConfig":
-                if let defaultMode = message["defaultMode"] as? String {
-                    if defaultMode == "bestQuality" || defaultMode == WatchRecordingMode.bestQuality.rawValue {
-                        self.selectedMode = .bestQuality
-                    } else if defaultMode == "onDevice" || defaultMode == WatchRecordingMode.onDevice.rawValue {
-                        self.selectedMode = .onDevice
-                    }
-                }
-                self.assemblyAIAPIKey = (message["assemblyAIAPIKey"] as? String) ?? ""
-                self.anthropicAPIKey = (message["anthropicAPIKey"] as? String) ?? ""
-                UserDefaults.standard.set(self.assemblyAIAPIKey, forKey: "watchAssemblyAIAPIKey")
-                UserDefaults.standard.set(self.anthropicAPIKey, forKey: "watchAnthropicAPIKey")
+                self.applyCloudConfig(message)
             case "startRecording":
                 if let mode = message["mode"] as? String {
                     if mode == WatchRecordingMode.bestQuality.rawValue {
