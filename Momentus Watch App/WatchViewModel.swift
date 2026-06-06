@@ -299,7 +299,7 @@ enum WatchProcessingStatus: Equatable {
             if let summary = result.summary {
                 payload["summary"] = summary.propertyList
             }
-            await WatchCloudKitRecordingService.shared.saveProcessedRecording(
+            let savedToCloud = await WatchCloudKitRecordingService.shared.saveProcessedRecording(
                 recordingID: recordingID,
                 audioFileURL: fileURL,
                 startedAt: startedAt,
@@ -308,6 +308,10 @@ enum WatchProcessingStatus: Equatable {
                 transcriptText: result.transcriptText,
                 summary: result.summary
             )
+            guard savedToCloud else {
+                processingStatus = .failed
+                return
+            }
             WCSession.default.transferUserInfo(payload)
             activeTransferFileNames.insert(fileURL.lastPathComponent)
             WCSession.default.transferFile(fileURL, metadata: [

@@ -5,6 +5,7 @@ struct ContentView: View {
     @State private var store = RecordingsStore(loadSamples: ContentView.shouldLoadDemoData)
     @State private var selectedTab = Tab.record
     @State private var showingSplash = true
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     enum Tab: String { case record, notes, settings }
@@ -38,6 +39,11 @@ struct ContentView: View {
         .task {
             WatchRecordingProcessor.shared.configure(store: store)
             await CloudKitService.shared.saveCurrentProviderConfig()
+            await store.importCloudRecordingsWithRetry()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await store.importCloudRecordingsWithRetry() }
         }
         .overlay {
             if showingSplash {

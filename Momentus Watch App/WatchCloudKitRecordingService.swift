@@ -17,10 +17,10 @@ final class WatchCloudKitRecordingService {
         markers: [TimeInterval],
         transcriptText: String,
         summary: WatchCloudSummary?
-    ) async {
+    ) async -> Bool {
         do {
-            guard try await container.accountStatus() == .available else { return }
-            guard let recordingUUID = UUID(uuidString: recordingID) else { return }
+            guard try await container.accountStatus() == .available else { return false }
+            guard let recordingUUID = UUID(uuidString: recordingID) else { return false }
 
             let recordID = CKRecord.ID(recordName: recordingID)
             let record = CKRecord(recordType: "Recording", recordID: recordID)
@@ -50,8 +50,10 @@ final class WatchCloudKitRecordingService {
 
             try await db.save(record)
             print("[Watch CloudKit] saved processed recording \(recordingID)")
+            return true
         } catch {
             print("[Watch CloudKit] save processed recording failed: \(error.localizedDescription)")
+            return false
         }
     }
 

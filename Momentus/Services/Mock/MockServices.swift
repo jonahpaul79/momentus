@@ -77,8 +77,9 @@ import Foundation
     // Pulls recordings from CloudKit that don't exist locally (from other devices).
     // Local recordings not yet in CloudKit are uploaded (e.g. created while offline).
     // For existing IDs, local version is kept — it was written here most recently.
-    func syncFromCloud() async {
-        guard isCloudEnabled, await CloudKitService.shared.isAvailable() else { return }
+    func syncFromCloud(forceImport: Bool = false, uploadLocalOnly: Bool = true) async {
+        guard forceImport || isCloudEnabled else { return }
+        guard !isSyncing, await CloudKitService.shared.isAvailable() else { return }
         isSyncing = true
         defer { isSyncing = false }
 
@@ -108,8 +109,19 @@ import Foundation
         }
 
         let localOnly = recordings.filter { !cloudIDs.contains($0.id) }
-        if !localOnly.isEmpty {
+        if uploadLocalOnly, isCloudEnabled, !localOnly.isEmpty {
             await CloudKitService.shared.saveAll(localOnly)
+        }
+    }
+
+    func importCloudRecordingsWithRetry() async {
+        for attempt in 0..<4 {
+            let countBefore = recordings.count
+            await syncFromCloud(forceImport: true, uploadLocalOnly: false)
+            if recordings.count > countBefore { return }
+            if attempt < 3 {
+                try? await Task.sleep(for: .seconds(2))
+            }
         }
     }
 

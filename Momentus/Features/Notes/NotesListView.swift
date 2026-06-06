@@ -49,6 +49,9 @@ struct NotesListView: View {
                 .environment(themeManager)
                 .environment(store)
         }
+        .task {
+            await store.importCloudRecordingsWithRetry()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .recordingProcessingCompleted)) { notification in
             guard let id = notification.userInfo?["recordingId"] as? UUID,
                   let recording = store.recording(for: id) else { return }
