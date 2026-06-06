@@ -104,6 +104,19 @@ final class CloudKitService {
         return results
     }
 
+    func restoreAudioAsset(recordingID: UUID, audioFileID: String?) async -> URL? {
+        do {
+            let record = try await db.record(for: CKRecord.ID(recordName: recordingID.uuidString))
+            guard let fileName = copyAudioAsset(from: record, preferredFileName: audioFileID) else {
+                return nil
+            }
+            return AVAudioRecorderService.recordingsDirectory.appendingPathComponent(fileName)
+        } catch {
+            print("[CloudKit] restore audio \(recordingID): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     // MARK: - CKRecord → Recording
 
     private func makeRecord(from recording: Recording) throws -> CKRecord {
@@ -163,7 +176,10 @@ final class CloudKitService {
             try? JSONDecoder().decode([TimeInterval].self, from: $0 as Data)
         } ?? []
 
-        let audioFileID = localAudioFileID(from: record)
+        let audioFileID = copyAudioAsset(
+            from: record,
+            preferredFileName: record["audioFileID"] as? String
+        ) ?? normalizedAudioFileID(record["audioFileID"] as? String)
 
         return Recording(
             id: id,
@@ -181,18 +197,20 @@ final class CloudKitService {
         )
     }
 
-    private func localAudioFileID(from record: CKRecord) -> String? {
-        let existingID = (record["audioFileID"] as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+    private func normalizedAudioFileID(_ raw: String?) -> String? {
+        let cleaned = raw?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned?.isEmpty == false ? cleaned : nil
+    }
+
+    private func copyAudioAsset(from record: CKRecord, preferredFileName: String?) -> String? {
+        let existingID = normalizedAudioFileID(preferredFileName)
         guard let asset = record["audioAsset"] as? CKAsset,
               let sourceURL = asset.fileURL
         else {
-            return existingID?.isEmpty == false ? existingID : nil
+            return nil
         }
 
-        let fileName = existingID?.isEmpty == false
-            ? existingID!
-            : record.recordID.recordName + ".m4a"
+        let fileName = existingID ?? record.recordID.recordName + ".m4a"
         let destinationURL = AVAudioRecorderService.recordingsDirectory
             .appendingPathComponent(fileName)
 

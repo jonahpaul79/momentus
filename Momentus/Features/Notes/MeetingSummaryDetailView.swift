@@ -100,6 +100,7 @@ struct MeetingSummaryDetailView: View {
 
             if hasAudio, let audioFileID = recording.audioFileID {
                 AudioPlayerView(
+                    recordingID: recording.id,
                     seed: recording.id.hashValue,
                     duration: recording.duration,
                     audioFileID: audioFileID,
@@ -853,6 +854,7 @@ struct ActionItemRow: View {
 
 struct AudioPlayerView: View {
     @Environment(ThemeManager.self) private var themeManager
+    let recordingID: UUID
     let seed: Int
     let duration: TimeInterval
     let audioFileID: String
@@ -941,17 +943,36 @@ struct AudioPlayerView: View {
 
     private func prepareAudio() async {
         let fileURL = AVAudioRecorderService.recordingsDirectory.appendingPathComponent(audioFileID)
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+        if await loadPlayer(from: fileURL) {
+            await loadWaveform(from: fileURL)
+            return
+        }
+
+        guard let restoredURL = await CloudKitService.shared.restoreAudioAsset(
+            recordingID: recordingID,
+            audioFileID: audioFileID
+        ) else {
             print("[AudioPlayer] missing audio file: \(audioFileID)")
             waveformLevels = nil
             return
         }
 
-        let fileSize = (try? fileURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
-        guard fileSize >= 1024 else {
-            print("[AudioPlayer] audio file too small: \(audioFileID) (\(fileSize) bytes)")
+        guard await loadPlayer(from: restoredURL) else {
             waveformLevels = nil
             return
+        }
+        await loadWaveform(from: restoredURL)
+    }
+
+    private func loadPlayer(from fileURL: URL) async -> Bool {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            return false
+        }
+
+        let fileSize = (try? fileURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+        guard fileSize >= 1024 else {
+            print("[AudioPlayer] audio file too small: \(fileURL.lastPathComponent) (\(fileSize) bytes)")
+            return false
         }
 
         let p: AVAudioPlayer
@@ -962,14 +983,16 @@ struct AudioPlayerView: View {
                 let data = try Data(contentsOf: fileURL)
                 p = try AVAudioPlayer(data: data)
             } catch {
-                print("[AudioPlayer] could not open \(audioFileID) (\(fileSize) bytes): \(error.localizedDescription)")
-                waveformLevels = nil
-                return
+                print("[AudioPlayer] could not open \(fileURL.lastPathComponent) (\(fileSize) bytes): \(error.localizedDescription)")
+                return false
             }
         }
         p.prepareToPlay()
         player = p
+        return true
+    }
 
+    private func loadWaveform(from fileURL: URL) async {
         let levels = await Task.detached(priority: .utility) {
             try? AudioWaveformAnalyzer.levels(for: fileURL)
         }.value
