@@ -114,7 +114,15 @@ struct SettingsView: View {
         case .onDevice:
             return "Transcript: Whisper on device. Summary: Apple on device."
         case .hybrid:
-            return "Transcript: Whisper on device. Summary: Apple on device."
+            let summary: String
+            if !claudeKey.isEmpty {
+                summary = "Claude"
+            } else if !assemblyAIKey.isEmpty {
+                summary = "AssemblyAI LeMUR"
+            } else {
+                summary = "Apple fallback until a cloud summary key is saved"
+            }
+            return "Transcript: Whisper on device. Summary: \(summary)."
         case .bestQuality:
             let transcript = assemblyAIKey.isEmpty ? "Apple fallback until AssemblyAI key is saved" : "AssemblyAI"
             let summary: String

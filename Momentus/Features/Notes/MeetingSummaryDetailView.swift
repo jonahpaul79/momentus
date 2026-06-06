@@ -779,6 +779,7 @@ struct AudioPlayerView: View {
     @State private var currentTime: TimeInterval = 0
     @State private var isDragging = false
     @State private var pollTask: Task<Void, Never>?
+    @State private var waveformLevels: [CGFloat]?
 
     var body: some View {
         let t = themeManager.currentTheme
@@ -786,6 +787,7 @@ struct AudioPlayerView: View {
         VStack(spacing: t.spacing.s) {
             PlaybackWaveformView(
                 seed: seed,
+                levels: waveformLevels,
                 progress: progress,
                 playedColor: t.colors.accentPrimary,
                 unplayedColor: t.colors.accentPrimary
@@ -828,7 +830,7 @@ struct AudioPlayerView: View {
                     .frame(width: 40, alignment: .trailing)
             }
         }
-        .task { preparePlayer() }
+        .task(id: audioFileID) { await prepareAudio() }
         .onChange(of: seekTime) { _, newValue in
             guard let newValue else { return }
             seekAndPlay(to: newValue)
@@ -853,12 +855,22 @@ struct AudioPlayerView: View {
         startPolling()
     }
 
-    private func preparePlayer() {
+    private func prepareAudio() async {
         let fileURL = AVAudioRecorderService.recordingsDirectory.appendingPathComponent(audioFileID)
         guard FileManager.default.fileExists(atPath: fileURL.path),
-              let p = try? AVAudioPlayer(contentsOf: fileURL) else { return }
+              let p = try? AVAudioPlayer(contentsOf: fileURL) else {
+            waveformLevels = nil
+            return
+        }
         p.prepareToPlay()
         player = p
+
+        let levels = await Task.detached(priority: .utility) {
+            try? AudioWaveformAnalyzer.levels(for: fileURL)
+        }.value
+        if let levels, !levels.isEmpty {
+            waveformLevels = levels
+        }
     }
 
     private func togglePlayback() {

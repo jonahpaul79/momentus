@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 // MARK: - Live Waveform (recording in progress)
@@ -43,18 +44,32 @@ struct PlaybackWaveformView: View {
 
     private let staticLevels: [CGFloat]
 
-    init(seed: Int, barCount: Int = 44, progress: Double, playedColor: Color, unplayedColor: Color, height: CGFloat = 40) {
+    init(seed: Int, barCount: Int = 44, levels: [CGFloat]? = nil, progress: Double, playedColor: Color, unplayedColor: Color, height: CGFloat = 40) {
+        let resolvedBarCount = levels?.count ?? barCount
         self.seed = seed
-        self.barCount = barCount
+        self.barCount = resolvedBarCount
         self.progress = max(0, min(1, progress))
         self.playedColor = playedColor
         self.unplayedColor = unplayedColor
         self.height = height
+        if let levels {
+            staticLevels = levels.map { $0.clamped(to: 0.08...1.0) }
+            return
+        }
+        staticLevels = Self.genericLevels(seed: seed, barCount: resolvedBarCount)
+    }
+
+    private static func genericLevels(seed: Int, barCount: Int) -> [CGFloat] {
         var gen = SeededRandom(seed: seed)
-        staticLevels = (0..<barCount).map { i in
-            let base = sin(Double(i) / Double(barCount) * .pi)
-            let noise = gen.next()
-            return CGFloat(base * 0.65 + noise * 0.35).clamped(to: 0.12...1.0)
+        var energy = 0.34 + gen.next() * 0.18
+        return (0..<barCount).map { _ in
+            let isPause = gen.next() < 0.16
+            let burst = gen.next() > 0.84 ? gen.next() * 0.35 : 0
+            energy = (energy * 0.62 + gen.next() * 0.38 + burst).clamped(to: 0.12...0.94)
+            if isPause {
+                return CGFloat(0.08 + gen.next() * 0.16)
+            }
+            return CGFloat(energy * 0.74 + gen.next() * 0.22).clamped(to: 0.12...1.0)
         }
     }
 
@@ -74,6 +89,64 @@ struct PlaybackWaveformView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
         .frame(height: height)
+    }
+}
+
+enum AudioWaveformAnalyzer {
+    static func levels(for fileURL: URL, barCount: Int = 44) throws -> [CGFloat] {
+        let file = try AVAudioFile(forReading: fileURL)
+        let totalFrames = Int(file.length)
+        guard totalFrames > 0 else { return [] }
+        guard let buffer = AVAudioPCMBuffer(
+            pcmFormat: file.processingFormat,
+            frameCapacity: AVAudioFrameCount(min(8192, totalFrames))
+        ) else {
+            return []
+        }
+
+        var sums = Array(repeating: 0.0, count: barCount)
+        var counts = Array(repeating: 0, count: barCount)
+        let framesPerBar = max(1, Double(totalFrames) / Double(barCount))
+        let channelCount = Int(file.processingFormat.channelCount)
+        var processedFrames = 0
+
+        while processedFrames < totalFrames {
+            let framesToRead = min(Int(buffer.frameCapacity), totalFrames - processedFrames)
+            try file.read(into: buffer, frameCount: AVAudioFrameCount(framesToRead))
+            let frameLength = Int(buffer.frameLength)
+            guard frameLength > 0, let channelData = buffer.floatChannelData else { break }
+
+            for frame in 0..<frameLength {
+                let barIndex = min(barCount - 1, Int(Double(processedFrames + frame) / framesPerBar))
+                var framePower = 0.0
+                for channel in 0..<channelCount {
+                    let sample = Double(channelData[channel][frame])
+                    framePower += sample * sample
+                }
+                sums[barIndex] += framePower / Double(max(channelCount, 1))
+                counts[barIndex] += 1
+            }
+
+            processedFrames += frameLength
+        }
+
+        let rmsLevels = sums.enumerated().map { index, sum in
+            counts[index] > 0 ? sqrt(sum / Double(counts[index])) : 0
+        }
+        let reference = percentile(rmsLevels.filter { $0 > 0 }, fraction: 0.90)
+        guard reference > 0 else { return Array(repeating: 0.08, count: barCount) }
+
+        return rmsLevels.map { rms in
+            let normalized = min(1, rms / reference)
+            return CGFloat(pow(normalized, 0.55)).clamped(to: 0.08...1.0)
+        }
+    }
+
+    private static func percentile(_ values: [Double], fraction: Double) -> Double {
+        guard !values.isEmpty else { return 0 }
+        let sorted = values.sorted()
+        let index = Int((Double(sorted.count - 1) * fraction).rounded())
+        return sorted[min(max(index, 0), sorted.count - 1)]
     }
 }
 
@@ -131,6 +204,12 @@ private struct SeededRandom {
 
 private extension CGFloat {
     func clamped(to range: ClosedRange<CGFloat>) -> CGFloat {
+        Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
+    }
+}
+
+private extension Double {
+    func clamped(to range: ClosedRange<Double>) -> Double {
         Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
     }
 }

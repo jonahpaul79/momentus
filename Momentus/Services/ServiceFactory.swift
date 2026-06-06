@@ -41,46 +41,50 @@ enum ServiceFactory {
 
     static func makeSummaryService(for mode: RecordingMode) -> any SummaryService {
         switch mode {
-        case .bestQuality:
-            let claudeKey     = KeychainService.retrieve(.anthropicAPIKey) ?? ""
-            let assemblyAIKey = KeychainService.retrieve(.assemblyAIAPIKey) ?? ""
-
-            // Claude is the preferred summary provider. Use it as primary when a key exists,
-            // with AssemblyAI LeMUR (or Apple) as fallback when Claude is missing or fails.
-            if !claudeKey.isEmpty {
-                let claude = ClaudeSummaryService(apiKey: claudeKey)
-                let apple  = AppleFoundationModelsSummaryService()
-
-                if !assemblyAIKey.isEmpty {
-                    // Claude → AssemblyAI LeMUR → Apple on-device (guaranteed last resort)
-                    print("[ServiceFactory] Best Quality → Claude → AssemblyAI LeMUR → Apple")
-                    return FallbackSummaryService(
-                        primary: claude,
-                        fallback: FallbackSummaryService(
-                            primary: AssemblyAISummaryService(apiKey: assemblyAIKey),
-                            fallback: apple
-                        )
-                    )
-                } else {
-                    // Claude → Apple on-device
-                    print("[ServiceFactory] Best Quality → Claude → Apple")
-                    return FallbackSummaryService(primary: claude, fallback: apple)
-                }
-            }
-
-            // No Claude key — try AssemblyAI LeMUR directly
-            if !assemblyAIKey.isEmpty {
-                print("[ServiceFactory] Best Quality — no Claude key → AssemblyAI LeMUR")
-                return AssemblyAISummaryService(apiKey: assemblyAIKey)
-            }
-
-            // No cloud keys at all
-            print("[ServiceFactory] Best Quality — no cloud keys → Apple Foundation Models")
-            return AppleFoundationModelsSummaryService()
-
-        case .onDevice, .hybrid:
+        case .bestQuality, .hybrid:
+            return makeCloudCapableSummaryService(for: mode)
+        case .onDevice:
             return AppleFoundationModelsSummaryService()
         }
+    }
+
+    private static func makeCloudCapableSummaryService(for mode: RecordingMode) -> any SummaryService {
+        let claudeKey     = KeychainService.retrieve(.anthropicAPIKey) ?? ""
+        let assemblyAIKey = KeychainService.retrieve(.assemblyAIAPIKey) ?? ""
+        let label = mode.displayName
+
+        // Claude is the preferred summary provider. Use it as primary when a key exists,
+        // with AssemblyAI LeMUR (or Apple) as fallback when Claude is missing or fails.
+        if !claudeKey.isEmpty {
+            let claude = ClaudeSummaryService(apiKey: claudeKey)
+            let apple  = AppleFoundationModelsSummaryService()
+
+            if !assemblyAIKey.isEmpty {
+                // Claude → AssemblyAI LeMUR → Apple on-device (guaranteed last resort)
+                print("[ServiceFactory] \(label) → Claude → AssemblyAI LeMUR → Apple")
+                return FallbackSummaryService(
+                    primary: claude,
+                    fallback: FallbackSummaryService(
+                        primary: AssemblyAISummaryService(apiKey: assemblyAIKey),
+                        fallback: apple
+                    )
+                )
+            } else {
+                // Claude → Apple on-device
+                print("[ServiceFactory] \(label) → Claude → Apple")
+                return FallbackSummaryService(primary: claude, fallback: apple)
+            }
+        }
+
+        // No Claude key — try AssemblyAI LeMUR directly
+        if !assemblyAIKey.isEmpty {
+            print("[ServiceFactory] \(label) — no Claude key → AssemblyAI LeMUR")
+            return AssemblyAISummaryService(apiKey: assemblyAIKey)
+        }
+
+        // No cloud keys at all
+        print("[ServiceFactory] \(label) — no cloud keys → Apple Foundation Models")
+        return AppleFoundationModelsSummaryService()
     }
 
     // MARK: - Key Status
@@ -94,7 +98,7 @@ enum ServiceFactory {
 
     /// True if any cloud summary provider is configured for the given mode.
     static func isSummaryConfigured(for mode: RecordingMode) -> Bool {
-        guard mode == .bestQuality else { return true }
+        guard mode == .bestQuality || mode == .hybrid else { return true }
         let claude     = KeychainService.retrieve(.anthropicAPIKey) ?? ""
         let assemblyAI = KeychainService.retrieve(.assemblyAIAPIKey) ?? ""
         return !claude.isEmpty || !assemblyAI.isEmpty
@@ -108,7 +112,7 @@ enum ServiceFactory {
 
     /// Name of the summary provider that will be used for the given mode, based on current keys.
     static func summaryProviderName(for mode: RecordingMode) -> String {
-        guard mode == .bestQuality else { return "Apple Foundation Models" }
+        guard mode == .bestQuality || mode == .hybrid else { return "Apple Foundation Models" }
         let claudeKey     = KeychainService.retrieve(.anthropicAPIKey) ?? ""
         let assemblyAIKey = KeychainService.retrieve(.assemblyAIAPIKey) ?? ""
         if !claudeKey.isEmpty     { return "Claude Sonnet (\(AnthropicClient.defaultModel))" }
