@@ -2,7 +2,8 @@ import CloudKit
 import Foundation
 
 // Handles all reads and writes to the user's private CloudKit database.
-// Audio files are never synced — only metadata, summaries, and transcripts.
+// iPhone audio is kept local. Watch-originated cloud records may include audio
+// as a CKAsset so playback is available after the phone imports the note.
 // Transcripts are stored as CKAsset files to avoid the 1MB per-field limit.
 // All methods are fire-and-forget from RecordingsStore's perspective; errors are
 // logged but never surfaced to the user (local UserDefaults is the source of truth).
@@ -162,6 +163,8 @@ final class CloudKitService {
             try? JSONDecoder().decode([TimeInterval].self, from: $0 as Data)
         } ?? []
 
+        let audioFileID = localAudioFileID(from: record)
+
         return Recording(
             id: id,
             title: title,
@@ -169,12 +172,39 @@ final class CloudKitService {
             endedAt: record["endedAt"] as? Date,
             mode: RecordingMode(rawValue: modeRaw) ?? .onDevice,
             micSource: MicSource(rawValue: micRaw) ?? .iPhone,
-            audioFileID: record["audioFileID"] as? String,
+            audioFileID: audioFileID,
             processingState: ProcessingState(rawValue: stateRaw) ?? .completed,
             transcript: transcript,
             summary: summary,
             isFavorite: (record["isFavorite"] as? Int64) == 1,
             markers: markers
         )
+    }
+
+    private func localAudioFileID(from record: CKRecord) -> String? {
+        let existingID = (record["audioFileID"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let asset = record["audioAsset"] as? CKAsset,
+              let sourceURL = asset.fileURL
+        else {
+            return existingID?.isEmpty == false ? existingID : nil
+        }
+
+        let fileName = existingID?.isEmpty == false
+            ? existingID!
+            : record.recordID.recordName + ".m4a"
+        let destinationURL = AVAudioRecorderService.recordingsDirectory
+            .appendingPathComponent(fileName)
+
+        if !FileManager.default.fileExists(atPath: destinationURL.path) {
+            do {
+                try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+            } catch {
+                print("[CloudKit] audio asset copy \(record.recordID.recordName): \(error.localizedDescription)")
+                return existingID?.isEmpty == false ? existingID : nil
+            }
+        }
+
+        return fileName
     }
 }

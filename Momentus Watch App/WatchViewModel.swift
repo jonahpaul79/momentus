@@ -300,6 +300,7 @@ enum WatchProcessingStatus: Equatable {
             }
             await WatchCloudKitRecordingService.shared.saveProcessedRecording(
                 recordingID: recordingID,
+                audioFileURL: fileURL,
                 startedAt: startedAt,
                 endedAt: now,
                 markers: markers,

@@ -11,6 +11,7 @@ final class WatchCloudKitRecordingService {
 
     func saveProcessedRecording(
         recordingID: String,
+        audioFileURL: URL,
         startedAt: Date,
         endedAt: Date,
         markers: [TimeInterval],
@@ -29,9 +30,10 @@ final class WatchCloudKitRecordingService {
             record["endedAt"] = endedAt
             record["modeRaw"] = "bestQuality"
             record["micSourceRaw"] = "watch"
-            record["audioFileID"] = ""
+            record["audioFileID"] = audioFileURL.lastPathComponent
             record["processingStateRaw"] = "completed"
             record["isFavorite"] = Int64(0)
+            record["audioAsset"] = CKAsset(fileURL: audioFileURL)
 
             if let markersData = try? JSONEncoder().encode(markers) {
                 record["markersData"] = markersData as NSData
