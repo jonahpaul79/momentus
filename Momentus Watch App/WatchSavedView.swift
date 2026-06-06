@@ -116,7 +116,7 @@ struct WatchSavedView: View {
             return ProcessingPhase(
                 icon: "checkmark.circle.fill",
                 label: "Notes ready",
-                detail: "Open Momentus to sync",
+                detail: "Saved to iCloud",
                 color: t.accentSuccess
             )
         case .needsPhoneWake:
@@ -137,7 +137,7 @@ struct WatchSavedView: View {
             return ProcessingPhase(
                 icon: "exclamationmark.triangle.fill",
                 label: "Could not process",
-                detail: "Open Momentus on your iPhone",
+                detail: "Check provider settings",
                 color: t.accentRecording
             )
         }
@@ -160,7 +160,7 @@ struct WatchSavedView: View {
                 Text("Saved")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(t.textPrimary)
-                Text("Notes ready to sync")
+                Text("Saved to iCloud")
                     .font(.system(size: 11))
                     .foregroundStyle(t.textSecondary)
             }

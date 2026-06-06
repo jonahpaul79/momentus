@@ -65,24 +65,17 @@ struct WatchHomeView: View {
     }
 
     private var modePill: some View {
-        Button {
-            vm.selectedMode = vm.selectedMode == .onDevice ? .bestQuality : .onDevice
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: vm.selectedMode == .onDevice ? "lock.shield.fill" : "sparkles")
-                    .font(.system(size: 10))
-                Text(vm.selectedMode.rawValue)
-                    .font(.system(size: 11, weight: .medium))
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 9))
-            }
-            .foregroundStyle(t.textPrimary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(t.surfacePrimary)
-            .clipShape(Capsule())
+        HStack(spacing: 4) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 10))
+            Text("Best Quality")
+                .font(.system(size: 11, weight: .medium))
         }
-        .buttonStyle(PlainButtonStyle())
+        .foregroundStyle(t.textPrimary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(t.surfacePrimary)
+        .clipShape(Capsule())
     }
 
     private var micTargetIndicator: some View {

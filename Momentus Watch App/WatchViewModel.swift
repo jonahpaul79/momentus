@@ -29,7 +29,7 @@ enum WatchProcessingStatus: Equatable {
 @Observable final class WatchViewModel: NSObject {
     var recordingState: WatchRecordingState = .idle
     var elapsedTime: TimeInterval = 0
-    var selectedMode: WatchRecordingMode = .onDevice
+    var selectedMode: WatchRecordingMode = .bestQuality
     var waveformLevels: [Float] = Array(repeating: 0.1, count: 20)
     var markerHighlightedBars: Set<Int> = []
     var isConnectedToPhone = false
@@ -57,6 +57,7 @@ enum WatchProcessingStatus: Equatable {
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self
         WCSession.default.activate()
+        Task { await refreshCloudConfig() }
     }
 
     // MARK: - Actions
@@ -85,23 +86,15 @@ enum WatchProcessingStatus: Equatable {
         startProcessingTimer()
 
         if let url = stopAudioCapture(), let transferURL = prepareTransferFile(from: url) {
-            if selectedMode == .bestQuality {
-                processingStatus = .checkingProvider
-                if assemblyAIAPIKey.isEmpty {
-                    await refreshCloudConfig()
-                }
-                if !assemblyAIAPIKey.isEmpty {
-                    await processDirectlyInCloud(transferURL)
-                } else {
-                    processingStatus = .needsCloudConfig
-                }
+            selectedMode = .bestQuality
+            processingStatus = .checkingProvider
+            if assemblyAIAPIKey.isEmpty {
+                await refreshCloudConfig()
+            }
+            if !assemblyAIAPIKey.isEmpty {
+                await processDirectlyInCloud(transferURL)
             } else {
-                processingStatus = .checkingPhone
-                if await phoneCanProcessNow() {
-                    transferToPhone(transferURL)
-                } else {
-                    processingStatus = .needsPhoneWake
-                }
+                processingStatus = .needsCloudConfig
             }
         } else {
             processingStatus = .failed
@@ -168,11 +161,10 @@ enum WatchProcessingStatus: Equatable {
         case .checkingProvider where processingElapsed >= 8:
             processingStatus = .needsCloudConfig
         case .checkingPhone where processingElapsed >= 3,
-             .sending where processingElapsed >= 35:
-            processingStatus = .needsPhoneWake
-        case .received where processingElapsed >= 120,
+             .sending where processingElapsed >= 35,
+             .received where processingElapsed >= 120,
              .processingOnPhone where processingElapsed >= 120:
-            processingStatus = .needsPhoneWake
+            processingStatus = .failed
         default:
             break
         }
@@ -253,8 +245,6 @@ enum WatchProcessingStatus: Equatable {
         if let defaultMode = message["defaultMode"] as? String {
             if defaultMode == "bestQuality" || defaultMode == WatchRecordingMode.bestQuality.rawValue {
                 selectedMode = .bestQuality
-            } else if defaultMode == "onDevice" || defaultMode == WatchRecordingMode.onDevice.rawValue {
-                selectedMode = .onDevice
             }
         }
         if let assemblyKey = message["assemblyAIAPIKey"] as? String {
@@ -308,6 +298,14 @@ enum WatchProcessingStatus: Equatable {
             if let summary = result.summary {
                 payload["summary"] = summary.propertyList
             }
+            await WatchCloudKitRecordingService.shared.saveProcessedRecording(
+                recordingID: recordingID,
+                startedAt: startedAt,
+                endedAt: now,
+                markers: markers,
+                transcriptText: result.transcriptText,
+                summary: result.summary
+            )
             WCSession.default.transferUserInfo(payload)
             try? FileManager.default.removeItem(at: fileURL)
             processingStatus = .readyToSync
@@ -472,7 +470,7 @@ extension WatchViewModel: WCSessionDelegate {
             if let error {
                 print("[WatchConnectivity] file transfer failed: \(error)")
                 if self.recordingState == .processing {
-                    self.processingStatus = .needsPhoneWake
+                    self.processingStatus = .failed
                 }
                 return
             }
@@ -503,15 +501,15 @@ extension WatchViewModel: WCSessionDelegate {
                 self.processingStatus = .processingOnPhone
             case "watchRecordingNeedsPhoneWake":
                 guard self.recordingState == .processing else { return }
-                self.processingStatus = .needsPhoneWake
+                if self.selectedMode != .bestQuality {
+                    self.processingStatus = .needsPhoneWake
+                }
             case "watchCloudConfig":
                 self.applyCloudConfig(message)
             case "startRecording":
                 if let mode = message["mode"] as? String {
                     if mode == WatchRecordingMode.bestQuality.rawValue {
                         self.selectedMode = .bestQuality
-                    } else if mode == WatchRecordingMode.onDevice.rawValue {
-                        self.selectedMode = .onDevice
                     }
                 }
                 await self.startRecording()
