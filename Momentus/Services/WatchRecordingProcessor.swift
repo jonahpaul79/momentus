@@ -68,7 +68,7 @@ final class WatchRecordingProcessor {
             buildLegacyWatchCloudSummary(recordingId: recordingId, summaryText: $0, transcriptText: transcriptText)
         }
 
-        var recording = Recording(
+        let recording = Recording(
             id: recordingId,
             title: summary?.suggestedTitle ?? title ?? titleFromTime(),
             startedAt: startedAt,
@@ -303,7 +303,7 @@ final class WatchRecordingProcessor {
         let followUp = cleanedString(payload["followUp"] as? String)
             ?? "Hi team, following up on our recent meeting."
 
-        var confidenceNotes = ["Processed directly from Apple Watch because the iPhone app was not reachable."]
+        let confidenceNotes = ["Processed directly from Apple Watch because the iPhone app was not reachable."]
 
         return MeetingSummary(
             recordingId: recordingId,
@@ -313,7 +313,7 @@ final class WatchRecordingProcessor {
             actionItems: actionItems,
             openQuestions: openQuestions,
             followUpDraft: followUp,
-            provider: payload == nil ? "Watch Cloud Transcript" : "AssemblyAI LeMUR (Watch Cloud)",
+            provider: legacySummaryText == nil ? "AssemblyAI LeMUR (Watch Cloud)" : "Watch Cloud Transcript",
             confidenceNotes: confidenceNotes
         )
     }

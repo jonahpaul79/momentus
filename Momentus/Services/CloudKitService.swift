@@ -196,9 +196,18 @@ final class CloudKitService {
         let destinationURL = AVAudioRecorderService.recordingsDirectory
             .appendingPathComponent(fileName)
 
-        if !FileManager.default.fileExists(atPath: destinationURL.path) {
+        let existingSize = (try? destinationURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+        if existingSize < 1024 {
             do {
+                if FileManager.default.fileExists(atPath: destinationURL.path) {
+                    try FileManager.default.removeItem(at: destinationURL)
+                }
                 try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+                let copiedSize = (try? destinationURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+                guard copiedSize >= 1024 else {
+                    print("[CloudKit] audio asset copy \(record.recordID.recordName): copied file too small (\(copiedSize) bytes)")
+                    return existingID?.isEmpty == false ? existingID : nil
+                }
             } catch {
                 print("[CloudKit] audio asset copy \(record.recordID.recordName): \(error.localizedDescription)")
                 return existingID?.isEmpty == false ? existingID : nil

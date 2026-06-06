@@ -41,15 +41,15 @@ struct ModeBadge: View {
         let t = themeManager.currentTheme
         HStack(spacing: 4) {
             Image(systemName: mode.icon)
-                .font(.system(size: compact ? 9 : 11, weight: .medium))
+                .font(.system(size: compact ? 14 : 11, weight: .semibold))
             if !compact {
                 Text(mode.shortName)
                     .font(t.typography.labelLarge)
             }
         }
         .foregroundStyle(modeColor(t))
-        .padding(.horizontal, compact ? 6 : 8)
-        .padding(.vertical, compact ? 3 : 4)
+        .padding(.horizontal, compact ? 10 : 8)
+        .padding(.vertical, compact ? 6 : 4)
         .background(modeColor(t).opacity(0.15))
         .clipShape(Capsule())
         .overlay(Capsule().strokeBorder(modeColor(t).opacity(0.30), lineWidth: 0.5))

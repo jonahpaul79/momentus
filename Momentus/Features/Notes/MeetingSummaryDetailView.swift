@@ -115,7 +115,10 @@ struct MeetingSummaryDetailView: View {
     // MARK: - Summary Content
 
     private func summaryContent(_ summary: MeetingSummary, t: AppTheme) -> some View {
-        VStack(alignment: .leading, spacing: t.spacing.l) {
+        let processingIssues = processingIssueNotes(from: summary.confidenceNotes)
+        let reviewNotes = reviewNotes(from: summary.confidenceNotes)
+
+        return VStack(alignment: .leading, spacing: t.spacing.l) {
             if let attendees = recording.calendarAttendees,
                !attendees.isEmpty,
                let speakers = recording.transcript?.speakers.filter(\.isNameInferred),
@@ -130,7 +133,12 @@ struct MeetingSummaryDetailView: View {
             if !summary.risks.isEmpty { risksSection(summary.risks, t: t) }
             if !summary.followUpDraft.isEmpty { followUpSection(summary.followUpDraft, t: t) }
             if recording.transcript != nil { transcriptButton(t) }
-            if !summary.confidenceNotes.isEmpty { confidenceNotesSection(summary.confidenceNotes, t: t) }
+            if !processingIssues.isEmpty {
+                processingIssuesSection(processingIssues, t: t)
+            }
+            if !reviewNotes.isEmpty {
+                reviewNotesSection(reviewNotes, t: t)
+            }
             providerProvenanceView(summary, t: t)
         }
         .padding(.horizontal, t.spacing.l)
@@ -360,9 +368,14 @@ struct MeetingSummaryDetailView: View {
                                 .font(t.typography.caption)
                                 .foregroundStyle(t.colors.textSecondary)
                         }
-                        if decision.confidence < 0.85 {
-                            ConfidenceBadge(label: "Low-confidence segment", isWarning: true)
-                                .environment(themeManager)
+                        if decision.confidence < 0.65 {
+                            HStack(spacing: 4) {
+                                Image(systemName: "text.magnifyingglass")
+                                    .font(.system(size: 10))
+                                Text("Review source")
+                                    .font(t.typography.labelSmall)
+                            }
+                            .foregroundStyle(t.colors.textTertiary)
                         }
                     }
                 }
@@ -548,13 +561,57 @@ struct MeetingSummaryDetailView: View {
         .buttonStyle(PlainButtonStyle())
     }
 
-    // MARK: - Confidence Notes
+    // MARK: - Review Notes
 
-    private func confidenceNotesSection(_ notes: [String], t: AppTheme) -> some View {
+    private func processingIssueNotes(from notes: [String]) -> [String] {
+        notes.filter { $0.hasPrefix("action:") }
+    }
+
+    private func reviewNotes(from notes: [String]) -> [String] {
+        notes.filter { note in
+            guard !note.hasPrefix("action:") else { return false }
+            return shouldShowReviewNote(note)
+        }
+    }
+
+    private func shouldShowReviewNote(_ note: String) -> Bool {
+        let normalized = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return false }
+
+        let lower = normalized.lowercased()
+        let hiddenPhrases = [
+            "summarized with",
+            "processed on device",
+            "processed directly from apple watch",
+            "transcript was processed directly from apple watch",
+            "token usage:",
+            "input tokens:",
+            "output tokens:",
+            "saved locally"
+        ]
+        if hiddenPhrases.contains(where: { lower.contains($0) }) { return false }
+
+        return [
+            "unclear",
+            "inaudible",
+            "unintelligible",
+            "background noise",
+            "speaker",
+            "attribution",
+            "verify",
+            "review",
+            "too short",
+            "not contain enough spoken content",
+            "could not be parsed",
+            "failed"
+        ].contains { lower.contains($0) }
+    }
+
+    private func processingIssuesSection(_ notes: [String], t: AppTheme) -> some View {
         VStack(alignment: .leading, spacing: t.spacing.s) {
-            sectionHeader("Confidence Notes", icon: "exclamationmark.circle", t: t)
+            sectionHeader("Processing Issue", icon: "creditcard.trianglebadge.exclamationmark", t: t)
             ForEach(notes, id: \.self) { note in
-                confidenceNoteRow(note, t: t)
+                processingIssueRow(note, t: t)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -564,7 +621,7 @@ struct MeetingSummaryDetailView: View {
     }
 
     @ViewBuilder
-    private func confidenceNoteRow(_ note: String, t: AppTheme) -> some View {
+    private func processingIssueRow(_ note: String, t: AppTheme) -> some View {
         if note.hasPrefix("action:addCredits:") {
             let message = String(note.dropFirst("action:addCredits:".count))
             Link(destination: AnthropicError.billingURL) {
@@ -593,6 +650,33 @@ struct MeetingSummaryDetailView: View {
                     .foregroundStyle(t.colors.textSecondary)
             }
         }
+    }
+
+    private func reviewNotesSection(_ notes: [String], t: AppTheme) -> some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: t.spacing.s) {
+                ForEach(notes, id: \.self) { note in
+                    HStack(alignment: .top, spacing: t.spacing.s) {
+                        Image(systemName: "text.magnifyingglass")
+                            .font(.system(size: 11))
+                            .foregroundStyle(t.colors.textTertiary)
+                        Text(note)
+                            .font(t.typography.caption)
+                            .foregroundStyle(t.colors.textSecondary)
+                    }
+                }
+            }
+            .padding(.top, t.spacing.s)
+        } label: {
+            Label("Some details may need review", systemImage: "text.magnifyingglass")
+                .font(t.typography.bodySmall)
+                .foregroundStyle(t.colors.textSecondary)
+        }
+        .tint(t.colors.textSecondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(t.spacing.l)
+        .surfaceCard(elevated: false)
+        .environment(themeManager)
     }
 
     // MARK: - No Summary State
@@ -857,10 +941,31 @@ struct AudioPlayerView: View {
 
     private func prepareAudio() async {
         let fileURL = AVAudioRecorderService.recordingsDirectory.appendingPathComponent(audioFileID)
-        guard FileManager.default.fileExists(atPath: fileURL.path),
-              let p = try? AVAudioPlayer(contentsOf: fileURL) else {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            print("[AudioPlayer] missing audio file: \(audioFileID)")
             waveformLevels = nil
             return
+        }
+
+        let fileSize = (try? fileURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+        guard fileSize >= 1024 else {
+            print("[AudioPlayer] audio file too small: \(audioFileID) (\(fileSize) bytes)")
+            waveformLevels = nil
+            return
+        }
+
+        let p: AVAudioPlayer
+        do {
+            p = try AVAudioPlayer(contentsOf: fileURL)
+        } catch {
+            do {
+                let data = try Data(contentsOf: fileURL)
+                p = try AVAudioPlayer(data: data)
+            } catch {
+                print("[AudioPlayer] could not open \(audioFileID) (\(fileSize) bytes): \(error.localizedDescription)")
+                waveformLevels = nil
+                return
+            }
         }
         p.prepareToPlay()
         player = p

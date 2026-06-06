@@ -116,6 +116,7 @@ struct TranscriptSegmentRow: View {
     let segment: TranscriptSegment
     let speaker: Speaker?
     var isHighlighted: Bool = false
+    private var needsReview: Bool { segment.confidence < 0.55 }
 
     var body: some View {
         let t = themeManager.currentTheme
@@ -155,9 +156,15 @@ struct TranscriptSegmentRow: View {
                     .lineSpacing(3)
                     .background(isHighlighted ? t.colors.accentPrimary.opacity(0.15) : .clear)
 
-                if segment.isLowConfidence {
-                    ConfidenceBadge(label: "Low-confidence segment", isWarning: true)
-                        .environment(themeManager)
+                if needsReview {
+                    HStack(spacing: 4) {
+                        Image(systemName: "waveform.badge.magnifyingglass")
+                            .font(.system(size: 11))
+                        Text("Audio unclear")
+                            .font(t.typography.labelSmall)
+                    }
+                    .foregroundStyle(t.colors.textTertiary)
+                    .accessibilityLabel("Audio unclear in this part of the transcript")
                 }
             }
             Spacer()

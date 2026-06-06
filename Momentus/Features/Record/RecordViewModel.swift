@@ -47,7 +47,13 @@ extension Notification.Name {
     }() {
         didSet { UserDefaults.standard.set(selectedMode.rawValue, forKey: "defaultRecordingMode") }
     }
-    var selectedMicSource: MicSource = .iPhone
+    var selectedMicSource: MicSource = {
+        guard let raw = UserDefaults.standard.string(forKey: "defaultMicSource"),
+              let source = MicSource(rawValue: raw) else { return .iPhone }
+        return source
+    }() {
+        didSet { UserDefaults.standard.set(selectedMicSource.rawValue, forKey: "defaultMicSource") }
+    }
     var processingStepIndex: Int = 0
     var errorMessage: String?
     var currentRecordingId: UUID?

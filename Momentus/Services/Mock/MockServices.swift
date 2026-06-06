@@ -94,6 +94,19 @@ import Foundation
             persist()
         }
 
+        var didRefreshExisting = false
+        for cloudRecording in cloudRecordings where localIDs.contains(cloudRecording.id) {
+            guard let idx = recordings.firstIndex(where: { $0.id == cloudRecording.id }) else { continue }
+            let local = recordings[idx]
+            if localNeedsAudio(local), audioIsPlayable(cloudRecording.audioFileID) {
+                recordings[idx].audioFileID = cloudRecording.audioFileID
+                didRefreshExisting = true
+            }
+        }
+        if didRefreshExisting {
+            persist()
+        }
+
         let localOnly = recordings.filter { !cloudIDs.contains($0.id) }
         if !localOnly.isEmpty {
             await CloudKitService.shared.saveAll(localOnly)
@@ -111,6 +124,17 @@ import Foundation
     private func cloudSave(_ recording: Recording) {
         guard isCloudEnabled else { return }
         Task { await CloudKitService.shared.save(recording) }
+    }
+
+    private func localNeedsAudio(_ recording: Recording) -> Bool {
+        !audioIsPlayable(recording.audioFileID)
+    }
+
+    private func audioIsPlayable(_ audioFileID: String?) -> Bool {
+        guard let audioFileID, !audioFileID.isEmpty else { return false }
+        let url = AVAudioRecorderService.recordingsDirectory.appendingPathComponent(audioFileID)
+        let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+        return fileSize >= 1024
     }
 
     private func persist() {

@@ -14,12 +14,16 @@ struct ActiveRecordingView: View {
             VStack(spacing: 0) {
                 topBar(t)
                 Spacer()
+            }
+
+            VStack(spacing: 0) {
                 recordingOrb(t)
                 timerDisplay(t)
-                Spacer()
                 waveformSection(t)
                 controlBar(t)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .padding(.top, t.spacing.huge)
         }
     }
 

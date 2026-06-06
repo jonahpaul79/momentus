@@ -93,7 +93,7 @@ struct PlaybackWaveformView: View {
 }
 
 enum AudioWaveformAnalyzer {
-    static func levels(for fileURL: URL, barCount: Int = 44) throws -> [CGFloat] {
+    nonisolated static func levels(for fileURL: URL, barCount: Int = 44) throws -> [CGFloat] {
         let file = try AVAudioFile(forReading: fileURL)
         let totalFrames = Int(file.length)
         guard totalFrames > 0 else { return [] }
@@ -142,7 +142,7 @@ enum AudioWaveformAnalyzer {
         }
     }
 
-    private static func percentile(_ values: [Double], fraction: Double) -> Double {
+    nonisolated private static func percentile(_ values: [Double], fraction: Double) -> Double {
         guard !values.isEmpty else { return 0 }
         let sorted = values.sorted()
         let index = Int((Double(sorted.count - 1) * fraction).rounded())
@@ -203,13 +203,13 @@ private struct SeededRandom {
 }
 
 private extension CGFloat {
-    func clamped(to range: ClosedRange<CGFloat>) -> CGFloat {
+    nonisolated func clamped(to range: ClosedRange<CGFloat>) -> CGFloat {
         Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
     }
 }
 
 private extension Double {
-    func clamped(to range: ClosedRange<Double>) -> Double {
+    nonisolated func clamped(to range: ClosedRange<Double>) -> Double {
         Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
     }
 }

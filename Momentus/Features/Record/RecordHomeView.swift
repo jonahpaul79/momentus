@@ -8,17 +8,26 @@ struct RecordHomeView: View {
     @State private var showingProcessing = false
     var body: some View {
         let t = themeManager.currentTheme
-        ScrollView {
-            VStack(spacing: 0) {
-                heroSection(t)
-                controlsSection(t)
-                let activeMeetings = vm.upcomingMeetings.filter { $0.isHappeningNow || $0.startDate > Date() }
-                if !activeMeetings.isEmpty {
-                    upNextSection(t, meetings: activeMeetings)
+        GeometryReader { geo in
+            ScrollView {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+
+                    heroSection(t)
+                    controlsSection(t)
+
+                    Spacer(minLength: 0)
+
+                    let activeMeetings = vm.upcomingMeetings.filter { $0.isHappeningNow || $0.startDate > Date() }
+                    if !activeMeetings.isEmpty {
+                        upNextSection(t, meetings: activeMeetings)
+                    }
                 }
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: geo.size.height)
+                .padding(.bottom, t.spacing.huge)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.bottom, t.spacing.hero + t.spacing.huge)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(t.gradients.heroBackground.ignoresSafeArea())
@@ -70,7 +79,6 @@ struct RecordHomeView: View {
     private func heroSection(_ t: AppTheme) -> some View {
         VStack(spacing: t.spacing.l) {
             modePill(t)
-                .padding(.top, t.spacing.hero + t.spacing.xl)
 
             // Record Button
             Button {
@@ -160,6 +168,7 @@ struct RecordHomeView: View {
             ForEach(MicSource.allCases) { source in
                 Button {
                     vm.selectedMicSource = source
+                    vm.errorMessage = nil
                     HapticStyle.light.trigger()
                 } label: {
                     HStack(spacing: 5) {
@@ -219,11 +228,24 @@ struct RecordHomeView: View {
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
+
+            if let errorMessage = vm.errorMessage {
+                HStack(spacing: t.spacing.xs) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                    Text(errorMessage)
+                        .font(t.typography.caption)
+                        .multilineTextAlignment(.center)
+                }
+                .foregroundStyle(t.colors.accentWarning)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
         .padding(.horizontal, t.spacing.l)
         .frame(maxWidth: .infinity)
         .animation(.easeInOut(duration: 0.2), value: vm.isMissingTranscriptionKey)
         .animation(.easeInOut(duration: 0.2), value: vm.isUsingSummaryFallback)
+        .animation(.easeInOut(duration: 0.2), value: vm.errorMessage)
     }
 
     // MARK: - Up Next
