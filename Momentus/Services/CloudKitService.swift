@@ -13,6 +13,8 @@ final class CloudKitService {
     private let container = CKContainer(identifier: "iCloud.jonahpaul.momentus")
     private var db: CKDatabase { container.privateCloudDatabase }
     private let recordType = "Recording"
+    private let providerConfigRecordType = "ProviderConfig"
+    private let providerConfigRecordName = "provider-config-v1"
 
     // MARK: - Availability
 
@@ -34,6 +36,37 @@ final class CloudKitService {
     func saveAll(_ recordings: [Recording]) async {
         await withTaskGroup(of: Void.self) { group in
             for r in recordings { group.addTask { await self.save(r) } }
+        }
+    }
+
+    func saveCurrentProviderConfig() async {
+        await saveProviderConfig(
+            defaultMode: UserDefaults.standard.string(forKey: "defaultRecordingMode") ?? RecordingMode.onDevice.rawValue,
+            assemblyAIAPIKey: KeychainService.retrieve(.assemblyAIAPIKey) ?? "",
+            anthropicAPIKey: KeychainService.retrieve(.anthropicAPIKey) ?? ""
+        )
+    }
+
+    func saveProviderConfig(
+        defaultMode: String,
+        assemblyAIAPIKey: String,
+        anthropicAPIKey: String
+    ) async {
+        do {
+            let recordID = CKRecord.ID(recordName: providerConfigRecordName)
+            let record: CKRecord
+            if let existing = try? await db.record(for: recordID) {
+                record = existing
+            } else {
+                record = CKRecord(recordType: providerConfigRecordType, recordID: recordID)
+            }
+            record["defaultMode"] = defaultMode
+            record["assemblyAIAPIKey"] = assemblyAIAPIKey
+            record["anthropicAPIKey"] = anthropicAPIKey
+            record["updatedAt"] = Date()
+            try await db.save(record)
+        } catch {
+            print("[CloudKit] save provider config: \(error.localizedDescription)")
         }
     }
 

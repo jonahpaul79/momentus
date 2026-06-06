@@ -64,7 +64,7 @@ struct SettingsView: View {
             ForEach(RecordingMode.allCases) { mode in
                 Button {
                     defaultModeRaw = mode.rawValue
-                    PhoneWatchConnectivityService.shared.sendWatchCloudConfiguration()
+                    syncWatchProviderConfig()
                     HapticStyle.light.trigger()
                 } label: {
                     HStack {
@@ -139,13 +139,13 @@ struct SettingsView: View {
                 saved: $assemblyAIKeySaved,
                 onSave: { trimmed in
                     assemblyAIKeySaved = KeychainService.store(trimmed, for: .assemblyAIAPIKey)
-                    PhoneWatchConnectivityService.shared.sendWatchCloudConfiguration()
+                    syncWatchProviderConfig()
                 },
                 onRemove: {
                     assemblyAIKey = ""
                     KeychainService.delete(.assemblyAIAPIKey)
                     assemblyAIKeySaved = false
-                    PhoneWatchConnectivityService.shared.sendWatchCloudConfiguration()
+                    syncWatchProviderConfig()
                 },
                 t: t
             )
@@ -182,13 +182,13 @@ struct SettingsView: View {
                 saved: $claudeKeySaved,
                 onSave: { trimmed in
                     claudeKeySaved = KeychainService.store(trimmed, for: .anthropicAPIKey)
-                    PhoneWatchConnectivityService.shared.sendWatchCloudConfiguration()
+                    syncWatchProviderConfig()
                 },
                 onRemove: {
                     claudeKey = ""
                     KeychainService.delete(.anthropicAPIKey)
                     claudeKeySaved = false
-                    PhoneWatchConnectivityService.shared.sendWatchCloudConfiguration()
+                    syncWatchProviderConfig()
                 },
                 t: t
             )
@@ -558,6 +558,11 @@ struct SettingsView: View {
         micPermission = AVAudioApplication.shared.recordPermission
         calPermission = EKEventStore.authorizationStatus(for: .event)
         Task { notifStatus = await MeetingNotificationService.shared.authorizationStatus() }
+    }
+
+    private func syncWatchProviderConfig() {
+        PhoneWatchConnectivityService.shared.sendWatchCloudConfiguration()
+        Task { await CloudKitService.shared.saveCurrentProviderConfig() }
     }
 
     private func sectionHeader(_ title: String, t: AppTheme) -> some View {

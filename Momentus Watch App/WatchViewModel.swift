@@ -12,6 +12,7 @@ enum WatchRecordingState: Equatable {
 }
 
 enum WatchProcessingStatus: Equatable {
+    case checkingProvider
     case checkingPhone
     case sending
     case received
@@ -81,25 +82,26 @@ enum WatchProcessingStatus: Equatable {
         extendedRuntimeSession?.invalidate()
         extendedRuntimeSession = nil
         recordingState = .processing
-        processingStatus = .checkingPhone
         startProcessingTimer()
 
         if let url = stopAudioCapture(), let transferURL = prepareTransferFile(from: url) {
             if selectedMode == .bestQuality {
+                processingStatus = .checkingProvider
                 if assemblyAIAPIKey.isEmpty {
-                    await refreshCloudConfigFromPhone()
+                    await refreshCloudConfig()
                 }
                 if !assemblyAIAPIKey.isEmpty {
                     await processDirectlyInCloud(transferURL)
-                } else if await phoneCanProcessNow() {
-                    transferToPhone(transferURL)
                 } else {
                     processingStatus = .needsCloudConfig
                 }
-            } else if await phoneCanProcessNow() {
-                transferToPhone(transferURL)
             } else {
-                processingStatus = .needsPhoneWake
+                processingStatus = .checkingPhone
+                if await phoneCanProcessNow() {
+                    transferToPhone(transferURL)
+                } else {
+                    processingStatus = .needsPhoneWake
+                }
             }
         } else {
             processingStatus = .failed
@@ -163,6 +165,8 @@ enum WatchProcessingStatus: Equatable {
 
     private func updateProcessingTimeout() {
         switch processingStatus {
+        case .checkingProvider where processingElapsed >= 8:
+            processingStatus = .needsCloudConfig
         case .checkingPhone where processingElapsed >= 3,
              .sending where processingElapsed >= 35:
             processingStatus = .needsPhoneWake
@@ -203,7 +207,19 @@ enum WatchProcessingStatus: Equatable {
         }
     }
 
-    private func refreshCloudConfigFromPhone() async {
+    private func refreshCloudConfig() async {
+        do {
+            let config = try await WatchCloudKitConfigService.shared.fetchProviderConfig()
+            applyCloudConfig([
+                "defaultMode": config.defaultMode,
+                "assemblyAIAPIKey": config.assemblyAIAPIKey,
+                "anthropicAPIKey": config.anthropicAPIKey
+            ])
+            if !assemblyAIAPIKey.isEmpty { return }
+        } catch {
+            print("[Watch CloudKit] provider config fetch failed: \(error.localizedDescription)")
+        }
+
         guard WCSession.default.activationState == .activated,
               WCSession.default.isReachable else { return }
 

@@ -37,6 +37,7 @@ struct ContentView: View {
         .preferredColorScheme(themeManager.currentTheme.colorScheme)
         .task {
             WatchRecordingProcessor.shared.configure(store: store)
+            await CloudKitService.shared.saveCurrentProviderConfig()
         }
         .overlay {
             if showingSplash {

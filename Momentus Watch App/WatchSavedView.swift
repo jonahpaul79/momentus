@@ -56,6 +56,13 @@ struct WatchSavedView: View {
 
     private func processingPhase(for status: WatchProcessingStatus) -> ProcessingPhase {
         switch status {
+        case .checkingProvider:
+            return ProcessingPhase(
+                icon: "key.fill",
+                label: "Checking settings",
+                detail: "Using iCloud",
+                color: t.accentPrimary
+            )
         case .checkingPhone:
             return ProcessingPhase(
                 icon: "iphone.gen3.radiowaves.left.and.right",
