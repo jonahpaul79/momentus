@@ -19,42 +19,48 @@ struct WatchSavedView: View {
 
     private var processingView: some View {
         let phase = processingPhase(for: vm.processingStatus)
-        return VStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .fill(phase.color.opacity(0.12))
-                    .frame(width: 58, height: 58)
-                Image(systemName: phase.icon)
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(phase.color)
-                    .symbolEffect(.pulse)
+        return ScrollView(.vertical) {
+            VStack(spacing: 7) {
+                ZStack {
+                    Circle()
+                        .fill(phase.color.opacity(0.12))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: phase.icon)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(phase.color)
+                        .symbolEffect(.pulse)
+                }
+
+                Text(phase.label)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(t.textPrimary)
+                    .contentTransition(.opacity)
+                    .animation(.easeInOut(duration: 0.4), value: phase.label)
+
+                if let detail = phase.detail {
+                    Text(detail)
+                        .font(.system(size: 11))
+                        .foregroundStyle(t.textTertiary)
+                        .multilineTextAlignment(.center)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+
+                if let message = vm.processingErrorMessage {
+                    Text(message)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(t.textPrimary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                }
+
+                failureActions(for: vm.processingStatus)
             }
-
-            Text(phase.label)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(t.textPrimary)
-                .contentTransition(.opacity)
-                .animation(.easeInOut(duration: 0.4), value: phase.label)
-
-            if let detail = phase.detail {
-                Text(detail)
-                    .font(.system(size: 10))
-                    .foregroundStyle(t.textTertiary)
-                    .multilineTextAlignment(.center)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-            }
-
-            if let message = vm.processingErrorMessage {
-                Text(message)
-                    .font(.system(size: 9))
-                    .foregroundStyle(t.textTertiary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.8)
-                    .padding(.horizontal, 4)
-            }
-
-            failureActions(for: vm.processingStatus)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 2)
+            .padding(.bottom, 14)
         }
         .animation(.easeInOut(duration: 0.25), value: vm.processingStatus)
     }
@@ -72,7 +78,7 @@ struct WatchSavedView: View {
             return ProcessingPhase(
                 icon: "key.fill",
                 label: "Checking settings",
-                detail: "Using iCloud",
+                detail: "Using iPhone or iCloud",
                 color: t.accentPrimary
             )
         case .checkingPhone:
@@ -128,7 +134,7 @@ struct WatchSavedView: View {
             return ProcessingPhase(
                 icon: "checkmark.circle.fill",
                 label: "Notes ready",
-                detail: "Saved to iCloud",
+                detail: "Sent to iPhone",
                 color: t.accentSuccess
             )
         case .needsPhoneWake:
@@ -142,7 +148,7 @@ struct WatchSavedView: View {
             return ProcessingPhase(
                 icon: "key.slash",
                 label: "Open Momentus",
-                detail: "Sync provider settings on iPhone",
+                detail: "Sync provider settings",
                 color: t.accentRecording
             )
         case .providerFailed:
@@ -167,43 +173,70 @@ struct WatchSavedView: View {
         switch status {
         case .needsCloudConfig:
             VStack(spacing: 6) {
-                Button {
+                compactActionButton(
+                    title: "Sync settings",
+                    systemImage: "arrow.clockwise.icloud",
+                    isPrimary: true
+                ) {
                     Task { await vm.requestProviderSettingsSync() }
-                } label: {
-                    Label("Sync settings", systemImage: "arrow.clockwise.icloud")
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(t.accentPrimary)
 
-                Button("Record another") {
+                compactActionButton(
+                    title: "Record another",
+                    systemImage: "mic.fill",
+                    isPrimary: false
+                ) {
                     vm.recordAnother()
                 }
-                .buttonStyle(.bordered)
-                .tint(t.textSecondary)
             }
-            .font(.system(size: 11, weight: .medium))
 
         case .providerFailed, .failed:
             VStack(spacing: 6) {
-                Button {
+                compactActionButton(
+                    title: "Retry",
+                    systemImage: "arrow.clockwise",
+                    isPrimary: true
+                ) {
                     Task { await vm.retryProcessing() }
-                } label: {
-                    Label("Retry", systemImage: "arrow.clockwise")
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(t.accentPrimary)
 
-                Button("Record another") {
+                compactActionButton(
+                    title: "Record another",
+                    systemImage: "mic.fill",
+                    isPrimary: false
+                ) {
                     vm.recordAnother()
                 }
-                .buttonStyle(.bordered)
-                .tint(t.textSecondary)
             }
-            .font(.system(size: 11, weight: .medium))
 
         default:
             EmptyView()
         }
+    }
+
+    private func compactActionButton(
+        title: String,
+        systemImage: String,
+        isPrimary: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(isPrimary ? .white : t.textPrimary)
+            .frame(maxWidth: .infinity)
+            .frame(height: 36)
+            .background(isPrimary ? t.accentPrimary : t.surfacePrimary)
+            .clipShape(Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 
     // MARK: - Saved

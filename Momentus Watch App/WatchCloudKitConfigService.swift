@@ -36,7 +36,7 @@ enum WatchCloudKitConfigError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .iCloudUnavailable:
-            return "iCloud is not available on this Apple Watch."
+            return "Watch iCloud is not available. Open Momentus on iPhone with your Watch nearby so provider settings can sync directly."
         }
     }
 }
