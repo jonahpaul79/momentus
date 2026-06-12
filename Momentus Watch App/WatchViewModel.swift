@@ -23,6 +23,7 @@ enum WatchProcessingStatus: Equatable {
     case readyToSync
     case needsPhoneWake
     case needsCloudConfig
+    case providerFailed
     case failed
 }
 
@@ -36,6 +37,7 @@ enum WatchProcessingStatus: Equatable {
     var markers: [TimeInterval] = []
     var processingElapsed: TimeInterval = 0
     var processingStatus: WatchProcessingStatus = .sending
+    var processingErrorMessage: String?
 
     enum WatchRecordingMode: String, CaseIterable {
         case onDevice = "Private"
@@ -48,6 +50,7 @@ enum WatchProcessingStatus: Equatable {
     private var extendedRuntimeSession: WKExtendedRuntimeSession?
     private var audioRecorder: AVAudioRecorder?
     private var watchRecordingURL: URL?
+    private var pendingProcessingURL: URL?
     private var activeTransferFileNames: Set<String> = []
     private var assemblyAIAPIKey = UserDefaults.standard.string(forKey: "watchAssemblyAIAPIKey") ?? ""
     private var anthropicAPIKey = UserDefaults.standard.string(forKey: "watchAnthropicAPIKey") ?? ""
@@ -86,25 +89,31 @@ enum WatchProcessingStatus: Equatable {
         startProcessingTimer()
 
         if let url = stopAudioCapture(), let transferURL = prepareTransferFile(from: url) {
+            pendingProcessingURL = transferURL
             selectedMode = .bestQuality
             processingStatus = .checkingProvider
+            processingErrorMessage = nil
             if assemblyAIAPIKey.isEmpty {
                 await refreshCloudConfig()
             }
             if !assemblyAIAPIKey.isEmpty {
                 await processDirectlyInCloud(transferURL)
             } else {
-                processingStatus = .needsCloudConfig
+                failProcessing(
+                    status: .needsCloudConfig,
+                    message: "Open Momentus on iPhone, save your AssemblyAI key in Settings, then retry."
+                )
             }
         } else {
-            processingStatus = .failed
+            failProcessing(status: .failed, message: "The recording file was too small or could not be saved.")
         }
 
-        // Stay in .processing until the phone confirms via WCSession.
-        // Fall back to .saved after 10 minutes in case phone is unreachable.
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(600))
-            guard let self, self.recordingState == .processing else { return }
+            guard let self,
+                  self.recordingState == .processing,
+                  !self.processingStatus.isTerminalFailure
+            else { return }
             self.recordingState = .saved
         }
     }
@@ -130,11 +139,53 @@ enum WatchProcessingStatus: Equatable {
     }
 
     func recordAnother() {
+        processingTimerTask?.cancel()
+        processingTimerTask = nil
         recordingState = .idle
         elapsedTime = 0
         processingElapsed = 0
+        processingStatus = .sending
+        processingErrorMessage = nil
+        pendingProcessingURL = nil
         markerHighlightedBars = []
         markers = []
+    }
+
+    func retryProcessing() async {
+        guard recordingState == .processing,
+              let pendingProcessingURL
+        else { return }
+
+        processingErrorMessage = nil
+        processingStatus = .checkingProvider
+        startProcessingTimer()
+        await refreshCloudConfig()
+
+        guard !assemblyAIAPIKey.isEmpty else {
+            failProcessing(
+                status: .needsCloudConfig,
+                message: "AssemblyAI is not synced to this Watch yet. Open Momentus Settings on iPhone, then retry."
+            )
+            return
+        }
+
+        await processDirectlyInCloud(pendingProcessingURL)
+    }
+
+    func requestProviderSettingsSync() async {
+        processingStatus = .checkingProvider
+        processingErrorMessage = nil
+        await refreshCloudConfig()
+
+        guard let pendingProcessingURL, !assemblyAIAPIKey.isEmpty else {
+            failProcessing(
+                status: .needsCloudConfig,
+                message: "Open Momentus Settings on iPhone so your provider key can sync to iCloud."
+            )
+            return
+        }
+
+        await processDirectlyInCloud(pendingProcessingURL)
     }
 
     // MARK: - Processing timer
@@ -159,12 +210,15 @@ enum WatchProcessingStatus: Equatable {
     private func updateProcessingTimeout() {
         switch processingStatus {
         case .checkingProvider where processingElapsed >= 8:
-            processingStatus = .needsCloudConfig
+            failProcessing(
+                status: .needsCloudConfig,
+                message: "Provider settings did not sync to this Watch. Open Momentus on iPhone, then retry."
+            )
         case .checkingPhone where processingElapsed >= 3,
              .sending where processingElapsed >= 35,
              .received where processingElapsed >= 120,
              .processingOnPhone where processingElapsed >= 120:
-            processingStatus = .failed
+            failProcessing(status: .failed, message: "Processing timed out before the iPhone confirmed receipt.")
         default:
             break
         }
@@ -281,7 +335,7 @@ enum WatchProcessingStatus: Equatable {
             let service = WatchCloudAssemblyAIService(apiKey: assemblyAIAPIKey)
             processingStatus = .transcribingCloud
             let result = try await service.process(fileURL: fileURL)
-            processingStatus = result.summary == nil ? .readyToSync : .summarizingCloud
+            processingStatus = .readyToSync
 
             let now = Date()
             let startedAt = now.addingTimeInterval(-elapsedTime)
@@ -309,7 +363,7 @@ enum WatchProcessingStatus: Equatable {
                 summary: result.summary
             )
             guard savedToCloud else {
-                processingStatus = .failed
+                failProcessing(status: .failed, message: "Notes were processed, but could not be saved to iCloud.")
                 return
             }
             WCSession.default.transferUserInfo(payload)
@@ -320,11 +374,30 @@ enum WatchProcessingStatus: Equatable {
                 "audioFileID": fileURL.lastPathComponent
             ])
             processingStatus = .readyToSync
+            pendingProcessingURL = nil
+            processingTimerTask?.cancel()
+            processingTimerTask = nil
             recordingState = .saved
         } catch {
             print("[Watch Cloud] direct processing failed: \(error)")
-            processingStatus = .failed
+            let message: String
+            if let assemblyAIError = error as? WatchCloudAssemblyAIError {
+                message = assemblyAIError.recoveryMessage
+            } else {
+                message = "Network or provider error. Check your connection, then retry."
+            }
+            failProcessing(
+                status: .providerFailed,
+                message: message
+            )
         }
+    }
+
+    private func failProcessing(status: WatchProcessingStatus, message: String) {
+        processingStatus = status
+        processingErrorMessage = message
+        processingTimerTask?.cancel()
+        processingTimerTask = nil
     }
 
     // MARK: - Audio
@@ -517,6 +590,12 @@ extension WatchViewModel: WCSessionDelegate {
                 }
             case "watchCloudConfig":
                 self.applyCloudConfig(message)
+                if self.recordingState == .processing,
+                   self.processingStatus == .needsCloudConfig,
+                   !self.assemblyAIAPIKey.isEmpty,
+                   let pendingProcessingURL = self.pendingProcessingURL {
+                    await self.processDirectlyInCloud(pendingProcessingURL)
+                }
             case "startRecording":
                 if let mode = message["mode"] as? String {
                     if mode == WatchRecordingMode.bestQuality.rawValue {
@@ -541,5 +620,11 @@ extension WatchViewModel: WCSessionDelegate {
                 break
             }
         }
+    }
+}
+
+private extension WatchProcessingStatus {
+    var isTerminalFailure: Bool {
+        self == .needsCloudConfig || self == .providerFailed || self == .failed
     }
 }

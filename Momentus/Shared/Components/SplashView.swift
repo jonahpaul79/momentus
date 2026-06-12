@@ -11,7 +11,7 @@ struct SplashView: View {
             t.colors.backgroundPrimary
                 .ignoresSafeArea()
             VStack(spacing: 20) {
-                Image("AppIcon")
+                Image("AppLogo")
                     .resizable()
                     .frame(width: 100, height: 100)
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))

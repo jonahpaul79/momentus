@@ -19,7 +19,7 @@ struct WatchSavedView: View {
 
     private var processingView: some View {
         let phase = processingPhase(for: vm.processingStatus)
-        return VStack(spacing: 6) {
+        return VStack(spacing: 8) {
             ZStack {
                 Circle()
                     .fill(phase.color.opacity(0.12))
@@ -43,6 +43,18 @@ struct WatchSavedView: View {
                     .multilineTextAlignment(.center)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
+
+            if let message = vm.processingErrorMessage {
+                Text(message)
+                    .font(.system(size: 9))
+                    .foregroundStyle(t.textTertiary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.8)
+                    .padding(.horizontal, 4)
+            }
+
+            failureActions(for: vm.processingStatus)
         }
         .animation(.easeInOut(duration: 0.25), value: vm.processingStatus)
     }
@@ -130,16 +142,67 @@ struct WatchSavedView: View {
             return ProcessingPhase(
                 icon: "key.slash",
                 label: "Open Momentus",
-                detail: "Sync provider settings",
+                detail: "Sync provider settings on iPhone",
+                color: t.accentRecording
+            )
+        case .providerFailed:
+            return ProcessingPhase(
+                icon: "exclamationmark.triangle.fill",
+                label: "Provider failed",
+                detail: "Retry or record another",
                 color: t.accentRecording
             )
         case .failed:
             return ProcessingPhase(
                 icon: "exclamationmark.triangle.fill",
                 label: "Could not process",
-                detail: "Check provider settings",
+                detail: "Retry or record another",
                 color: t.accentRecording
             )
+        }
+    }
+
+    @ViewBuilder
+    private func failureActions(for status: WatchProcessingStatus) -> some View {
+        switch status {
+        case .needsCloudConfig:
+            VStack(spacing: 6) {
+                Button {
+                    Task { await vm.requestProviderSettingsSync() }
+                } label: {
+                    Label("Sync settings", systemImage: "arrow.clockwise.icloud")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(t.accentPrimary)
+
+                Button("Record another") {
+                    vm.recordAnother()
+                }
+                .buttonStyle(.bordered)
+                .tint(t.textSecondary)
+            }
+            .font(.system(size: 11, weight: .medium))
+
+        case .providerFailed, .failed:
+            VStack(spacing: 6) {
+                Button {
+                    Task { await vm.retryProcessing() }
+                } label: {
+                    Label("Retry", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(t.accentPrimary)
+
+                Button("Record another") {
+                    vm.recordAnother()
+                }
+                .buttonStyle(.bordered)
+                .tint(t.textSecondary)
+            }
+            .font(.system(size: 11, weight: .medium))
+
+        default:
+            EmptyView()
         }
     }
 

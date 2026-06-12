@@ -43,8 +43,8 @@ final class WatchCloudAssemblyAIService {
     init(apiKey: String) {
         self.apiKey = apiKey
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 60
-        config.timeoutIntervalForResource = 1800
+        config.timeoutIntervalForRequest = 300
+        config.timeoutIntervalForResource = 7200
         self.session = URLSession(configuration: config)
     }
 
@@ -63,14 +63,13 @@ final class WatchCloudAssemblyAIService {
     }
 
     private func upload(fileURL: URL) async throws -> String {
-        let data = try Data(contentsOf: fileURL)
         var request = URLRequest(url: baseURL.appending(path: "/v2/upload"))
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "Authorization")
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-        request.httpBody = data
+        request.timeoutInterval = 300
 
-        let (responseData, response) = try await session.data(for: request)
+        let (responseData, response) = try await session.upload(for: request, fromFile: fileURL)
         try validate(response, data: responseData)
         return try JSONDecoder().decode(UploadResponse.self, from: responseData).uploadURL
     }
@@ -92,14 +91,17 @@ final class WatchCloudAssemblyAIService {
         var request = URLRequest(url: url)
         request.setValue(apiKey, forHTTPHeaderField: "Authorization")
 
-        for attempt in 0..<120 {
-            if attempt > 0 { try await Task.sleep(for: .seconds(5)) }
+        for attempt in 0..<360 {
+            if attempt > 0 { try await Task.sleep(for: .seconds(10)) }
             let (responseData, response) = try await session.data(for: request)
             try validate(response, data: responseData)
             let transcript = try JSONDecoder().decode(TranscriptResponse.self, from: responseData)
             if transcript.status == "completed" { return transcript }
             if transcript.status == "error" {
-                throw WatchCloudAssemblyAIError.providerError(transcript.error ?? "Transcription failed")
+                throw WatchCloudAssemblyAIError.providerError(
+                    transcript.error ?? "Transcription failed",
+                    statusCode: nil
+                )
             }
         }
         throw WatchCloudAssemblyAIError.timeout
@@ -136,7 +138,10 @@ final class WatchCloudAssemblyAIService {
             return parsed
         }
 
-        throw WatchCloudAssemblyAIError.providerError("Summary response was not valid JSON")
+        throw WatchCloudAssemblyAIError.providerError(
+            "Summary response was not valid JSON",
+            statusCode: nil
+        )
     }
 
     private func requestSummary(_ body: LeMURRequest) async throws -> WatchCloudSummary? {
@@ -163,8 +168,9 @@ final class WatchCloudAssemblyAIService {
             throw WatchCloudAssemblyAIError.invalidResponse
         }
         guard (200...299).contains(http.statusCode) else {
-            let message = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.error ?? "HTTP \(http.statusCode)"
-            throw WatchCloudAssemblyAIError.providerError(message)
+            let body = try? JSONDecoder().decode(ErrorBody.self, from: data)
+            let message = body?.message ?? "HTTP \(http.statusCode)"
+            throw WatchCloudAssemblyAIError.providerError(message, statusCode: http.statusCode)
         }
     }
 
@@ -277,7 +283,19 @@ final class WatchCloudAssemblyAIService {
     }
 
     private struct ErrorBody: Decodable {
-        let error: String
+        let error: String?
+        let apiMessage: String?
+        let detail: String?
+
+        var message: String? {
+            error ?? apiMessage ?? detail
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case error
+            case apiMessage = "message"
+            case detail
+        }
     }
 }
 
@@ -285,7 +303,7 @@ enum WatchCloudAssemblyAIError: LocalizedError {
     case emptyTranscript
     case timeout
     case invalidResponse
-    case providerError(String)
+    case providerError(String, statusCode: Int?)
 
     var errorDescription: String? {
         switch self {
@@ -295,8 +313,53 @@ enum WatchCloudAssemblyAIError: LocalizedError {
             return "AssemblyAI processing timed out."
         case .invalidResponse:
             return "AssemblyAI returned an unexpected response."
-        case .providerError(let message):
+        case .providerError(let message, _):
             return message
         }
+    }
+
+    var recoveryMessage: String {
+        switch self {
+        case .emptyTranscript:
+            return "No speech was detected. Try another recording or check the microphone."
+        case .timeout:
+            return "AssemblyAI is still processing this recording. Retry in a few minutes."
+        case .invalidResponse:
+            return "AssemblyAI returned an unexpected response. Retry in a few minutes."
+        case .providerError(let message, let statusCode):
+            return Self.recoveryMessage(for: message, statusCode: statusCode)
+        }
+    }
+
+    private static func recoveryMessage(for message: String, statusCode: Int?) -> String {
+        let normalized = message.lowercased()
+
+        if statusCode == 401 || statusCode == 403 || normalized.contains("unauthorized") || normalized.contains("auth") || normalized.contains("api key") {
+            return "AssemblyAI rejected the API key. Open Momentus on iPhone, paste a valid key in Settings, then sync settings."
+        }
+
+        if statusCode == 402 ||
+            normalized.contains("balance") ||
+            normalized.contains("billing") ||
+            normalized.contains("credit") ||
+            normalized.contains("quota") ||
+            normalized.contains("limit exceeded") ||
+            normalized.contains("usage limit") {
+            return "AssemblyAI usage or billing limit reached. Check your AssemblyAI dashboard, then retry."
+        }
+
+        if statusCode == 429 || normalized.contains("rate limit") || normalized.contains("too many") || normalized.contains("throttl") {
+            return "AssemblyAI is rate limiting this key. Wait a few minutes, then retry."
+        }
+
+        if statusCode == 413 || normalized.contains("too large") || normalized.contains("file size") || normalized.contains("duration") {
+            return "This recording is too large for the provider. Try a shorter recording."
+        }
+
+        if let statusCode, (500...599).contains(statusCode) {
+            return "AssemblyAI is temporarily unavailable. Retry in a few minutes."
+        }
+
+        return message.isEmpty ? "AssemblyAI could not process this recording. Retry in a few minutes." : message
     }
 }
