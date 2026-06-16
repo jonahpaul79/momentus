@@ -358,6 +358,14 @@ enum WatchProcessingStatus: Equatable {
             let result = try await service.process(fileURL: fileURL)
             processingStatus = .readyToSync
 
+            // Mark done immediately — file transfer and CloudKit save are background work.
+            // Setting .saved here prevents the WCSession file-transfer delegate from
+            // incorrectly setting .failed if the phone is unreachable.
+            pendingProcessingURL = nil
+            processingTimerTask?.cancel()
+            processingTimerTask = nil
+            recordingState = .saved
+
             let now = Date()
             let startedAt = now.addingTimeInterval(-elapsedTime)
             let markerStr = markers.map { String(format: "%.2f", $0) }.joined(separator: ",")
@@ -383,24 +391,20 @@ enum WatchProcessingStatus: Equatable {
                 "audioFileID": fileURL.lastPathComponent
             ])
 
-            let savedToCloud = await WatchCloudKitRecordingService.shared.saveProcessedRecording(
-                recordingID: recordingID,
-                audioFileURL: fileURL,
-                startedAt: startedAt,
-                endedAt: now,
-                markers: markers,
-                transcriptText: result.transcriptText,
-                summary: result.summary
-            )
-            if !savedToCloud {
-                print("[Watch Cloud] processed recording handed off to iPhone; iCloud save failed")
+            Task {
+                let savedToCloud = await WatchCloudKitRecordingService.shared.saveProcessedRecording(
+                    recordingID: recordingID,
+                    audioFileURL: fileURL,
+                    startedAt: startedAt,
+                    endedAt: now,
+                    markers: markers,
+                    transcriptText: result.transcriptText,
+                    summary: result.summary
+                )
+                if !savedToCloud {
+                    print("[Watch Cloud] processed recording handed off to iPhone; iCloud save failed")
+                }
             }
-
-            processingStatus = .readyToSync
-            pendingProcessingURL = nil
-            processingTimerTask?.cancel()
-            processingTimerTask = nil
-            recordingState = .saved
         } catch {
             print("[Watch Cloud] direct processing failed: \(error)")
             let message: String
@@ -575,17 +579,12 @@ extension WatchViewModel: WCSessionDelegate {
             guard let self else { return }
             self.activeTransferFileNames.remove(fileName)
             if let error {
-                print("[WatchConnectivity] file transfer failed: \(error)")
-                if self.recordingState == .processing {
-                    self.processingStatus = .failed
-                }
+                // Audio-sync transfers (post cloud processing) are best-effort — the result
+                // was already sent via transferUserInfo. Never fail processing here.
+                print("[WatchConnectivity] file transfer failed (non-fatal): \(error)")
                 return
             }
-
             try? FileManager.default.removeItem(at: fileTransfer.file.fileURL)
-            if self.recordingState == .processing, self.processingStatus == .sending {
-                self.processingStatus = .received
-            }
         }
     }
 

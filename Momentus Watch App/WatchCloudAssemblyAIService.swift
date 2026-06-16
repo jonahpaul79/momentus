@@ -179,9 +179,25 @@ final class WatchCloudAssemblyAIService {
             .replacingOccurrences(of: "```json", with: "")
             .replacingOccurrences(of: "```", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let start = stripped.firstIndex(of: "{"),
-              let end = stripped.lastIndex(of: "}") else { return stripped }
-        return String(stripped[start...end])
+        guard let startIdx = stripped.firstIndex(of: "{") else { return stripped }
+        var depth = 0
+        var inString = false
+        var escaped = false
+        for (idx, ch) in stripped[startIdx...].enumerated() {
+            if escaped { escaped = false; continue }
+            if ch == "\\" && inString { escaped = true; continue }
+            if ch == "\"" { inString.toggle(); continue }
+            if inString { continue }
+            if ch == "{" { depth += 1 }
+            else if ch == "}" {
+                depth -= 1
+                if depth == 0 {
+                    let endIdx = stripped.index(startIdx, offsetBy: idx)
+                    return String(stripped[startIdx...endIdx])
+                }
+            }
+        }
+        return stripped
     }
 
     private struct UploadResponse: Decodable {
