@@ -67,6 +67,21 @@ protocol SummaryService {
     func summarize(transcript: Transcript, recordingId: UUID) async throws -> MeetingSummary
 }
 
+// MARK: - Transcript Chat Service
+
+/// Answers questions about one meeting transcript at a time.
+/// Implementations must treat the transcript as source material, preserve the
+/// supplied multi-turn history, and distinguish transcript facts from advice.
+protocol TranscriptChatService {
+    var providerName: String { get }
+    var isOnDevice: Bool { get }
+    func reply(
+        to messages: [TranscriptChatMessage],
+        transcript: Transcript,
+        recordingTitle: String
+    ) async throws -> String
+}
+
 // MARK: - Storage Service
 
 /// Persists `Recording` values including nested `Transcript` and `MeetingSummary`.

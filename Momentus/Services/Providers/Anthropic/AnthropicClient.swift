@@ -44,6 +44,8 @@ final class AnthropicClient {
         }
     }
 
+    typealias Message = MessageRequest.Message
+
     struct MessageResponse: Decodable {
         let id: String
         let model: String
@@ -85,11 +87,27 @@ final class AnthropicClient {
         model: String = AnthropicClient.defaultModel,
         maxTokens: Int = 2048
     ) async throws -> (text: String, usage: MessageResponse.Usage) {
+        try await message(
+            system: system,
+            messages: [.init(role: "user", content: user)],
+            model: model,
+            maxTokens: maxTokens
+        )
+    }
+
+    /// Sends a multi-turn conversation. The caller owns and resubmits the history
+    /// because the Messages API is stateless between requests.
+    func message(
+        system: String,
+        messages: [Message],
+        model: String = AnthropicClient.defaultModel,
+        maxTokens: Int = 2048
+    ) async throws -> (text: String, usage: MessageResponse.Usage) {
         let body = MessageRequest(
             model: model,
             maxTokens: maxTokens,
             system: system,
-            messages: [.init(role: "user", content: user)]
+            messages: messages
         )
 
         var request = URLRequest(url: baseURL.appending(path: "/v1/messages"))

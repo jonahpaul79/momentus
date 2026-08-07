@@ -220,9 +220,9 @@ struct SettingsView: View {
             .listRowBackground(t.colors.surfacePrimary)
 
         } header: {
-            sectionHeader("Best Quality — Summary (Claude Sonnet)", t: t)
+            sectionHeader("Best Quality — Summary & Chat (Claude Sonnet)", t: t)
         } footer: {
-            Text("Claude Sonnet generates structured meeting notes from the transcript. Only transcript text is sent to Anthropic — audio never leaves your device.\n\nAssemblyAI LeMUR is used automatically if no Claude key is set. Notes are stored locally only.\n\nCopy your key from console.anthropic.com, then tap the row above to paste it.")
+            Text("Claude Sonnet generates structured meeting notes and answers questions about one meeting at a time. Only transcript text and your chat messages are sent to Anthropic — audio is never sent for summaries or chat.\n\nAssemblyAI LeMUR is used automatically for notes if no Claude key is set. Chat history is stored locally only.\n\nCopy your key from console.anthropic.com, then tap the row above to paste it.")
                 .font(t.typography.caption)
                 .foregroundStyle(t.colors.textTertiary)
         }

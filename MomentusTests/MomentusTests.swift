@@ -79,6 +79,120 @@ struct MomentusTests {
         #expect(summary.decisions.first?.text == "Jordan approved the plan.")
         #expect(summary.actionItems.first?.owner == "Jordan")
         #expect(summary.followUpDraft == "Thanks Jordan and Taylor.")
+
+        summary.renameSpeakerReferences(["Jordan": "Morgan"])
+
+        #expect(summary.executiveSummary == "Morgan agreed to send the proposal to Taylor.")
+        #expect(summary.decisions.first?.text == "Morgan approved the plan.")
+        #expect(summary.actionItems.first?.owner == "Morgan")
+        #expect(summary.followUpDraft == "Thanks Morgan and Taylor.")
     }
 
+    @Test func upcomingCalendarMeetingIsNotAttachedToRecording() async {
+        let futureMeeting = CalendarMeeting(
+            id: UUID(),
+            title: "Unrelated Future Meeting",
+            startDate: Date().addingTimeInterval(3_600),
+            endDate: Date().addingTimeInterval(7_200),
+            attendees: ["Wrong Person"]
+        )
+        let viewModel = RecordViewModel(
+            calendarService: TestCalendarContextService(current: [], upcoming: [futureMeeting])
+        )
+
+        await viewModel.loadCalendarContext()
+
+        #expect(viewModel.suggestedMeetingTitle == nil)
+        #expect(viewModel.suggestedSpeakers.isEmpty)
+        #expect(viewModel.upcomingMeetings.map(\.id) == [futureMeeting.id])
+    }
+
+    @Test func transcriptChatContextIncludesSpeakerAndTimestamp() {
+        let recordingID = UUID()
+        let speaker = Speaker(id: UUID(), name: "Jordan", isNameInferred: false, colorHex: "#6366F1")
+        let transcript = Transcript(
+            id: UUID(),
+            recordingId: recordingID,
+            segments: [
+                TranscriptSegment(
+                    id: UUID(),
+                    text: "We will ship on Friday.",
+                    startTime: 754,
+                    endTime: 758,
+                    speakerId: speaker.id,
+                    confidence: 0.98
+                )
+            ],
+            speakers: [speaker],
+            language: "en",
+            provider: "Test",
+            createdAt: Date()
+        )
+
+        #expect(TranscriptChatPrompt.formattedTranscript(transcript) == "[12:34] Jordan: We will ship on Friday.")
+    }
+
+    @Test func privateChatPreflightRejectsOversizedTranscript() {
+        let transcript = Transcript(
+            id: UUID(),
+            recordingId: UUID(),
+            segments: [
+                TranscriptSegment(
+                    id: UUID(),
+                    text: String(repeating: "discussion ", count: 1_300),
+                    startTime: 0,
+                    endTime: 60,
+                    speakerId: nil,
+                    confidence: 0.9
+                )
+            ],
+            speakers: [],
+            language: "en",
+            provider: "Test",
+            createdAt: Date()
+        )
+
+        guard case .onDeviceTranscriptTooLong = TranscriptChatPrompt.onDevicePreflightError(for: transcript) else {
+            Issue.record("Expected an oversized transcript error")
+            return
+        }
+    }
+
+    @Test func transcriptChatStoreRoundTripsAndDeletesLocalThread() throws {
+        let suiteName = "MomentusTests.TranscriptChat.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = TranscriptChatStore(defaults: defaults)
+        let recordingID = UUID()
+        let message = TranscriptChatMessage(role: .user, text: "What was decided?")
+        let thread = TranscriptChatThread(
+            recordingID: recordingID,
+            messages: [message],
+            updatedAt: Date()
+        )
+
+        store.save(thread)
+        let loaded = store.load(recordingID: recordingID)
+        #expect(loaded.messages.count == 1)
+        #expect(loaded.messages.first?.id == message.id)
+        #expect(loaded.messages.first?.text == message.text)
+
+        store.delete(recordingID: recordingID)
+        #expect(store.load(recordingID: recordingID).messages.isEmpty)
+    }
+
+}
+
+private final class TestCalendarContextService: CalendarContextService {
+    let current: [CalendarMeeting]
+    let upcoming: [CalendarMeeting]
+
+    init(current: [CalendarMeeting], upcoming: [CalendarMeeting]) {
+        self.current = current
+        self.upcoming = upcoming
+    }
+
+    func requestAccess() async -> Bool { true }
+    func getCurrentMeetings() async -> [CalendarMeeting] { current }
+    func getUpcomingMeetings() async -> [CalendarMeeting] { upcoming }
 }

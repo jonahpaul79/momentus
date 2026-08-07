@@ -261,9 +261,9 @@ struct RecordHomeView: View {
             VStack(spacing: 0) {
                 ForEach(Array(meetings.enumerated()), id: \.element.id) { index, meeting in
                     Button {
-                        vm.suggestedMeetingTitle = meeting.title
-                        vm.suggestedSpeakers = meeting.attendees
                         if meeting.isHappeningNow {
+                            vm.suggestedMeetingTitle = meeting.title
+                            vm.suggestedSpeakers = meeting.attendees
                             HapticStyle.medium.trigger()
                             Task { await vm.startRecording() }
                         } else {

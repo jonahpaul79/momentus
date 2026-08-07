@@ -20,6 +20,25 @@ import Foundation
 ///   3. Insert it into the appropriate switch case below
 enum ServiceFactory {
 
+    // MARK: - Transcript Chat
+
+    static func makeTranscriptChatService(for mode: TranscriptChatMode) throws -> any TranscriptChatService {
+        switch mode {
+        case .onDevice:
+            return AppleFoundationModelsTranscriptChatService()
+        case .bestQuality:
+            guard let key = KeychainService.retrieve(.anthropicAPIKey), !key.isEmpty else {
+                throw TranscriptChatError.missingAnthropicAPIKey
+            }
+            return ClaudeTranscriptChatService(apiKey: key)
+        }
+    }
+
+    static var isAnthropicChatConfigured: Bool {
+        guard let key = KeychainService.retrieve(.anthropicAPIKey) else { return false }
+        return !key.isEmpty
+    }
+
     // MARK: - Transcription
 
     static func makeTranscriptionService(for mode: RecordingMode) -> any TranscriptionService {

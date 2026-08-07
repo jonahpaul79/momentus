@@ -62,9 +62,13 @@ final class AppleFoundationModelsSummaryService: SummaryService {
         let markedContext = MeetingSummaryPromptBuilder.fallbackMarkedMoments(from: transcript)
             .map { "- [\(MeetingSummaryPromptBuilder.formatTimestamp($0.timestamp))] \($0.transcriptExcerpt ?? "")" }
             .joined(separator: "\n")
+        let identityContext = transcript.speakers.contains(where: \.requiresIdentification)
+            ? "Speaker identity is unconfirmed. Private on-device transcription may combine multiple voices under one generic speaker label. Do not guess speaker names or attribute remarks to a named person."
+            : "The speaker names in this transcript were confirmed by the user."
+        let transcriptContext = "\(identityContext)\n\nTranscript:\n\(text)"
         let promptText = markedContext.isEmpty
-            ? text
-            : "User-marked moments:\n\(markedContext)\n\nTranscript:\n\(text)"
+            ? transcriptContext
+            : "User-marked moments:\n\(markedContext)\n\n\(transcriptContext)"
         let response = try await session.respond(
             to: SummaryPrompts.userMessage(transcript: promptText),
             generating: Output.self

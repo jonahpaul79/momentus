@@ -6,6 +6,7 @@ struct MeetingSummaryDetailView: View {
     @Environment(RecordingsStore.self) private var store
     @State var recording: Recording
     @State private var showingTranscript = false
+    @State private var showingTranscriptChat = false
     @State private var showShareSheet = false
     @State private var exportedText = ""
     @State private var playbackSeekTime: TimeInterval?
@@ -13,6 +14,7 @@ struct MeetingSummaryDetailView: View {
     @State private var customNameSpeakerID: UUID?
     @State private var customSpeakerName = ""
     @State private var showingCustomSpeakerName = false
+    @State private var showingBestQualityConfirmation = false
     @Environment(\.dismiss) private var dismiss
     @AppStorage("audioRetention") private var audioRetentionRaw: String = AudioRetentionPolicy.deleteAfterTranscript.rawValue
 
@@ -34,6 +36,10 @@ struct MeetingSummaryDetailView: View {
                         summaryContent(summary, t: t)
                     } else {
                         noSummaryState(t)
+                        if recording.transcript != nil {
+                            transcriptChatButton(t)
+                                .padding(.horizontal, t.spacing.l)
+                        }
                     }
                 }
                 .padding(.bottom, t.spacing.huge)
@@ -75,6 +81,10 @@ struct MeetingSummaryDetailView: View {
                         .environment(themeManager)
                 }
             }
+            .sheet(isPresented: $showingTranscriptChat) {
+                TranscriptChatView(recording: recording)
+                    .environment(themeManager)
+            }
             .sheet(isPresented: $showShareSheet) {
                 ShareSheet(text: exportedText)
             }
@@ -91,6 +101,15 @@ struct MeetingSummaryDetailView: View {
                 .disabled(customSpeakerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             } message: {
                 Text("This name will be used in the transcript and notes.")
+            }
+            .alert("Reprocess with Best Quality?", isPresented: $showingBestQualityConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                Button("Reprocess") {
+                    store.reprocessWithBestQuality(recordingID: recording.id)
+                    HapticStyle.medium.trigger()
+                }
+            } message: {
+                Text("The original audio will be sent to AssemblyAI for a new transcript with speaker separation, then the notes will be regenerated.")
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
@@ -149,14 +168,15 @@ struct MeetingSummaryDetailView: View {
         let reviewNotes = reviewNotes(from: summary.confidenceNotes)
 
         return VStack(alignment: .leading, spacing: t.spacing.l) {
-            if let speakers = recording.transcript?.speakers,
-               !speakers.isEmpty,
-               speakers.contains(where: \.requiresIdentification) || !(recording.calendarAttendees ?? []).isEmpty {
+            if let speakers = recording.transcript?.speakers, !speakers.isEmpty {
                 speakerIdentificationCard(
                     speakers: speakers,
                     attendees: recording.calendarAttendees ?? [],
                     t: t
                 )
+            }
+            if recording.mode != .bestQuality {
+                bestQualityReprocessCard(t)
             }
             executiveSummaryCard(summary, t: t)
             if !summary.markedMoments.isEmpty { markedMomentsSection(summary.markedMoments, t: t) }
@@ -165,7 +185,10 @@ struct MeetingSummaryDetailView: View {
             if !summary.openQuestions.isEmpty { openQuestionsSection(summary.openQuestions, t: t) }
             if !summary.risks.isEmpty { risksSection(summary.risks, t: t) }
             if !summary.followUpDraft.isEmpty { followUpSection(summary.followUpDraft, t: t) }
-            if recording.transcript != nil { transcriptButton(t) }
+            if recording.transcript != nil {
+                transcriptChatButton(t)
+                transcriptButton(t)
+            }
             if !processingIssues.isEmpty {
                 processingIssuesSection(processingIssues, t: t)
             }
@@ -309,6 +332,15 @@ struct MeetingSummaryDetailView: View {
                 .font(t.typography.bodySmall)
                 .foregroundStyle(t.colors.textSecondary)
 
+            if recording.transcript?.provider != "AssemblyAI" {
+                Label(
+                    "Private mode does not separate multiple voices. Best Quality can create distinct speaker labels.",
+                    systemImage: "lock.shield"
+                )
+                .font(t.typography.caption)
+                .foregroundStyle(t.colors.textTertiary)
+            }
+
             VStack(spacing: 0) {
                 ForEach(Array(speakers.enumerated()), id: \.element.id) { index, speaker in
                     HStack {
@@ -395,6 +427,65 @@ struct MeetingSummaryDetailView: View {
         speakerAssignments[speakerID] = name
         customNameSpeakerID = nil
         customSpeakerName = ""
+    }
+
+    @ViewBuilder
+    private func bestQualityReprocessCard(_ t: AppTheme) -> some View {
+        let availability = store.bestQualityReprocessAvailability(for: recording)
+        VStack(alignment: .leading, spacing: t.spacing.m) {
+            sectionHeader("Improve Quality", icon: "sparkles", t: t)
+
+            switch availability {
+            case .available:
+                Text("Re-transcribe the saved audio with cloud speaker separation and regenerate all notes.")
+                    .font(t.typography.bodySmall)
+                    .foregroundStyle(t.colors.textSecondary)
+                Button {
+                    showingBestQualityConfirmation = true
+                } label: {
+                    Label("Reprocess with Best Quality", systemImage: "arrow.triangle.2.circlepath")
+                        .font(t.typography.headlineSmall)
+                        .foregroundStyle(t.colors.textOnAccent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, t.spacing.m)
+                        .background(t.colors.accentPrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: t.radius.m))
+                }
+                .buttonStyle(PlainButtonStyle())
+
+            case .processing:
+                HStack(spacing: t.spacing.m) {
+                    ProgressView().tint(t.colors.accentPrimary)
+                    Text(recording.processingState.displayName)
+                        .font(t.typography.bodyMedium)
+                        .foregroundStyle(t.colors.textSecondary)
+                }
+
+            case .audioUnavailable:
+                Text("The original audio is no longer available, so this recording cannot be re-transcribed.")
+                    .font(t.typography.bodySmall)
+                    .foregroundStyle(t.colors.textTertiary)
+
+            case .missingAPIKey:
+                Text("Add an AssemblyAI API key in Settings to use Best Quality transcription.")
+                    .font(t.typography.bodySmall)
+                    .foregroundStyle(t.colors.textTertiary)
+
+            case .alreadyBestQuality:
+                EmptyView()
+            }
+
+            if let error = recording.processingError,
+               error.hasPrefix("Best Quality reprocessing failed:") {
+                Text(error)
+                    .font(t.typography.caption)
+                    .foregroundStyle(t.colors.accentError)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(t.spacing.l)
+        .surfaceCard()
+        .environment(themeManager)
     }
 
     // MARK: - Executive Summary
@@ -604,6 +695,40 @@ struct MeetingSummaryDetailView: View {
     }
 
     // MARK: - Transcript Button
+
+    private func transcriptChatButton(_ t: AppTheme) -> some View {
+        Button {
+            showingTranscriptChat = true
+            HapticStyle.light.trigger()
+        } label: {
+            HStack(spacing: t.spacing.m) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(t.colors.accentPrimary)
+                    .frame(width: 30, height: 30)
+                    .background(t.colors.accentPrimary.opacity(0.14))
+                    .clipShape(Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Ask Momentus")
+                        .font(t.typography.headlineSmall)
+                        .foregroundStyle(t.colors.textPrimary)
+                    Text("Chat with this meeting or get advice")
+                        .font(t.typography.caption)
+                        .foregroundStyle(t.colors.textSecondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(t.colors.textTertiary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(t.spacing.l)
+            .background(t.gradients.cardAccent)
+            .surfaceCard()
+            .environment(themeManager)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
 
     private func transcriptButton(_ t: AppTheme) -> some View {
         Button {

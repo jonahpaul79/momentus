@@ -144,6 +144,8 @@ final class AssemblyAISummaryService: SummaryService {
         - Ground every item in what was actually spoken. Do not invent or assume anything.
         - Leave arrays empty ([]) if the transcript contains nothing relevant for that field. It is better to omit a section than to stretch weak evidence to fit the schema.
         - Only include a name as action_item owner if that person was explicitly mentioned.
+        - A person mentioned in the conversation is not necessarily a speaker. Never replace Speaker A, Speaker B, or another generic speaker label with a person's name unless a user-confirmed mapping is provided.
+        - When speaker identity is unconfirmed, use neutral wording rather than guessing who said something.
         - Decisions require an explicit choice, approval, commitment, scope call, or finalized conclusion. Positive feedback, preferences, observations, or low-confidence remarks are not decisions unless the speaker clearly chose or approved a course of action.
         - Do not convert phrases like "looks better", "seems good", "noted", or "interesting" into decisions.
         - If user-marked moments are listed below, summarize each one explicitly in marked_moments.

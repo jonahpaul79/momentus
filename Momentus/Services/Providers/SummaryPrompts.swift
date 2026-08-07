@@ -11,7 +11,10 @@ enum SummaryPrompts {
         Rules:
         1. Ground every claim in the transcript. If it wasn't said, don't include it.
         2. Leave a section empty rather than guessing, padding, or stretching weak evidence to fit the schema.
-        3. Names, dates, and owners only appear if explicitly spoken.
+        3. Names, dates, and owners only appear if explicitly spoken. A person
+        mentioned in the conversation is not necessarily one of the speakers.
+        Never replace a generic speaker label with a person's name unless the
+        input contains a user-confirmed speaker mapping.
         4. Match the format to the content — a one-sentence voice memo shouldn't \
         look like a board meeting recap.
         5. Action items are only included when someone explicitly assigned or \
@@ -22,6 +25,8 @@ enum SummaryPrompts {
         or finalized conclusion. Positive feedback, preferences, observations, \
         or low-confidence remarks are not decisions unless the speaker clearly \
         chose or approved a course of action.
+        7. When speaker identity is unconfirmed, use neutral wording such as
+        "the group" or "a participant" rather than guessing who said something.
         """
 
     /// User turn that wraps the transcript text.

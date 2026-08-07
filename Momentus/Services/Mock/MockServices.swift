@@ -17,6 +17,7 @@ import UIKit
     var recordings: [Recording] = []
     var isSyncing = false
     private(set) var processingRecordingIDs: Set<UUID> = []
+    private let transcriptChatStore = TranscriptChatStore()
 
     private var isCloudEnabled: Bool {
         UserDefaults.standard.bool(forKey: "iCloudSync")
@@ -60,12 +61,14 @@ import UIKit
     func delete(id: UUID) {
         recordings.removeAll { $0.id == id }
         persist()
+        transcriptChatStore.delete(recordingID: id)
         if isCloudEnabled { Task { await CloudKitService.shared.delete(id: id) } }
     }
 
     func delete(_ recording: Recording) {
         recordings.removeAll { $0.id == recording.id }
         persist()
+        transcriptChatStore.delete(recordingID: recording.id)
         if isCloudEnabled { Task { await CloudKitService.shared.delete(id: recording.id) } }
         guard let fileID = recording.audioFileID else { return }
         Task {
@@ -107,6 +110,99 @@ import UIKit
 
         Task { [weak self] in
             await self?.performProcessingRetry(recordingID: recordingID)
+        }
+    }
+
+    // MARK: - Best Quality Reprocessing
+
+    func bestQualityReprocessAvailability(for recording: Recording) -> BestQualityReprocessAvailability {
+        if recording.mode == .bestQuality { return .alreadyBestQuality }
+        if processingRecordingIDs.contains(recording.id) { return .processing }
+        guard audioIsPlayable(recording.audioFileID) else { return .audioUnavailable }
+        guard ServiceFactory.isTranscriptionConfigured(for: .bestQuality) else { return .missingAPIKey }
+        return .available
+    }
+
+    /// Re-transcribes the original audio with cloud speaker diarization and
+    /// regenerates notes. Existing Private-mode results are restored on failure.
+    func reprocessWithBestQuality(recordingID: UUID) {
+        guard !processingRecordingIDs.contains(recordingID),
+              let original = recording(for: recordingID),
+              bestQualityReprocessAvailability(for: original) == .available
+        else { return }
+
+        processingRecordingIDs.insert(recordingID)
+        var processing = original
+        processing.processingState = .transcribing
+        processing.processingError = nil
+        update(processing)
+
+        Task { [weak self] in
+            await self?.performBestQualityReprocess(original: original)
+        }
+    }
+
+    private func performBestQualityReprocess(original: Recording) async {
+        defer { processingRecordingIDs.remove(original.id) }
+
+        let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "BestQualityReprocess") {
+            print("[Best Quality Reprocess] background execution time expired")
+        }
+        defer {
+            if backgroundTask != .invalid {
+                UIApplication.shared.endBackgroundTask(backgroundTask)
+            }
+        }
+
+        do {
+            guard let audioFileID = original.audioFileID,
+                  audioIsPlayable(audioFileID)
+            else { throw RecordingProcessingRetryError.audioUnavailable }
+
+            var transcript = try await ServiceFactory.makeTranscriptionService(for: .bestQuality)
+                .transcribe(audioFileID: audioFileID, recordingId: original.id)
+            transcript.providerData["momentus_markers"] = original.markers
+                .map { String(format: "%.1f", $0) }
+                .joined(separator: ",")
+            if let attendees = original.calendarAttendees, !attendees.isEmpty {
+                transcript.providerData["momentus_attendees"] = attendees.joined(separator: ",")
+            }
+
+            // Keep the existing transcript and summary persisted until the whole
+            // upgrade succeeds, so an app termination cannot destroy good notes.
+            var progress = original
+            progress.processingState = .summarizing
+            update(progress)
+
+            let summary = try await ServiceFactory.makeSummaryService(for: .bestQuality)
+                .summarize(transcript: transcript, recordingId: original.id)
+            progress.processingState = .preparingNotes
+            update(progress)
+
+            var upgraded = original
+            upgraded.transcript = transcript
+            upgraded.summary = summary
+            if let suggestedTitle = summary.suggestedTitle {
+                upgraded.title = suggestedTitle
+            }
+
+            try await Task.sleep(for: .milliseconds(350))
+            upgraded.mode = .bestQuality
+            upgraded.processingState = .completed
+            upgraded.processingError = nil
+            update(upgraded)
+            HapticStyle.success.trigger()
+            NotificationCenter.default.post(
+                name: .recordingProcessingCompleted,
+                object: nil,
+                userInfo: ["recordingId": original.id]
+            )
+        } catch {
+            var restored = original
+            restored.processingState = original.summary == nil ? .failed : .completed
+            restored.processingError = "Best Quality reprocessing failed: \(error.localizedDescription)"
+            update(restored)
+            print("[Best Quality Reprocess] failed \(original.id): \(error)")
         }
     }
 
@@ -268,6 +364,14 @@ private enum RecordingProcessingRetryError: LocalizedError {
     var errorDescription: String? {
         "The saved audio file is unavailable, so this recording cannot be processed again."
     }
+}
+
+enum BestQualityReprocessAvailability: Equatable {
+    case available
+    case processing
+    case alreadyBestQuality
+    case audioUnavailable
+    case missingAPIKey
 }
 
 // MARK: - Mock Recording Service

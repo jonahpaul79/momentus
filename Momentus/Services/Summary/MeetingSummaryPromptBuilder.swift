@@ -63,6 +63,9 @@ enum MeetingSummaryPromptBuilder {
         1. Ground every item in what was actually spoken. Do not invent content.
         2. Leave arrays empty ([]) when the transcript contains nothing explicit for that field. It is better to omit a section than to stretch weak evidence to fit the schema.
         3. Only assign an owner if that person was explicitly named in the transcript.
+        A person mentioned in the conversation is not necessarily a speaker.
+        Never replace a generic speaker label with a person's name unless the
+        input contains a user-confirmed speaker mapping.
         4. Set isOwnerInferred: true when ownership was implied but not directly stated.
         5. Action items require someone to have explicitly assigned or committed to a task. Open questions require a question to have been explicitly raised and left unresolved. Do not infer either from general discussion.
         6. Decisions require an explicit choice, approval, commitment, scope call, or finalized conclusion. Positive feedback, preferences, observations, or low-confidence remarks are not decisions unless the speaker clearly chose or approved a course of action.
@@ -71,6 +74,8 @@ enum MeetingSummaryPromptBuilder {
         9. Use concise, professional language. Avoid filler phrases.
         10. Prioritize action items by urgency: high = blocking or time-sensitive, medium = clear next step, low = suggested.
         11. If marked moments are provided, summarize each marked moment explicitly in markedMoments[] using only the nearby transcript context.
+        12. When speaker identity is unconfirmed, use neutral wording rather than
+        guessing which named person said something.
         """
 
     // MARK: - User Message
@@ -95,7 +100,12 @@ enum MeetingSummaryPromptBuilder {
 
         if !context.speakers.isEmpty {
             let names = context.speakers.map(\.name).joined(separator: ", ")
-            parts.append("**Participants:** \(names)")
+            if context.speakers.contains(where: \.requiresIdentification) {
+                parts.append("**Unconfirmed speaker labels:** \(names)")
+                parts.append("Do not infer identities for these labels from names merely mentioned in the conversation.")
+            } else {
+                parts.append("**User-confirmed speakers:** \(names)")
+            }
         }
 
         let markerContext = formatMarkedMomentContext(for: context.transcript)
