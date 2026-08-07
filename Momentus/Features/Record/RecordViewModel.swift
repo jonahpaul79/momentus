@@ -142,6 +142,7 @@ extension Notification.Name {
         let primary = current.first ?? upcoming.first
         calendarMeeting = primary
         suggestedMeetingTitle = primary?.title
+        suggestedSpeakers = primary?.attendees ?? []
         await MeetingNotificationService.shared.scheduleReminders(for: upcoming)
     }
 

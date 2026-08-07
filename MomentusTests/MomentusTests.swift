@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import Momentus
 
@@ -31,6 +32,53 @@ struct MomentusTests {
         )
 
         #expect(decision?.context == "Speaker set a hard deadline to unblock design work.")
+    }
+
+    @Test func providerSpeakerLabelsRequireIdentification() {
+        let legacyAssemblySpeaker = Speaker(
+            id: UUID(),
+            name: "Speaker B",
+            isNameInferred: false,
+            colorHex: "#6366F1"
+        )
+        let namedSpeaker = Speaker(
+            id: UUID(),
+            name: "Jordan Lee",
+            isNameInferred: false,
+            colorHex: "#6366F1"
+        )
+
+        #expect(legacyAssemblySpeaker.requiresIdentification)
+        #expect(!namedSpeaker.requiresIdentification)
+    }
+
+    @Test func renamingSpeakersUpdatesGeneratedNotes() {
+        let recordingID = UUID()
+        var summary = MeetingSummary(
+            recordingId: recordingID,
+            executiveSummary: "Speaker A agreed to send the proposal to Speaker B.",
+            decisions: [Decision(id: UUID(), text: "Speaker A approved the plan.", context: nil, confidence: 0.9)],
+            actionItems: [ActionItem(
+                id: UUID(),
+                title: "Send the proposal to Speaker B",
+                owner: "Speaker A",
+                isOwnerInferred: false,
+                dueDate: nil,
+                isDueDateInferred: false,
+                isCompleted: false,
+                confidence: 0.9,
+                priority: .medium
+            )],
+            followUpDraft: "Thanks Speaker A and Speaker B.",
+            provider: "Test"
+        )
+
+        summary.renameSpeakerReferences(["Speaker A": "Jordan", "Speaker B": "Taylor"])
+
+        #expect(summary.executiveSummary == "Jordan agreed to send the proposal to Taylor.")
+        #expect(summary.decisions.first?.text == "Jordan approved the plan.")
+        #expect(summary.actionItems.first?.owner == "Jordan")
+        #expect(summary.followUpDraft == "Thanks Jordan and Taylor.")
     }
 
 }

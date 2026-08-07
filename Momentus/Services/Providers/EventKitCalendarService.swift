@@ -43,7 +43,19 @@ private extension EKEvent {
             title: title ?? "Untitled",
             startDate: startDate,
             endDate: endDate,
-            attendees: attendees?.compactMap { $0.isCurrentUser ? nil : $0.name } ?? []
+            attendees: Array(Set(attendees?.compactMap(\.speakerSuggestion) ?? [])).sorted()
         )
+    }
+}
+
+private extension EKParticipant {
+    var speakerSuggestion: String? {
+        let displayName = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !displayName.isEmpty { return displayName }
+
+        let address = url.absoluteString
+            .replacingOccurrences(of: "mailto:", with: "", options: [.caseInsensitive])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return address.isEmpty ? nil : address
     }
 }

@@ -144,7 +144,19 @@ struct Speaker: Identifiable, Codable, Equatable {
     var isNameInferred: Bool
     var colorHex: String
 
-    static let unknown = Speaker(id: UUID(), name: "Unknown", isNameInferred: false, colorHex: "#8B8FA8")
+    static let unknown = Speaker(id: UUID(), name: "Unknown", isNameInferred: true, colorHex: "#8B8FA8")
+
+    /// Provider-generated labels such as "Speaker A" are placeholders, even in
+    /// recordings created before providers correctly marked them as inferred.
+    var requiresIdentification: Bool {
+        if isNameInferred { return true }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.caseInsensitiveCompare("Unknown") == .orderedSame { return true }
+        return trimmed.range(
+            of: #"^speaker(?:\s+[a-z0-9]+)?$"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
+    }
 }
 
 // MARK: - MeetingSummary
@@ -215,6 +227,70 @@ struct MeetingSummary: Identifiable, Codable, Equatable {
         provider = try c.decode(String.self, forKey: .provider)
         createdAt = try c.decode(Date.self, forKey: .createdAt)
         confidenceNotes = try c.decode([String].self, forKey: .confidenceNotes)
+    }
+}
+
+extension MeetingSummary {
+    /// Applies confirmed speaker identities to already-generated notes without
+    /// spending another AI request. The updated transcript will also use these
+    /// names if notes are regenerated later.
+    mutating func renameSpeakerReferences(_ replacements: [String: String]) {
+        let replacements = replacements
+            .map { ($0.key.trimmingCharacters(in: .whitespacesAndNewlines), $0.value.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            .filter { !$0.0.isEmpty && !$0.1.isEmpty && $0.0.caseInsensitiveCompare($0.1) != .orderedSame }
+            .sorted { $0.0.count > $1.0.count }
+
+        guard !replacements.isEmpty else { return }
+
+        func renamed(_ text: String) -> String {
+            replacements.reduce(text) { result, replacement in
+                let pattern = "(?<![\\p{L}\\p{N}])\(NSRegularExpression.escapedPattern(for: replacement.0))(?![\\p{L}\\p{N}])"
+                guard let expression = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+                    return result
+                }
+                let range = NSRange(result.startIndex..<result.endIndex, in: result)
+                return expression.stringByReplacingMatches(
+                    in: result,
+                    range: range,
+                    withTemplate: NSRegularExpression.escapedTemplate(for: replacement.1)
+                )
+            }
+        }
+
+        suggestedTitle = suggestedTitle.map(renamed)
+        executiveSummary = renamed(executiveSummary)
+        markedMoments = markedMoments.map { moment in
+            var moment = moment
+            moment.summary = renamed(moment.summary)
+            moment.transcriptExcerpt = moment.transcriptExcerpt.map(renamed)
+            return moment
+        }
+        decisions = decisions.map { decision in
+            var decision = decision
+            decision.text = renamed(decision.text)
+            decision.context = decision.context.map(renamed)
+            return decision
+        }
+        actionItems = actionItems.map { item in
+            var item = item
+            item.title = renamed(item.title)
+            item.owner = item.owner.map(renamed)
+            return item
+        }
+        openQuestions = openQuestions.map { question in
+            var question = question
+            question.text = renamed(question.text)
+            question.owner = question.owner.map(renamed)
+            return question
+        }
+        risks = risks.map { risk in
+            var risk = risk
+            risk.title = renamed(risk.title)
+            risk.description = renamed(risk.description)
+            return risk
+        }
+        followUpDraft = renamed(followUpDraft)
+        confidenceNotes = confidenceNotes.map(renamed)
     }
 }
 

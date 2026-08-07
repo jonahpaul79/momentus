@@ -10,6 +10,9 @@ struct MeetingSummaryDetailView: View {
     @State private var exportedText = ""
     @State private var playbackSeekTime: TimeInterval?
     @State private var speakerAssignments: [UUID: String] = [:]
+    @State private var customNameSpeakerID: UUID?
+    @State private var customSpeakerName = ""
+    @State private var showingCustomSpeakerName = false
     @Environment(\.dismiss) private var dismiss
     @AppStorage("audioRetention") private var audioRetentionRaw: String = AudioRetentionPolicy.deleteAfterTranscript.rawValue
 
@@ -75,6 +78,20 @@ struct MeetingSummaryDetailView: View {
             .sheet(isPresented: $showShareSheet) {
                 ShareSheet(text: exportedText)
             }
+            .alert("Name this speaker", isPresented: $showingCustomSpeakerName) {
+                TextField("Name", text: $customSpeakerName)
+                    .textInputAutocapitalization(.words)
+                Button("Cancel", role: .cancel) {
+                    customNameSpeakerID = nil
+                    customSpeakerName = ""
+                }
+                Button("Assign") {
+                    assignCustomSpeakerName()
+                }
+                .disabled(customSpeakerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            } message: {
+                Text("This name will be used in the transcript and notes.")
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             if let updated = store.recording(for: recording.id) { recording = updated }
@@ -132,11 +149,14 @@ struct MeetingSummaryDetailView: View {
         let reviewNotes = reviewNotes(from: summary.confidenceNotes)
 
         return VStack(alignment: .leading, spacing: t.spacing.l) {
-            if let attendees = recording.calendarAttendees,
-               !attendees.isEmpty,
-               let speakers = recording.transcript?.speakers.filter(\.isNameInferred),
-               !speakers.isEmpty {
-                speakerIdentificationCard(speakers: speakers, attendees: attendees, t: t)
+            if let speakers = recording.transcript?.speakers,
+               !speakers.isEmpty,
+               speakers.contains(where: \.requiresIdentification) || !(recording.calendarAttendees ?? []).isEmpty {
+                speakerIdentificationCard(
+                    speakers: speakers,
+                    attendees: recording.calendarAttendees ?? [],
+                    t: t
+                )
             }
             executiveSummaryCard(summary, t: t)
             if !summary.markedMoments.isEmpty { markedMomentsSection(summary.markedMoments, t: t) }
@@ -270,7 +290,7 @@ struct MeetingSummaryDetailView: View {
                 Image(systemName: "person.2.wave.2")
                     .font(.system(size: 13))
                     .foregroundStyle(t.colors.accentPrimary)
-                Text("IDENTIFY SPEAKERS")
+                Text("SPEAKERS")
                     .font(t.typography.labelLarge)
                     .foregroundStyle(t.colors.textSecondary)
                     .tracking(0.6)
@@ -283,7 +303,9 @@ struct MeetingSummaryDetailView: View {
                 .disabled(speakerAssignments.isEmpty)
             }
 
-            Text("Match each unidentified voice to someone from the invite.")
+            Text(attendees.isEmpty
+                ? "Assign a name to each voice in the transcript and notes."
+                : "Choose someone from the calendar invite or enter another name.")
                 .font(t.typography.bodySmall)
                 .foregroundStyle(t.colors.textSecondary)
 
@@ -295,18 +317,27 @@ struct MeetingSummaryDetailView: View {
                             .foregroundStyle(t.colors.textPrimary)
                         Spacer()
                         Menu {
-                            ForEach(attendees, id: \.self) { attendee in
-                                Button(attendee) {
-                                    speakerAssignments[speaker.id] = attendee
+                            if !attendees.isEmpty {
+                                Section("Calendar invite") {
+                                    ForEach(attendees, id: \.self) { attendee in
+                                        Button(attendee) {
+                                            speakerAssignments[speaker.id] = attendee
+                                        }
+                                    }
                                 }
                             }
-                            Divider()
-                            Button("Leave as \(speaker.name)") {
-                                speakerAssignments.removeValue(forKey: speaker.id)
+                            Button("Enter a name…", systemImage: "pencil") {
+                                beginCustomSpeakerName(for: speaker)
+                            }
+                            if speakerAssignments[speaker.id] != nil {
+                                Button("Discard change", role: .destructive) {
+                                    speakerAssignments.removeValue(forKey: speaker.id)
+                                }
                             }
                         } label: {
                             HStack(spacing: 4) {
-                                Text(speakerAssignments[speaker.id] ?? "Who is this?")
+                                Text(speakerAssignments[speaker.id]
+                                    ?? (speaker.requiresIdentification ? "Assign name" : "Change"))
                                     .font(t.typography.bodyMedium)
                                     .foregroundStyle(speakerAssignments[speaker.id] != nil
                                         ? t.colors.accentPrimary
@@ -334,15 +365,36 @@ struct MeetingSummaryDetailView: View {
     private func applySpeakerAssignments() {
         guard !speakerAssignments.isEmpty else { return }
         var updated = recording
+        var replacements: [String: String] = [:]
         for (speakerId, name) in speakerAssignments {
             guard let idx = updated.transcript?.speakers.firstIndex(where: { $0.id == speakerId }) else { continue }
+            let oldName = updated.transcript?.speakers[idx].name ?? ""
+            replacements[oldName] = name
+            updated.transcript?.providerData["momentus_original_speaker_\(speakerId.uuidString)"] = oldName
             updated.transcript?.speakers[idx].name = name
             updated.transcript?.speakers[idx].isNameInferred = false
         }
+        updated.summary?.renameSpeakerReferences(replacements)
         recording = updated
         store.update(updated)
         speakerAssignments = [:]
         HapticStyle.success.trigger()
+    }
+
+    private func beginCustomSpeakerName(for speaker: Speaker) {
+        customNameSpeakerID = speaker.id
+        customSpeakerName = speaker.requiresIdentification
+            ? ""
+            : (speakerAssignments[speaker.id] ?? speaker.name)
+        showingCustomSpeakerName = true
+    }
+
+    private func assignCustomSpeakerName() {
+        let name = customSpeakerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let speakerID = customNameSpeakerID, !name.isEmpty else { return }
+        speakerAssignments[speakerID] = name
+        customNameSpeakerID = nil
+        customSpeakerName = ""
     }
 
     // MARK: - Executive Summary

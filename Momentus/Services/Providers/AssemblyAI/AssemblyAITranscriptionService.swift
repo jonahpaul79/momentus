@@ -94,7 +94,7 @@ final class AssemblyAITranscriptionService: TranscriptionService {
             map[utterance.speaker] = Speaker(
                 id: UUID(),
                 name: "Speaker \(utterance.speaker)",
-                isNameInferred: false,
+                isNameInferred: true,
                 colorHex: colors[colorIndex % colors.count]
             )
             colorIndex += 1
