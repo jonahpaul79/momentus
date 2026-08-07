@@ -19,6 +19,9 @@ struct ActiveRecordingView: View {
             VStack(spacing: 0) {
                 recordingOrb(t)
                 timerDisplay(t)
+                if let errorMessage = vm.errorMessage {
+                    captureWarning(errorMessage, t: t)
+                }
                 waveformSection(t)
                 controlBar(t)
             }
@@ -101,10 +104,32 @@ struct ActiveRecordingView: View {
                 .monospacedDigit()
                 .contentTransition(.numericText(countsDown: false))
 
-            Text(vm.state == .paused ? "Paused" : "Recording in progress")
+            Text(vm.state == .paused && vm.errorMessage != nil
+                ? "Capture stopped — tap Resume"
+                : (vm.state == .paused ? "Paused" : "Recording in progress"))
                 .font(t.typography.bodySmall)
-                .foregroundStyle(t.colors.textSecondary)
+                .foregroundStyle(vm.errorMessage == nil ? t.colors.textSecondary : t.colors.accentError)
         }
+    }
+
+    private func captureWarning(_ message: String, t: AppTheme) -> some View {
+        HStack(alignment: .top, spacing: t.spacing.s) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(t.colors.accentError)
+            Text(message)
+                .font(t.typography.caption)
+                .foregroundStyle(t.colors.textSecondary)
+                .multilineTextAlignment(.leading)
+        }
+        .padding(t.spacing.m)
+        .background(t.colors.accentError.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: t.radius.m))
+        .overlay(
+            RoundedRectangle(cornerRadius: t.radius.m)
+                .strokeBorder(t.colors.accentError.opacity(0.35), lineWidth: 0.5)
+        )
+        .padding(.horizontal, t.spacing.xl)
+        .padding(.top, t.spacing.m)
     }
 
     // MARK: - Waveform

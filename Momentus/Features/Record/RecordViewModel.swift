@@ -205,6 +205,7 @@ extension Notification.Name {
             do {
                 try await PhoneWatchConnectivityService.shared.sendWatchRecordingAction("resumeRecording")
                 state = .recording
+                errorMessage = nil
                 startWaveformTimer()
                 HapticStyle.light.trigger()
             } catch {
@@ -216,6 +217,7 @@ extension Notification.Name {
         do {
             try await recordingService.resumeRecording()
             state = .recording
+            errorMessage = nil
             startWaveformTimer()
             HapticStyle.light.trigger()
         } catch {
@@ -403,8 +405,22 @@ extension Notification.Name {
         timerTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(100))
-                guard !Task.isCancelled else { break }
-                self?.elapsedTime += 0.1
+                guard !Task.isCancelled, let self else { break }
+
+                if selectedMicSource == .watch {
+                    if state == .recording { elapsedTime += 0.1 }
+                    continue
+                }
+
+                // AVAudioRecorder.currentTime is the source of truth. A synthetic timer can
+                // keep showing "Recording" even when iOS has stopped committing audio.
+                elapsedTime = recordingService.recordedDuration
+                if state == .recording && !recordingService.isRecording {
+                    state = .paused
+                    stopWaveformTimer()
+                    errorMessage = "Audio capture stopped unexpectedly. Tap Resume before continuing the meeting."
+                    HapticStyle.error.trigger()
+                }
             }
         }
     }

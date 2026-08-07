@@ -17,6 +17,8 @@ protocol RecordingService {
     func resumeRecording() async throws
     /// Instantaneous level in 0…1 for waveform animation. Called at ~80ms intervals on main actor.
     func getCurrentLevel() -> Float
+    /// Duration actually committed by the audio recorder, excluding suspension and pauses.
+    var recordedDuration: TimeInterval { get }
     var isRecording: Bool { get }
 }
 

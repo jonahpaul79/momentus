@@ -274,34 +274,52 @@ private enum RecordingProcessingRetryError: LocalizedError {
 
 final class MockRecordingService: RecordingService {
     private(set) var isRecording: Bool = false
+    private var accumulatedDuration: TimeInterval = 0
+    private var resumedAt: Date?
     private var currentLevel: Float = 0
     private var levelTimer: Timer?
+
+    var recordedDuration: TimeInterval {
+        accumulatedDuration + (resumedAt.map { Date().timeIntervalSince($0) } ?? 0)
+    }
 
     func startRecording(mode: RecordingMode, source: MicSource) async throws -> UUID {
         // Simulate brief startup latency
         try await Task.sleep(for: .milliseconds(200))
+        accumulatedDuration = 0
+        resumedAt = Date()
         isRecording = true
         return UUID()
     }
 
     func stopRecording() async throws -> String {
         try await Task.sleep(for: .milliseconds(300))
+        accumulateCurrentSegment()
         isRecording = false
         return "mock_audio_\(UUID().uuidString.prefix(8))"
     }
 
     func pauseRecording() async throws {
         try await Task.sleep(for: .milliseconds(100))
+        accumulateCurrentSegment()
         isRecording = false
     }
 
     func resumeRecording() async throws {
         try await Task.sleep(for: .milliseconds(100))
+        resumedAt = Date()
         isRecording = true
     }
 
     func getCurrentLevel() -> Float {
         Float.random(in: 0.1...0.95)
+    }
+
+    private func accumulateCurrentSegment() {
+        if let resumedAt {
+            accumulatedDuration += Date().timeIntervalSince(resumedAt)
+        }
+        resumedAt = nil
     }
 }
 

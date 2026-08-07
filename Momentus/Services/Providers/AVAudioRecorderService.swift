@@ -3,10 +3,12 @@ import Foundation
 
 final class AVAudioRecorderService: RecordingService {
 
-    private(set) var isRecording = false
+    var isRecording: Bool { recorder?.isRecording ?? false }
+    var recordedDuration: TimeInterval { recorder?.currentTime ?? lastRecordedDuration }
 
     private var recorder: AVAudioRecorder?
     private var currentFileURL: URL?
+    private var lastRecordedDuration: TimeInterval = 0
 
     static let recordingsDirectory: URL = {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -38,6 +40,7 @@ final class AVAudioRecorderService: RecordingService {
 
         let rec = try AVAudioRecorder(url: fileURL, settings: settings)
         rec.isMeteringEnabled = true
+        rec.prepareToRecord()
         let started = rec.record()
         print("[Audio] recorder.record() returned \(started), isRecording: \(rec.isRecording)")
 
@@ -46,14 +49,16 @@ final class AVAudioRecorderService: RecordingService {
         }
 
         recorder = rec
-        isRecording = true
+        lastRecordedDuration = 0
         return recordingId
     }
 
     func stopRecording() async throws -> String {
         print("[Audio] stopRecording — recorder.isRecording: \(recorder?.isRecording ?? false)")
-        recorder?.stop()
-        isRecording = false
+        if let recorder {
+            lastRecordedDuration = recorder.currentTime
+            recorder.stop()
+        }
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
 
         guard let url = currentFileURL else {
@@ -67,15 +72,19 @@ final class AVAudioRecorderService: RecordingService {
     }
 
     func pauseRecording() async throws {
+        guard recorder?.isRecording == true else { return }
+        lastRecordedDuration = recorder?.currentTime ?? lastRecordedDuration
         recorder?.pause()
     }
 
     func resumeRecording() async throws {
-        recorder?.record()
+        guard let recorder else { throw AVAudioRecorderServiceError.noActiveRecording }
+        try AVAudioSession.sharedInstance().setActive(true)
+        guard recorder.record() else { throw AVAudioRecorderServiceError.recordingFailed }
     }
 
     func getCurrentLevel() -> Float {
-        guard let recorder, isRecording else { return 0.03 }
+        guard let recorder, recorder.isRecording else { return 0.03 }
         recorder.updateMeters()
         let db = recorder.averagePower(forChannel: 0)
         // Map -55 dB (noise floor) → 0.0 and -5 dB (loud voice) → 1.0,
