@@ -116,11 +116,28 @@ struct ProcessingView: View {
 
                 Spacer(minLength: t.spacing.huge)
 
-                Button("Cancel processing") {
-                    showingCancelAlert = true
+                VStack(spacing: t.spacing.m) {
+                    Button {
+                        HapticStyle.light.trigger()
+                        onDismiss()
+                    } label: {
+                        Label("Close and keep processing", systemImage: "xmark")
+                            .font(t.typography.headlineMedium)
+                            .foregroundStyle(t.colors.textOnAccent)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, t.spacing.l)
+                            .background(t.colors.accentPrimary)
+                            .clipShape(RoundedRectangle(cornerRadius: t.radius.l))
+                    }
+                    .buttonStyle(PlainButtonStyle())
+
+                    Button("Cancel processing") {
+                        showingCancelAlert = true
+                    }
+                    .font(t.typography.bodyMedium)
+                    .foregroundStyle(t.colors.accentError)
                 }
-                .font(t.typography.bodyMedium)
-                .foregroundStyle(t.colors.accentError)
+                .padding(.horizontal, t.spacing.xxxl)
                 .padding(.bottom, t.spacing.huge)
             }
         }
