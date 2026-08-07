@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import UIKit
 
 // MARK: - Recordings Store
 
@@ -15,6 +16,7 @@ import Foundation
     private let storageKey = "stored_recordings"
     var recordings: [Recording] = []
     var isSyncing = false
+    private(set) var processingRecordingIDs: Set<UUID> = []
 
     private var isCloudEnabled: Bool {
         UserDefaults.standard.bool(forKey: "iCloudSync")
@@ -24,7 +26,18 @@ import Foundation
         if let data = UserDefaults.standard.data(forKey: storageKey),
            let saved = try? JSONDecoder().decode([Recording].self, from: data),
            !saved.isEmpty {
-            recordings = saved
+            recordings = saved.map { stored in
+                var recovered = stored
+                if recovered.processingState.isInProgress {
+                    recovered.processingState = .failed
+                    recovered.processingError = "Processing was interrupted before it finished. Your recording is preserved and can be retried."
+                } else if recovered.processingState == .failed,
+                          recovered.processingError?.isEmpty != false {
+                    recovered.processingError = "AI processing did not finish. Your recording is preserved and can be retried."
+                }
+                return recovered
+            }
+            if recordings != saved { persist() }
         } else if loadSamples {
             recordings = MockMeetings.sampleRecordings
         }
@@ -70,6 +83,99 @@ import Foundation
 
     func recording(for id: UUID) -> Recording? {
         recordings.first { $0.id == id }
+    }
+
+    // MARK: - Processing Retry
+
+    func canRetryProcessing(_ recording: Recording) -> Bool {
+        guard recording.processingState == .failed else { return false }
+        return recording.transcript != nil || audioIsPlayable(recording.audioFileID)
+    }
+
+    /// Reuses any completed transcript and only repeats the failed portion of the pipeline.
+    /// The task is owned by the app-level store, so dismissing the detail screen does not cancel it.
+    func retryProcessing(recordingID: UUID) {
+        guard !processingRecordingIDs.contains(recordingID),
+              var recording = recording(for: recordingID),
+              canRetryProcessing(recording)
+        else { return }
+
+        processingRecordingIDs.insert(recordingID)
+        recording.processingError = nil
+        recording.processingState = recording.transcript == nil ? .transcribing : .summarizing
+        update(recording)
+
+        Task { [weak self] in
+            await self?.performProcessingRetry(recordingID: recordingID)
+        }
+    }
+
+    private func performProcessingRetry(recordingID: UUID) async {
+        defer { processingRecordingIDs.remove(recordingID) }
+        guard var recording = recording(for: recordingID) else { return }
+
+        let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "RetryRecordingProcessing") {
+            print("[Retry Pipeline] background execution time expired")
+        }
+        defer {
+            if backgroundTask != .invalid {
+                UIApplication.shared.endBackgroundTask(backgroundTask)
+            }
+        }
+
+        do {
+            let transcript: Transcript
+            if let existingTranscript = recording.transcript {
+                transcript = existingTranscript
+            } else {
+                guard let audioFileID = recording.audioFileID,
+                      audioIsPlayable(audioFileID)
+                else { throw RecordingProcessingRetryError.audioUnavailable }
+
+                var generated = try await ServiceFactory.makeTranscriptionService(for: recording.mode)
+                    .transcribe(audioFileID: audioFileID, recordingId: recording.id)
+                generated.providerData["momentus_markers"] = recording.markers
+                    .map { String(format: "%.1f", $0) }
+                    .joined(separator: ",")
+                if let attendees = recording.calendarAttendees, !attendees.isEmpty {
+                    generated.providerData["momentus_attendees"] = attendees.joined(separator: ",")
+                }
+                transcript = generated
+                recording.transcript = generated
+                recording.processingState = .summarizing
+                update(recording)
+            }
+
+            try Task.checkCancellation()
+            let summary = try await ServiceFactory.makeSummaryService(for: recording.mode)
+                .summarize(transcript: transcript, recordingId: recording.id)
+            recording.summary = summary
+            if let suggestedTitle = summary.suggestedTitle {
+                recording.title = suggestedTitle
+            }
+            recording.processingState = .preparingNotes
+            update(recording)
+
+            try await Task.sleep(for: .milliseconds(350))
+            recording.processingState = .completed
+            recording.processingError = nil
+            update(recording)
+            HapticStyle.success.trigger()
+            NotificationCenter.default.post(
+                name: .recordingProcessingCompleted,
+                object: nil,
+                userInfo: ["recordingId": recording.id]
+            )
+        } catch is CancellationError {
+            recording.processingState = .failed
+            recording.processingError = "Processing was interrupted. Please try again."
+            update(recording)
+        } catch {
+            recording.processingState = .failed
+            recording.processingError = error.localizedDescription
+            update(recording)
+            print("[Retry Pipeline] failed \(recordingID): \(error)")
+        }
     }
 
     // MARK: - Cloud Sync
@@ -153,6 +259,14 @@ import Foundation
         if let data = try? JSONEncoder().encode(recordings) {
             UserDefaults.standard.set(data, forKey: storageKey)
         }
+    }
+}
+
+private enum RecordingProcessingRetryError: LocalizedError {
+    case audioUnavailable
+
+    var errorDescription: String? {
+        "The saved audio file is unavailable, so this recording cannot be processed again."
     }
 }
 

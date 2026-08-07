@@ -190,7 +190,7 @@ struct RecordingCard: View {
             }
             Spacer()
             if recording.processingState != .completed {
-                processingBadge(t)
+                statusBadge(t)
             } else {
                 ModeBadge(mode: recording.mode, compact: true)
                     .environment(themeManager)
@@ -225,18 +225,24 @@ struct RecordingCard: View {
         }
     }
 
-    private func processingBadge(_ t: AppTheme) -> some View {
-        HStack(spacing: 4) {
-            ProgressView()
-                .scaleEffect(0.6)
-                .tint(t.colors.accentPrimary)
+    private func statusBadge(_ t: AppTheme) -> some View {
+        let isFailed = recording.processingState == .failed
+        return HStack(spacing: 4) {
+            if isFailed {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .font(.system(size: 12, weight: .semibold))
+            } else {
+                ProgressView()
+                    .scaleEffect(0.6)
+                    .tint(t.colors.accentPrimary)
+            }
             Text(recording.processingState.displayName)
                 .font(t.typography.labelLarge)
-                .foregroundStyle(t.colors.accentPrimary)
         }
+        .foregroundStyle(isFailed ? t.colors.accentError : t.colors.accentPrimary)
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(t.colors.accentPrimary.opacity(0.12))
+        .background((isFailed ? t.colors.accentError : t.colors.accentPrimary).opacity(0.12))
         .clipShape(Capsule())
     }
 }

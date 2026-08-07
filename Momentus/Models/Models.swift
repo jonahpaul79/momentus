@@ -21,6 +21,8 @@ struct Recording: Identifiable, Codable, Equatable {
     var micSource: MicSource
     var audioFileID: String?
     var processingState: ProcessingState
+    /// The last processing failure, persisted so Notes can explain and retry it.
+    var processingError: String?
     var transcript: Transcript?
     var summary: MeetingSummary?
     var isFavorite: Bool
@@ -45,6 +47,7 @@ struct Recording: Identifiable, Codable, Equatable {
         micSource: MicSource = .iPhone,
         audioFileID: String? = nil,
         processingState: ProcessingState = .idle,
+        processingError: String? = nil,
         transcript: Transcript? = nil,
         summary: MeetingSummary? = nil,
         isFavorite: Bool = false,
@@ -59,6 +62,7 @@ struct Recording: Identifiable, Codable, Equatable {
         self.micSource = micSource
         self.audioFileID = audioFileID
         self.processingState = processingState
+        self.processingError = processingError
         self.transcript = transcript
         self.summary = summary
         self.isFavorite = isFavorite
@@ -322,6 +326,15 @@ enum ProcessingState: String, Codable, CaseIterable, Equatable {
         case .preparingNotes: return 3
         case .completed: return 4
         case .failed: return -1
+        }
+    }
+
+    var isInProgress: Bool {
+        switch self {
+        case .savingAudio, .transcribing, .summarizing, .preparingNotes:
+            return true
+        case .idle, .completed, .failed:
+            return false
         }
     }
 }

@@ -276,6 +276,14 @@ extension Notification.Name {
 
         let task = Task { [weak self] in
             guard let self else { return }
+            let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "ProcessRecording") {
+                print("[Pipeline] background execution time expired; processing will resume if iOS keeps the app alive")
+            }
+            defer {
+                if backgroundTask != .invalid {
+                    UIApplication.shared.endBackgroundTask(backgroundTask)
+                }
+            }
             do {
                 print("[Pipeline] stopping recording service")
                 let audioFileID = try await recordingService.stopRecording()
@@ -324,6 +332,7 @@ extension Notification.Name {
                 try await Task.sleep(for: .milliseconds(900))
 
                 recording.processingState = .completed
+                recording.processingError = nil
                 store?.update(recording)
 
                 HapticStyle.success.trigger()
@@ -349,6 +358,7 @@ extension Notification.Name {
                 // cancelProcessing() handles store cleanup and state reset
             } catch {
                 recording.processingState = .failed
+                recording.processingError = error.localizedDescription
                 // Preserve everything collected so far so the recording isn't lost.
                 store?.update(recording)
                 errorMessage = error.localizedDescription

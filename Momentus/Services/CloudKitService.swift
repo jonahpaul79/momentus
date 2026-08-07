@@ -131,6 +131,7 @@ final class CloudKitService {
         record["micSourceRaw"]       = recording.micSource.rawValue
         record["audioFileID"]        = recording.audioFileID
         record["processingStateRaw"] = recording.processingState.rawValue
+        record["processingError"]    = recording.processingError
         record["isFavorite"]         = Int64(recording.isFavorite ? 1 : 0)
 
         if let data = try? JSONEncoder().encode(recording.markers) {
@@ -190,6 +191,7 @@ final class CloudKitService {
             micSource: MicSource(rawValue: micRaw) ?? .iPhone,
             audioFileID: audioFileID,
             processingState: ProcessingState(rawValue: stateRaw) ?? .completed,
+            processingError: record["processingError"] as? String,
             transcript: transcript,
             summary: summary,
             isFavorite: (record["isFavorite"] as? Int64) == 1,

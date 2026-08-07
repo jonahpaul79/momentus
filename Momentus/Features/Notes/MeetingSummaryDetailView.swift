@@ -79,6 +79,9 @@ struct MeetingSummaryDetailView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             if let updated = store.recording(for: recording.id) { recording = updated }
         }
+        .onChange(of: store.recording(for: recording.id)) { _, updated in
+            if let updated { recording = updated }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .recordingProcessingCompleted)) { notification in
             guard let id = notification.userInfo?["recordingId"] as? UUID,
                   id == recording.id,
@@ -691,21 +694,80 @@ struct MeetingSummaryDetailView: View {
 
     // MARK: - No Summary State
 
+    @ViewBuilder
     private func noSummaryState(_ t: AppTheme) -> some View {
+        if recording.processingState == .failed {
+            failedProcessingState(t)
+        } else {
+            inProgressState(t)
+        }
+    }
+
+    private func inProgressState(_ t: AppTheme) -> some View {
         VStack(spacing: t.spacing.l) {
-            Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 36))
-                .foregroundStyle(t.colors.textTertiary)
+            ProgressView()
+                .controlSize(.large)
+                .tint(t.colors.accentPrimary)
             Text("Processing in progress")
                 .font(t.typography.headlineMedium)
                 .foregroundStyle(t.colors.textSecondary)
-            Text("Notes will appear here once processing is complete.")
+            Text("\(recording.processingState.displayName). You can leave this screen while the app continues working.")
                 .font(t.typography.bodySmall)
                 .foregroundStyle(t.colors.textTertiary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(t.spacing.huge)
+    }
+
+    private func failedProcessingState(_ t: AppTheme) -> some View {
+        VStack(spacing: t.spacing.l) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.system(size: 42))
+                .foregroundStyle(t.colors.accentError)
+
+            VStack(spacing: t.spacing.s) {
+                Text("AI processing failed")
+                    .font(t.typography.headlineMedium)
+                    .foregroundStyle(t.colors.textPrimary)
+                Text(recording.processingError ?? "Your recording was preserved, but notes could not be generated.")
+                    .font(t.typography.bodySmall)
+                    .foregroundStyle(t.colors.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            if store.canRetryProcessing(recording) {
+                Button {
+                    store.retryProcessing(recordingID: recording.id)
+                    HapticStyle.medium.trigger()
+                } label: {
+                    Label("Retry AI processing", systemImage: "arrow.clockwise")
+                        .font(t.typography.headlineMedium)
+                        .foregroundStyle(t.colors.textOnAccent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, t.spacing.m)
+                        .background(t.colors.accentPrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: t.radius.l))
+                }
+                .buttonStyle(PlainButtonStyle())
+            } else {
+                Text("The saved audio is not available, so this recording cannot be retried.")
+                    .font(t.typography.caption)
+                    .foregroundStyle(t.colors.textTertiary)
+                    .multilineTextAlignment(.center)
+            }
+
+            if recording.transcript != nil {
+                Button("View saved transcript") { showingTranscript = true }
+                    .font(t.typography.bodyMedium)
+                    .foregroundStyle(t.colors.accentPrimary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(t.spacing.l)
+        .surfaceCard()
+        .environment(themeManager)
+        .padding(.horizontal, t.spacing.l)
     }
 
     // MARK: - Section Header

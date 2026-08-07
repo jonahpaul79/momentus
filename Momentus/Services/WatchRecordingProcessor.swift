@@ -223,6 +223,7 @@ final class WatchRecordingProcessor {
                 recording.title = suggested
             }
             recording.processingState = .completed
+            recording.processingError = nil
             store.update(recording)
 
             print("[Watch Pipeline] completed \(audioFileID)")
@@ -238,6 +239,7 @@ final class WatchRecordingProcessor {
             )
         } catch {
             recording.processingState = .failed
+            recording.processingError = error.localizedDescription
             store.update(recording)
             print("[Watch Pipeline] failed \(audioFileID): \(error)")
             PhoneWatchConnectivityService.shared.notifyWatchRecordingFailed()
