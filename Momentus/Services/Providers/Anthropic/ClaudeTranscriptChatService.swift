@@ -24,13 +24,15 @@ final class ClaudeTranscriptChatService: TranscriptChatService {
                 content: message.text
             )
         }
-        let result = try await client.message(
+        let result = try await client.messageWithWebSearch(
             system: TranscriptChatPrompt.systemInstructions(
                 recordingTitle: recordingTitle,
-                transcript: formattedTranscript
+                transcript: formattedTranscript,
+                allowsWebResearch: true
             ),
             messages: anthropicMessages,
-            maxTokens: 1_200
+            maxTokens: 1_600,
+            maxSearches: 3
         )
         let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { throw TranscriptChatError.emptyResponse }

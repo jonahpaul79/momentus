@@ -222,7 +222,7 @@ struct SettingsView: View {
         } header: {
             sectionHeader("Best Quality — Summary & Chat (Claude Sonnet)", t: t)
         } footer: {
-            Text("Claude Sonnet generates structured meeting notes and answers questions about one meeting at a time. Only transcript text and your chat messages are sent to Anthropic — audio is never sent for summaries or chat.\n\nAssemblyAI LeMUR is used automatically for notes if no Claude key is set. Chat history is stored locally only.\n\nCopy your key from console.anthropic.com, then tap the row above to paste it.")
+            Text("Claude Sonnet generates structured meeting notes and answers questions about one meeting at a time. In Best Quality chat, Claude can search the web when a question asks for external or current information. Transcript text, chat messages, web queries, and search results are processed by Anthropic — audio is never sent for summaries or chat.\n\nAnthropic bills web searches to your API key (currently $10 per 1,000 searches, plus normal token usage). AssemblyAI LeMUR is used automatically for notes if no Claude key is set. Chat history is stored locally only.\n\nCopy your key from console.anthropic.com, then tap the row above to paste it.")
                 .font(t.typography.caption)
                 .foregroundStyle(t.colors.textTertiary)
         }

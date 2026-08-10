@@ -181,6 +181,74 @@ struct MomentusTests {
         #expect(store.load(recordingID: recordingID).messages.isEmpty)
     }
 
+    @Test func qualityChatPromptAllowsResearchButPrivatePromptDoesNot() {
+        let privatePrompt = TranscriptChatPrompt.systemInstructions(
+            recordingTitle: "Test",
+            transcript: "[0:00] Jordan: Research this later."
+        )
+        let qualityPrompt = TranscriptChatPrompt.systemInstructions(
+            recordingTitle: "Test",
+            transcript: "[0:00] Jordan: Research this later.",
+            allowsWebResearch: true
+        )
+
+        #expect(privatePrompt.contains("Do not claim access to other meetings, email, calendars, the web"))
+        #expect(!privatePrompt.contains("You have a web search tool"))
+        #expect(qualityPrompt.contains("You have a web search tool"))
+        #expect(qualityPrompt.contains("Clearly separate meeting evidence from outside research"))
+    }
+
+    @Test func anthropicWebSearchRequestEncodesServerTool() throws {
+        let request = AnthropicClient.MessageRequest(
+            model: "claude-test",
+            maxTokens: 1_000,
+            system: "Be helpful.",
+            messages: [.init(role: "user", content: "Research this")],
+            tools: [.webSearch(maxUses: 3)]
+        )
+        let data = try JSONEncoder().encode(request)
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let tools = try #require(json["tools"] as? [[String: Any]])
+
+        #expect(tools.first?["type"] as? String == "web_search_20250305")
+        #expect(tools.first?["name"] as? String == "web_search")
+        #expect(tools.first?["max_uses"] as? Int == 3)
+    }
+
+    @Test func anthropicWebSearchResponseRendersTappableSources() throws {
+        let responseJSON = """
+        {
+          "id": "msg_test",
+          "model": "claude-test",
+          "stop_reason": "end_turn",
+          "content": [{
+            "type": "text",
+            "text": "The current answer is 42.",
+            "citations": [{
+              "type": "web_search_result_location",
+              "url": "https://example.com/research",
+              "title": "Example [Research]",
+              "cited_text": "The answer is 42."
+            }]
+          }],
+          "usage": {
+            "input_tokens": 100,
+            "output_tokens": 25,
+            "server_tool_use": { "web_search_requests": 1 }
+          }
+        }
+        """
+        let response = try JSONDecoder().decode(
+            AnthropicClient.MessageResponse.self,
+            from: Data(responseJSON.utf8)
+        )
+
+        #expect(response.stopReason == "end_turn")
+        #expect(response.webSearchRequestCount == 1)
+        #expect(response.renderedWebSearchText.contains("[[1]](https://example.com/research)"))
+        #expect(response.renderedWebSearchText.contains("[Example \\[Research\\]](https://example.com/research)"))
+    }
+
 }
 
 private final class TestCalendarContextService: CalendarContextService {

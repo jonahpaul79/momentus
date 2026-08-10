@@ -25,7 +25,7 @@ enum TranscriptChatMode: String, Codable, CaseIterable, Identifiable {
         case .onDevice:
             return "Transcript and questions stay on this device."
         case .bestQuality:
-            return "Transcript text and chat are sent to Anthropic using your API key. Audio is never sent."
+            return "Transcript text, chat, and any web queries are sent to Anthropic using your API key. Audio is never sent."
         }
     }
 }
