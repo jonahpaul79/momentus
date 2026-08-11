@@ -55,8 +55,7 @@ enum MeetingSummaryPromptBuilder {
               "severity": "critical" | "high" | "medium" | "low"
             }
           ],
-          "followUpDraft": "string — a short 2-3 sentence follow-up message or note summarising key outcomes and next steps",
-          "confidenceNotes": ["string — any important caveats about transcript quality, speaker attribution, or uncertain content"]
+          "followUpDraft": "string — a short 2-3 sentence follow-up message or note summarising key outcomes and next steps"
         }
 
         Rules:
@@ -70,11 +69,10 @@ enum MeetingSummaryPromptBuilder {
         5. Action items require someone to have explicitly assigned or committed to a task. Open questions require a question to have been explicitly raised and left unresolved. Do not infer either from general discussion.
         6. Decisions require an explicit choice, approval, commitment, scope call, or finalized conclusion. Positive feedback, preferences, observations, or low-confidence remarks are not decisions unless the speaker clearly chose or approved a course of action.
         7. Do not convert phrases like "looks better", "seems good", "noted", or "interesting" into decisions.
-        8. Flag low-confidence or unclear transcript areas in confidenceNotes.
-        9. Use concise, professional language. Avoid filler phrases.
-        10. Prioritize action items by urgency: high = blocking or time-sensitive, medium = clear next step, low = suggested.
-        11. If marked moments are provided, summarize each marked moment explicitly in markedMoments[] using only the nearby transcript context.
-        12. When speaker identity is unconfirmed, use neutral wording rather than
+        8. Use concise, professional language. Avoid filler phrases.
+        9. Prioritize action items by urgency: high = blocking or time-sensitive, medium = clear next step, low = suggested.
+        10. If marked moments are provided, summarize each marked moment explicitly in markedMoments[] using only the nearby transcript context.
+        11. When speaker identity is unconfirmed, use neutral wording rather than
         guessing which named person said something.
         """
 

@@ -7,6 +7,8 @@ struct MeetingSummaryDetailView: View {
     @State var recording: Recording
     @State private var showingTranscript = false
     @State private var showingTranscriptChat = false
+    @State private var initialChatQuestion: String?
+    @State private var focusChatComposerOnLaunch = false
     @State private var showShareSheet = false
     @State private var exportedText = ""
     @State private var playbackSeekTime: TimeInterval?
@@ -36,15 +38,16 @@ struct MeetingSummaryDetailView: View {
                         summaryContent(summary, t: t)
                     } else {
                         noSummaryState(t)
-                        if recording.transcript != nil {
-                            transcriptChatButton(t)
-                                .padding(.horizontal, t.spacing.l)
-                        }
                     }
                 }
                 .padding(.bottom, t.spacing.huge)
             }
             .background(t.colors.backgroundPrimary)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if recording.transcript != nil {
+                    pinnedTranscriptChatBar(t)
+                }
+            }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -81,8 +84,12 @@ struct MeetingSummaryDetailView: View {
                         .environment(themeManager)
                 }
             }
-            .sheet(isPresented: $showingTranscriptChat) {
-                TranscriptChatView(recording: recording)
+            .sheet(isPresented: $showingTranscriptChat, onDismiss: resetChatLaunch) {
+                TranscriptChatView(
+                    recording: recording,
+                    initialQuestion: initialChatQuestion,
+                    focusesComposerOnAppear: focusChatComposerOnLaunch
+                )
                     .environment(themeManager)
             }
             .sheet(isPresented: $showShareSheet) {
@@ -165,7 +172,6 @@ struct MeetingSummaryDetailView: View {
 
     private func summaryContent(_ summary: MeetingSummary, t: AppTheme) -> some View {
         let processingIssues = processingIssueNotes(from: summary.confidenceNotes)
-        let reviewNotes = reviewNotes(from: summary.confidenceNotes)
 
         return VStack(alignment: .leading, spacing: t.spacing.l) {
             if let speakers = recording.transcript?.speakers, !speakers.isEmpty {
@@ -186,14 +192,10 @@ struct MeetingSummaryDetailView: View {
             if !summary.risks.isEmpty { risksSection(summary.risks, t: t) }
             if !summary.followUpDraft.isEmpty { followUpSection(summary.followUpDraft, t: t) }
             if recording.transcript != nil {
-                transcriptChatButton(t)
                 transcriptButton(t)
             }
             if !processingIssues.isEmpty {
                 processingIssuesSection(processingIssues, t: t)
-            }
-            if !reviewNotes.isEmpty {
-                reviewNotesSection(reviewNotes, t: t)
             }
             providerProvenanceView(summary, t: t)
         }
@@ -577,19 +579,37 @@ struct MeetingSummaryDetailView: View {
         VStack(alignment: .leading, spacing: t.spacing.m) {
             sectionHeader("Open Questions", icon: "questionmark.circle.fill", t: t)
             ForEach(questions) { q in
-                HStack(alignment: .top, spacing: t.spacing.m) {
-                    priorityDot(q.priority, t: t)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(q.text)
-                            .font(t.typography.bodyMedium)
-                            .foregroundStyle(t.colors.textPrimary)
-                        if let owner = q.owner {
-                            Text(owner)
-                                .font(t.typography.caption)
-                                .foregroundStyle(t.colors.textSecondary)
+                Button {
+                    presentTranscriptChat(question: q.text)
+                } label: {
+                    HStack(alignment: .top, spacing: t.spacing.m) {
+                        priorityDot(q.priority, t: t)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(q.text)
+                                .font(t.typography.bodyMedium)
+                                .foregroundStyle(t.colors.textPrimary)
+                                .multilineTextAlignment(.leading)
+                            HStack(spacing: t.spacing.s) {
+                                if let owner = q.owner {
+                                    Text(owner)
+                                    Text("·")
+                                }
+                                Label("Ask Momentus", systemImage: "sparkles")
+                                    .foregroundStyle(t.colors.accentPrimary)
+                            }
+                            .font(t.typography.caption)
+                            .foregroundStyle(t.colors.textSecondary)
                         }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(t.colors.textTertiary)
+                            .padding(.top, 3)
                     }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(recording.transcript == nil)
                 if q.id != questions.last?.id {
                     Divider().overlay(t.colors.divider)
                 }
@@ -694,12 +714,11 @@ struct MeetingSummaryDetailView: View {
         .environment(themeManager)
     }
 
-    // MARK: - Transcript Button
+    // MARK: - Transcript Actions
 
-    private func transcriptChatButton(_ t: AppTheme) -> some View {
+    private func pinnedTranscriptChatBar(_ t: AppTheme) -> some View {
         Button {
-            showingTranscriptChat = true
-            HapticStyle.light.trigger()
+            presentTranscriptChat(focusComposer: true)
         } label: {
             HStack(spacing: t.spacing.m) {
                 Image(systemName: "sparkles")
@@ -712,22 +731,40 @@ struct MeetingSummaryDetailView: View {
                     Text("Ask Momentus")
                         .font(t.typography.headlineSmall)
                         .foregroundStyle(t.colors.textPrimary)
-                    Text("Chat with this meeting or get advice")
+                    Text("Ask about this meeting…")
                         .font(t.typography.caption)
                         .foregroundStyle(t.colors.textSecondary)
                 }
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(t.colors.textTertiary)
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(t.colors.textOnAccent)
+                    .frame(width: 36, height: 36)
+                    .background(t.colors.accentPrimary)
+                    .clipShape(Circle())
             }
             .frame(maxWidth: .infinity)
-            .padding(t.spacing.l)
-            .background(t.gradients.cardAccent)
-            .surfaceCard()
-            .environment(themeManager)
+            .padding(.horizontal, t.spacing.l)
+            .padding(.vertical, t.spacing.m)
+            .background(.ultraThinMaterial)
+            .overlay(alignment: .top) {
+                Divider().overlay(t.colors.divider)
+            }
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityHint("Opens chat for this meeting and focuses the message field")
+    }
+
+    private func presentTranscriptChat(question: String? = nil, focusComposer: Bool = false) {
+        initialChatQuestion = question
+        focusChatComposerOnLaunch = focusComposer
+        showingTranscriptChat = true
+        HapticStyle.light.trigger()
+    }
+
+    private func resetChatLaunch() {
+        initialChatQuestion = nil
+        focusChatComposerOnLaunch = false
     }
 
     private func transcriptButton(_ t: AppTheme) -> some View {
@@ -751,50 +788,10 @@ struct MeetingSummaryDetailView: View {
         .buttonStyle(PlainButtonStyle())
     }
 
-    // MARK: - Review Notes
+    // MARK: - Processing Issues
 
     private func processingIssueNotes(from notes: [String]) -> [String] {
         notes.filter { $0.hasPrefix("action:") }
-    }
-
-    private func reviewNotes(from notes: [String]) -> [String] {
-        notes.filter { note in
-            guard !note.hasPrefix("action:") else { return false }
-            return shouldShowReviewNote(note)
-        }
-    }
-
-    private func shouldShowReviewNote(_ note: String) -> Bool {
-        let normalized = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty else { return false }
-
-        let lower = normalized.lowercased()
-        let hiddenPhrases = [
-            "summarized with",
-            "processed on device",
-            "processed directly from apple watch",
-            "transcript was processed directly from apple watch",
-            "token usage:",
-            "input tokens:",
-            "output tokens:",
-            "saved locally"
-        ]
-        if hiddenPhrases.contains(where: { lower.contains($0) }) { return false }
-
-        return [
-            "unclear",
-            "inaudible",
-            "unintelligible",
-            "background noise",
-            "speaker",
-            "attribution",
-            "verify",
-            "review",
-            "too short",
-            "not contain enough spoken content",
-            "could not be parsed",
-            "failed"
-        ].contains { lower.contains($0) }
     }
 
     private func processingIssuesSection(_ notes: [String], t: AppTheme) -> some View {
@@ -840,33 +837,6 @@ struct MeetingSummaryDetailView: View {
                     .foregroundStyle(t.colors.textSecondary)
             }
         }
-    }
-
-    private func reviewNotesSection(_ notes: [String], t: AppTheme) -> some View {
-        DisclosureGroup {
-            VStack(alignment: .leading, spacing: t.spacing.s) {
-                ForEach(notes, id: \.self) { note in
-                    HStack(alignment: .top, spacing: t.spacing.s) {
-                        Image(systemName: "text.magnifyingglass")
-                            .font(.system(size: 11))
-                            .foregroundStyle(t.colors.textTertiary)
-                        Text(note)
-                            .font(t.typography.caption)
-                            .foregroundStyle(t.colors.textSecondary)
-                    }
-                }
-            }
-            .padding(.top, t.spacing.s)
-        } label: {
-            Label("Some details may need review", systemImage: "text.magnifyingglass")
-                .font(t.typography.bodySmall)
-                .foregroundStyle(t.colors.textSecondary)
-        }
-        .tint(t.colors.textSecondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(t.spacing.l)
-        .surfaceCard(elevated: false)
-        .environment(themeManager)
     }
 
     // MARK: - No Summary State

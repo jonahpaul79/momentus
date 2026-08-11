@@ -67,7 +67,7 @@ final class ClaudeSummaryService: SummaryService {
         if let data = json.data(using: .utf8) {
             do {
                 let parsed = try JSONDecoder().decode(ClaudeOutput.self, from: data)
-                return buildSummary(from: parsed, transcript: transcript, usage: usage, recordingId: recordingId)
+                return buildSummary(from: parsed, transcript: transcript, recordingId: recordingId)
             } catch {
                 print("[Claude] JSON decode failed: \(error)")
             }
@@ -125,11 +125,8 @@ final class ClaudeSummaryService: SummaryService {
     private func buildSummary(
         from output: ClaudeOutput,
         transcript: Transcript,
-        usage: AnthropicClient.MessageResponse.Usage,
         recordingId: UUID
     ) -> MeetingSummary {
-        var notes = output.confidenceNotes ?? []
-        notes.append(tokenNote(usage))
         let markedMoments = (output.markedMoments ?? []).map { moment in
             MarkedMoment(
                 timestamp: moment.timestampValue,
@@ -177,7 +174,7 @@ final class ClaudeSummaryService: SummaryService {
             followUpDraft: output.followUpDraft ?? "Hi team, following up on our meeting.",
             provider: providerName,
             createdAt: Date(),
-            confidenceNotes: notes
+            confidenceNotes: []
         )
     }
 
@@ -196,11 +193,10 @@ final class ClaudeSummaryService: SummaryService {
         let openQuestions: [QuestionOutput]?
         let risks: [RiskOutput]?
         let followUpDraft: String?
-        let confidenceNotes: [String]?
 
         enum CodingKeys: String, CodingKey {
             case suggestedTitle, executiveSummary, markedMoments, decisions, actionItems,
-                 openQuestions, risks, followUpDraft, confidenceNotes
+                 openQuestions, risks, followUpDraft
         }
 
         struct MarkedMomentOutput: Decodable {

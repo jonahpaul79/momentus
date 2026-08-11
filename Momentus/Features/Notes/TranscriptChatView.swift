@@ -5,6 +5,11 @@ struct TranscriptChatView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: TranscriptChatViewModel
     @State private var showingClearConfirmation = false
+    @State private var handledInitialLaunch = false
+    @FocusState private var composerIsFocused: Bool
+
+    private let initialQuestion: String?
+    private let focusesComposerOnAppear: Bool
 
     private let suggestions = [
         "What were the key decisions?",
@@ -12,8 +17,17 @@ struct TranscriptChatView: View {
         "Draft a follow-up message"
     ]
 
-    init(recording: Recording) {
-        _viewModel = State(initialValue: TranscriptChatViewModel(recording: recording))
+    init(
+        recording: Recording,
+        initialQuestion: String? = nil,
+        focusesComposerOnAppear: Bool = false
+    ) {
+        let question = initialQuestion?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let viewModel = TranscriptChatViewModel(recording: recording)
+        viewModel.draft = question ?? ""
+        _viewModel = State(initialValue: viewModel)
+        self.initialQuestion = question?.isEmpty == false ? question : nil
+        self.focusesComposerOnAppear = focusesComposerOnAppear
     }
 
     var body: some View {
@@ -57,6 +71,16 @@ struct TranscriptChatView: View {
                 Button("Clear", role: .destructive) { viewModel.clearConversation() }
             } message: {
                 Text("The chat history for this meeting will be removed from this device.")
+            }
+            .task {
+                guard !handledInitialLaunch else { return }
+                handledInitialLaunch = true
+                if initialQuestion != nil {
+                    await viewModel.send()
+                } else if focusesComposerOnAppear {
+                    await Task.yield()
+                    composerIsFocused = true
+                }
             }
         }
     }
@@ -240,6 +264,7 @@ struct TranscriptChatView: View {
                             .strokeBorder(t.colors.border, lineWidth: 1)
                     }
                     .disabled(viewModel.hasPendingQuestion || viewModel.blockingError != nil)
+                    .focused($composerIsFocused)
                     .onSubmit { Task { await viewModel.send() } }
 
                 Button {

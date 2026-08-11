@@ -198,6 +198,21 @@ struct MomentusTests {
         #expect(qualityPrompt.contains("Clearly separate meeting evidence from outside research"))
     }
 
+    @Test func chatPromptRequestsUserContextInsteadOfGuessing() {
+        let prompt = TranscriptChatPrompt.systemInstructions(
+            recordingTitle: "Test",
+            transcript: "[0:00] Jordan: We still need to choose a launch date."
+        )
+
+        #expect(prompt.contains("Needs your context:"))
+        #expect(prompt.contains("personal judgment or private company context"))
+        #expect(prompt.contains("never guess the missing context"))
+    }
+
+    @Test func paidSummaryPromptDoesNotRequestReviewNotes() {
+        #expect(!MeetingSummaryPromptBuilder.systemPrompt.contains("confidenceNotes"))
+    }
+
     @Test func anthropicWebSearchRequestEncodesServerTool() throws {
         let request = AnthropicClient.MessageRequest(
             model: "claude-test",
