@@ -18,7 +18,7 @@ enum WatchQuickRecordLaunchRequest {
 
 struct StartMomentusWatchRecordingIntent: AppIntent {
     static var title: LocalizedStringResource = "Start Recording"
-    static var description = IntentDescription("Open Momentus on Apple Watch and immediately start recording.")
+    static var description = IntentDescription("Open Momentus on your watch and immediately start recording.")
     static var openAppWhenRun = true
 
     func perform() async throws -> some IntentResult {
