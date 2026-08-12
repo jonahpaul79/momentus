@@ -1,14 +1,17 @@
 import AVFoundation
 import SwiftUI
 
+private struct TranscriptChatLaunch: Identifiable {
+    let id = UUID()
+    let question: String?
+}
+
 struct MeetingSummaryDetailView: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(RecordingsStore.self) private var store
     @State var recording: Recording
     @State private var showingTranscript = false
-    @State private var showingTranscriptChat = false
-    @State private var initialChatQuestion: String?
-    @State private var focusChatComposerOnLaunch = false
+    @State private var transcriptChatLaunch: TranscriptChatLaunch?
     @State private var showShareSheet = false
     @State private var exportedText = ""
     @State private var playbackSeekTime: TimeInterval?
@@ -31,23 +34,24 @@ struct MeetingSummaryDetailView: View {
     var body: some View {
         let t = themeManager.currentTheme
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    meetingHeader(t)
-                    if let summary = recording.summary {
-                        summaryContent(summary, t: t)
-                    } else {
-                        noSummaryState(t)
+            VStack(spacing: 0) {
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        meetingHeader(t)
+                        if let summary = recording.summary {
+                            summaryContent(summary, t: t)
+                        } else {
+                            noSummaryState(t)
+                        }
                     }
+                    .padding(.bottom, t.spacing.huge)
                 }
-                .padding(.bottom, t.spacing.huge)
-            }
-            .background(t.colors.backgroundPrimary)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
+
                 if recording.transcript != nil {
                     pinnedTranscriptChatBar(t)
                 }
             }
+            .background(t.colors.backgroundPrimary)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -84,11 +88,10 @@ struct MeetingSummaryDetailView: View {
                         .environment(themeManager)
                 }
             }
-            .sheet(isPresented: $showingTranscriptChat, onDismiss: resetChatLaunch) {
+            .sheet(item: $transcriptChatLaunch) { launch in
                 TranscriptChatView(
                     recording: recording,
-                    initialQuestion: initialChatQuestion,
-                    focusesComposerOnAppear: focusChatComposerOnLaunch
+                    initialQuestion: launch.question
                 )
                     .environment(themeManager)
             }
@@ -119,6 +122,7 @@ struct MeetingSummaryDetailView: View {
                 Text("The original audio will be sent to AssemblyAI for a new transcript with speaker separation, then the notes will be regenerated.")
             }
         }
+        .presentationContentInteraction(.resizes)
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             if let updated = store.recording(for: recording.id) { recording = updated }
         }
@@ -610,6 +614,7 @@ struct MeetingSummaryDetailView: View {
                 }
                 .buttonStyle(PlainButtonStyle())
                 .disabled(recording.transcript == nil)
+                .accessibilityHint("Opens Ask Momentus and asks this question")
                 if q.id != questions.last?.id {
                     Divider().overlay(t.colors.divider)
                 }
@@ -718,7 +723,7 @@ struct MeetingSummaryDetailView: View {
 
     private func pinnedTranscriptChatBar(_ t: AppTheme) -> some View {
         Button {
-            presentTranscriptChat(focusComposer: true)
+            presentTranscriptChat()
         } label: {
             HStack(spacing: t.spacing.m) {
                 Image(systemName: "sparkles")
@@ -743,9 +748,9 @@ struct MeetingSummaryDetailView: View {
                     .background(t.colors.accentPrimary)
                     .clipShape(Circle())
             }
-            .frame(maxWidth: .infinity)
             .padding(.horizontal, t.spacing.l)
             .padding(.vertical, t.spacing.m)
+            .frame(maxWidth: .infinity)
             .background(.ultraThinMaterial)
             .overlay(alignment: .top) {
                 Divider().overlay(t.colors.divider)
@@ -755,16 +760,9 @@ struct MeetingSummaryDetailView: View {
         .accessibilityHint("Opens chat for this meeting and focuses the message field")
     }
 
-    private func presentTranscriptChat(question: String? = nil, focusComposer: Bool = false) {
-        initialChatQuestion = question
-        focusChatComposerOnLaunch = focusComposer
-        showingTranscriptChat = true
+    private func presentTranscriptChat(question: String? = nil) {
+        transcriptChatLaunch = TranscriptChatLaunch(question: question)
         HapticStyle.light.trigger()
-    }
-
-    private func resetChatLaunch() {
-        initialChatQuestion = nil
-        focusChatComposerOnLaunch = false
     }
 
     private func transcriptButton(_ t: AppTheme) -> some View {

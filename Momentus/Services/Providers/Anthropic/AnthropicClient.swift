@@ -69,17 +69,17 @@ final class AnthropicClient {
             }
         }
 
-        var objectValue: [String: JSONValue]? {
+        nonisolated var objectValue: [String: JSONValue]? {
             guard case .object(let value) = self else { return nil }
             return value
         }
 
-        var arrayValue: [JSONValue]? {
+        nonisolated var arrayValue: [JSONValue]? {
             guard case .array(let value) = self else { return nil }
             return value
         }
 
-        var stringValue: String? {
+        nonisolated var stringValue: String? {
             guard case .string(let value) = self else { return nil }
             return value
         }
@@ -263,7 +263,7 @@ final class AnthropicClient {
             let url: String
             let title: String
 
-            init?(_ value: JSONValue) {
+            nonisolated init?(_ value: JSONValue) {
                 guard let object = value.objectValue,
                       let url = object["url"]?.stringValue else { return nil }
                 self.url = url

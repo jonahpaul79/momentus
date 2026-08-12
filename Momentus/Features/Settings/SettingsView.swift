@@ -23,6 +23,8 @@ struct SettingsView: View {
     @State private var micPermission = AVAudioApplication.shared.recordPermission
     @State private var calPermission = EKEventStore.authorizationStatus(for: .event)
     @State private var notifStatus: UNAuthorizationStatus = .notDetermined
+    @State private var showingWidgetEducation = false
+    @State private var iPhoneWidgetInstalled = false
 
     private var defaultMode: RecordingMode {
         get { RecordingMode(rawValue: defaultModeRaw) ?? .onDevice }
@@ -41,6 +43,7 @@ struct SettingsView: View {
             bestQualitySection(t)
             claudeSection(t)
             privacySection(t)
+            quickRecordSection(t)
             permissionsSection(t)
             storageSection(t)
             themeSection(t)
@@ -51,9 +54,16 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
-        .onAppear { refreshPermissions(); loadKeys() }
+        .onAppear { refreshPermissions(); loadKeys(); refreshWidgetStatus() }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             refreshPermissions()
+            refreshWidgetStatus()
+        }
+        .sheet(isPresented: $showingWidgetEducation) {
+            WidgetEducationView(iPhoneWidgetInstalled: iPhoneWidgetInstalled)
+                .environment(themeManager)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -452,6 +462,49 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Quick Record Section
+
+    private func quickRecordSection(_ t: AppTheme) -> some View {
+        Section {
+            Button {
+                showingWidgetEducation = true
+                HapticStyle.light.trigger()
+            } label: {
+                HStack(spacing: t.spacing.m) {
+                    Image(systemName: "mic.badge.plus")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(t.colors.accentPrimary)
+                        .frame(width: 32, height: 32)
+                        .background(t.colors.accentPrimary.opacity(0.12))
+                        .clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Quick Record Widget")
+                            .font(t.typography.headlineSmall)
+                            .foregroundStyle(t.colors.textPrimary)
+                        Text(iPhoneWidgetInstalled ? "Installed on this iPhone" : "Setup instructions for iPhone and Apple Watch")
+                            .font(t.typography.caption)
+                            .foregroundStyle(iPhoneWidgetInstalled
+                                ? t.colors.accentSuccess
+                                : t.colors.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(t.colors.textTertiary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .listRowBackground(t.colors.surfacePrimary)
+        } header: {
+            sectionHeader("Quick Record", t: t)
+        } footer: {
+            Text("Start recording from your Home Screen, Lock Screen, Apple Watch face, or Smart Stack.")
+                .font(t.typography.caption)
+                .foregroundStyle(t.colors.textTertiary)
+        }
+    }
+
     // MARK: - Permissions Section
 
     private func permissionsSection(_ t: AppTheme) -> some View {
@@ -566,6 +619,12 @@ struct SettingsView: View {
         micPermission = AVAudioApplication.shared.recordPermission
         calPermission = EKEventStore.authorizationStatus(for: .event)
         Task { notifStatus = await MeetingNotificationService.shared.authorizationStatus() }
+    }
+
+    private func refreshWidgetStatus() {
+        Task {
+            iPhoneWidgetInstalled = await QuickRecordWidgetStatus.isIPhoneWidgetInstalled()
+        }
     }
 
     private func syncWatchProviderConfig() {

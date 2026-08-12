@@ -72,6 +72,26 @@ import Foundation
         await requestReply()
     }
 
+    /// Starts a chat launched from an open question. The question is persisted as
+    /// a user turn even when the selected provider needs configuration, so the
+    /// sheet never falls back to an unrelated empty-chat state.
+    func sendInitialQuestion(_ rawQuestion: String) async {
+        let question = rawQuestion.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !question.isEmpty, !isResponding else { return }
+
+        draft = ""
+        error = nil
+        messages.append(TranscriptChatMessage(role: .user, text: question))
+        persist()
+
+        if let blockingError {
+            error = blockingError
+            return
+        }
+
+        await requestReply()
+    }
+
     func retryPendingQuestion() async {
         guard hasPendingQuestion, !isResponding, blockingError == nil else { return }
         error = nil

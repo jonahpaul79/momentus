@@ -209,6 +209,86 @@ struct MomentusTests {
         #expect(prompt.contains("never guess the missing context"))
     }
 
+    @Test @MainActor func openQuestionLaunchCreatesUserTurnAndRequestsAnswer() async throws {
+        let suiteName = "MomentusTests.OpenQuestionChat.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(TranscriptChatMode.onDevice.rawValue, forKey: "transcriptChatMode")
+
+        let recordingID = UUID()
+        let transcript = Transcript(
+            id: UUID(),
+            recordingId: recordingID,
+            segments: [TranscriptSegment(
+                id: UUID(),
+                text: "The launch date is still unresolved.",
+                startTime: 12,
+                endTime: 16,
+                speakerId: nil,
+                confidence: 0.98
+            )],
+            speakers: [],
+            language: "en",
+            provider: "Test",
+            createdAt: Date()
+        )
+        let recording = Recording(id: recordingID, mode: .onDevice, transcript: transcript)
+        let store = TranscriptChatStore(defaults: defaults)
+        let service = TestTranscriptChatService(response: "The meeting did not settle on a launch date.")
+        let viewModel = TranscriptChatViewModel(
+            recording: recording,
+            chatStore: store,
+            preferences: defaults,
+            serviceBuilder: { _ in service }
+        )
+
+        await viewModel.sendInitialQuestion("  What is the launch date?  ")
+
+        #expect(viewModel.messages.map(\.role) == [.user, .assistant])
+        #expect(viewModel.messages.first?.text == "What is the launch date?")
+        #expect(viewModel.messages.last?.text == "The meeting did not settle on a launch date.")
+        #expect(store.load(recordingID: recordingID).messages == viewModel.messages)
+    }
+
+    @Test @MainActor func blockedOpenQuestionStillAppearsInConversation() async throws {
+        let suiteName = "MomentusTests.BlockedOpenQuestionChat.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(TranscriptChatMode.onDevice.rawValue, forKey: "transcriptChatMode")
+
+        let recordingID = UUID()
+        let transcript = Transcript(
+            id: UUID(),
+            recordingId: recordingID,
+            segments: [TranscriptSegment(
+                id: UUID(),
+                text: String(repeating: "discussion ", count: 1_300),
+                startTime: 0,
+                endTime: 60,
+                speakerId: nil,
+                confidence: 0.9
+            )],
+            speakers: [],
+            language: "en",
+            provider: "Test",
+            createdAt: Date()
+        )
+        let recording = Recording(id: recordingID, mode: .onDevice, transcript: transcript)
+        let viewModel = TranscriptChatViewModel(
+            recording: recording,
+            chatStore: TranscriptChatStore(defaults: defaults),
+            preferences: defaults,
+            serviceBuilder: { _ in TestTranscriptChatService(response: "unused") }
+        )
+
+        await viewModel.sendInitialQuestion("What still needs to be decided?")
+
+        #expect(viewModel.messages.count == 1)
+        #expect(viewModel.messages.first?.role == .user)
+        #expect(viewModel.messages.first?.text == "What still needs to be decided?")
+        #expect(viewModel.hasPendingQuestion)
+    }
+
     @Test func paidSummaryPromptDoesNotRequestReviewNotes() {
         #expect(!MeetingSummaryPromptBuilder.systemPrompt.contains("confidenceNotes"))
     }
@@ -287,4 +367,22 @@ private final class TestCalendarContextService: CalendarContextService {
     func requestAccess() async -> Bool { true }
     func getCurrentMeetings() async -> [CalendarMeeting] { current }
     func getUpcomingMeetings() async -> [CalendarMeeting] { upcoming }
+}
+
+private final class TestTranscriptChatService: TranscriptChatService {
+    private let response: String
+    let providerName = "Test"
+    let isOnDevice = true
+
+    init(response: String) {
+        self.response = response
+    }
+
+    func reply(
+        to messages: [TranscriptChatMessage],
+        transcript: Transcript,
+        recordingTitle: String
+    ) async throws -> String {
+        response
+    }
 }

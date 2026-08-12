@@ -5,8 +5,12 @@ struct ContentView: View {
     @State private var store = RecordingsStore(loadSamples: ContentView.shouldLoadDemoData)
     @State private var selectedTab = Tab.record
     @State private var showingSplash = true
+    @State private var showingWidgetEducation = false
+    @State private var checkingWidgetConfiguration = false
+    @State private var iPhoneWidgetInstalled = false
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("hasSeenQuickRecordWidgetIntroV1") private var hasSeenQuickRecordWidgetIntro = false
 
     enum Tab: String { case record, notes, settings }
 
@@ -36,6 +40,14 @@ struct ContentView: View {
         .environment(themeManager)
         .environment(store)
         .preferredColorScheme(themeManager.currentTheme.colorScheme)
+        .sheet(isPresented: $showingWidgetEducation) {
+            hasSeenQuickRecordWidgetIntro = true
+        } content: {
+            WidgetEducationView(iPhoneWidgetInstalled: iPhoneWidgetInstalled)
+                .environment(themeManager)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
         .task {
             WatchRecordingProcessor.shared.configure(store: store)
             await CloudKitService.shared.saveCurrentProviderConfig()
@@ -45,11 +57,37 @@ struct ContentView: View {
             guard phase == .active else { return }
             Task { await store.importCloudRecordingsWithRetry() }
         }
+        .onChange(of: showingSplash) { _, isShowing in
+            if !isShowing { presentWidgetEducationIfNeeded() }
+        }
+        .onChange(of: hasCompletedOnboarding) { _, completed in
+            if completed { presentWidgetEducationIfNeeded() }
+        }
         .overlay {
             if showingSplash {
                 SplashView(isVisible: $showingSplash)
                     .environment(themeManager)
             }
+        }
+    }
+
+    private func presentWidgetEducationIfNeeded() {
+        guard hasCompletedOnboarding,
+              !showingSplash,
+              !hasSeenQuickRecordWidgetIntro,
+              !showingWidgetEducation,
+              !checkingWidgetConfiguration else { return }
+
+        checkingWidgetConfiguration = true
+        Task {
+            let installed = await QuickRecordWidgetStatus.isIPhoneWidgetInstalled()
+            iPhoneWidgetInstalled = installed
+            checkingWidgetConfiguration = false
+
+            guard hasCompletedOnboarding,
+                  !showingSplash,
+                  !hasSeenQuickRecordWidgetIntro else { return }
+            showingWidgetEducation = true
         }
     }
 

@@ -9,7 +9,6 @@ struct TranscriptChatView: View {
     @FocusState private var composerIsFocused: Bool
 
     private let initialQuestion: String?
-    private let focusesComposerOnAppear: Bool
 
     private let suggestions = [
         "What were the key decisions?",
@@ -19,15 +18,12 @@ struct TranscriptChatView: View {
 
     init(
         recording: Recording,
-        initialQuestion: String? = nil,
-        focusesComposerOnAppear: Bool = false
+        initialQuestion: String? = nil
     ) {
         let question = initialQuestion?.trimmingCharacters(in: .whitespacesAndNewlines)
         let viewModel = TranscriptChatViewModel(recording: recording)
-        viewModel.draft = question ?? ""
         _viewModel = State(initialValue: viewModel)
         self.initialQuestion = question?.isEmpty == false ? question : nil
-        self.focusesComposerOnAppear = focusesComposerOnAppear
     }
 
     var body: some View {
@@ -75,11 +71,10 @@ struct TranscriptChatView: View {
             .task {
                 guard !handledInitialLaunch else { return }
                 handledInitialLaunch = true
-                if initialQuestion != nil {
-                    await viewModel.send()
-                } else if focusesComposerOnAppear {
-                    await Task.yield()
-                    composerIsFocused = true
+                await Task.yield()
+                composerIsFocused = true
+                if let initialQuestion {
+                    await viewModel.sendInitialQuestion(initialQuestion)
                 }
             }
         }
@@ -263,8 +258,8 @@ struct TranscriptChatView: View {
                         RoundedRectangle(cornerRadius: t.radius.l)
                             .strokeBorder(t.colors.border, lineWidth: 1)
                     }
-                    .disabled(viewModel.hasPendingQuestion || viewModel.blockingError != nil)
                     .focused($composerIsFocused)
+                    .defaultFocus($composerIsFocused, true)
                     .onSubmit { Task { await viewModel.send() } }
 
                 Button {
