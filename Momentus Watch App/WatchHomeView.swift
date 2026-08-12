@@ -16,8 +16,14 @@ struct WatchHomeView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .autoStartRecording)) { _ in
+            _ = WatchQuickRecordLaunchRequest.consumePendingStart()
             guard vm.recordingState == .idle else { return }
             Task { await vm.startRecording() }
+        }
+        .task {
+            if WatchQuickRecordLaunchRequest.consumePendingStart(), vm.recordingState == .idle {
+                await vm.startRecording()
+            }
         }
     }
 

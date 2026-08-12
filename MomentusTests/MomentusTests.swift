@@ -213,6 +213,15 @@ struct MomentusTests {
         #expect(!MeetingSummaryPromptBuilder.systemPrompt.contains("confidenceNotes"))
     }
 
+    @Test @MainActor func quickRecordRequestSurvivesUntilConsumed() {
+        _ = QuickRecordLaunchRequest.consumePendingStart()
+
+        QuickRecordLaunchRequest.requestStart()
+
+        #expect(QuickRecordLaunchRequest.consumePendingStart())
+        #expect(!QuickRecordLaunchRequest.consumePendingStart())
+    }
+
     @Test func anthropicWebSearchRequestEncodesServerTool() throws {
         let request = AnthropicClient.MessageRequest(
             model: "claude-test",

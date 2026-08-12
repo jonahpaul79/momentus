@@ -38,6 +38,9 @@ struct RecordHomeView: View {
                 summaryService: ServiceFactory.makeSummaryService(for: vm.selectedMode)
             )
             await vm.loadCalendarContext()
+            if QuickRecordLaunchRequest.consumePendingStart(), vm.state == .idle {
+                await vm.startRecording()
+            }
         }
         .onChange(of: vm.selectedMode) { _, newMode in
             vm.configure(
@@ -69,8 +72,27 @@ struct RecordHomeView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .autoStartRecording)) { _ in
+            _ = QuickRecordLaunchRequest.consumePendingStart()
             guard vm.state == .idle else { return }
             Task { await vm.startRecording() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .toggleActiveRecording)) { _ in
+            Task {
+                if vm.state == .paused {
+                    await vm.resumeRecording()
+                } else if vm.state == .recording {
+                    await vm.pauseRecording()
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .markActiveRecording)) { _ in
+            vm.addMarker()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stopActiveRecording)) { _ in
+            guard vm.state == .recording || vm.state == .paused else { return }
+            showingActiveRecording = false
+            showingProcessing = true
+            Task { await vm.stopRecording() }
         }
     }
 

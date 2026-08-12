@@ -5,6 +5,9 @@ import AVFoundation
 extension Notification.Name {
     static let recordingProcessingCompleted = Notification.Name("recordingProcessingCompleted")
     static let autoStartRecording = Notification.Name("autoStartRecording")
+    static let toggleActiveRecording = Notification.Name("toggleActiveRecording")
+    static let markActiveRecording = Notification.Name("markActiveRecording")
+    static let stopActiveRecording = Notification.Name("stopActiveRecording")
 }
 
 /// Drives the entire record → process → save flow.
@@ -171,6 +174,10 @@ extension Notification.Name {
             state = .recording
             elapsedTime = 0
             markers = []
+            await RecordingLiveActivityManager.shared.start(
+                recordingID: id,
+                title: suggestedMeetingTitle ?? titleFromTime()
+            )
             HapticStyle.medium.trigger()
             startTimers()
         } catch {
@@ -185,6 +192,11 @@ extension Notification.Name {
                 try await PhoneWatchConnectivityService.shared.sendWatchRecordingAction("pauseRecording")
                 state = .paused
                 stopWaveformTimer()
+                await RecordingLiveActivityManager.shared.update(
+                    isPaused: true,
+                    markerCount: markers.count,
+                    elapsedTime: elapsedTime
+                )
                 HapticStyle.light.trigger()
             } catch {
                 errorMessage = error.localizedDescription
@@ -196,6 +208,11 @@ extension Notification.Name {
             try await recordingService.pauseRecording()
             state = .paused
             stopWaveformTimer()
+            await RecordingLiveActivityManager.shared.update(
+                isPaused: true,
+                markerCount: markers.count,
+                elapsedTime: elapsedTime
+            )
             HapticStyle.light.trigger()
         } catch {
             errorMessage = error.localizedDescription
@@ -210,6 +227,11 @@ extension Notification.Name {
                 state = .recording
                 errorMessage = nil
                 startWaveformTimer()
+                await RecordingLiveActivityManager.shared.update(
+                    isPaused: false,
+                    markerCount: markers.count,
+                    elapsedTime: elapsedTime
+                )
                 HapticStyle.light.trigger()
             } catch {
                 errorMessage = error.localizedDescription
@@ -222,6 +244,11 @@ extension Notification.Name {
             state = .recording
             errorMessage = nil
             startWaveformTimer()
+            await RecordingLiveActivityManager.shared.update(
+                isPaused: false,
+                markerCount: markers.count,
+                elapsedTime: elapsedTime
+            )
             HapticStyle.light.trigger()
         } catch {
             errorMessage = error.localizedDescription
@@ -246,6 +273,13 @@ extension Notification.Name {
         }
         HapticStyle.medium.trigger()
         markerHighlightedBars.insert(waveformLevels.count - 1)
+        Task {
+            await RecordingLiveActivityManager.shared.update(
+                isPaused: state == .paused,
+                markerCount: markers.count,
+                elapsedTime: elapsedTime
+            )
+        }
     }
 
     func stopRecording() async {
@@ -256,6 +290,7 @@ extension Notification.Name {
         }
 
         stopTimers()
+        await RecordingLiveActivityManager.shared.end()
         HapticStyle.heavy.trigger()
 
         let recordingId = currentRecordingId ?? UUID()
@@ -422,6 +457,11 @@ extension Notification.Name {
                     state = .paused
                     stopWaveformTimer()
                     errorMessage = "Audio capture stopped unexpectedly. Tap Resume before continuing the meeting."
+                    await RecordingLiveActivityManager.shared.update(
+                        isPaused: true,
+                        markerCount: markers.count,
+                        elapsedTime: elapsedTime
+                    )
                     HapticStyle.error.trigger()
                 }
             }
@@ -483,6 +523,10 @@ extension Notification.Name {
             state = .recording
             elapsedTime = 0
             markers = []
+            await RecordingLiveActivityManager.shared.start(
+                recordingID: currentRecordingId ?? UUID(),
+                title: suggestedMeetingTitle ?? titleFromTime()
+            )
             HapticStyle.medium.trigger()
             startTimers()
         } catch {
@@ -495,6 +539,7 @@ extension Notification.Name {
         HapticStyle.heavy.trigger()
         do {
             try await PhoneWatchConnectivityService.shared.sendWatchRecordingAction("stopRecording")
+            await RecordingLiveActivityManager.shared.end()
             state = .processing(.savingAudio)
             processingStepIndex = 0
         } catch {
@@ -523,6 +568,11 @@ extension Notification.Name {
             case "addMarker":
                 guard self.state == .recording || self.state == .paused else { return }
                 self.addMarker(at: timestamp ?? self.elapsedTime)
+                await RecordingLiveActivityManager.shared.update(
+                    isPaused: self.state == .paused,
+                    markerCount: self.markers.count,
+                    elapsedTime: self.elapsedTime
+                )
                 HapticStyle.medium.trigger()
             default:
                 break
