@@ -179,9 +179,8 @@ enum WatchProcessingStatus: Equatable {
         switch processingStatus {
         case .checkingProvider where processingElapsed >= 8:
             failProcessing(
-                status: .needsCloudConfig,
-                message: providerConfigRecoveryMessage
-                    ?? "Provider settings did not sync to this Watch. Open Momentus on iPhone, then retry."
+                status: .providerFailed,
+                message: "Momentus Cloud did not respond. Check your internet connection and retry."
             )
         case .checkingPhone where processingElapsed >= 3,
              .sending where processingElapsed >= 35,
