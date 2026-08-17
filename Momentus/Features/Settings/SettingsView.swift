@@ -14,12 +14,6 @@ struct SettingsView: View {
     @AppStorage("showConsentPrompt") private var showConsentPrompt: Bool = false
     @AppStorage("iCloudSync") private var iCloudSync: Bool = false
 
-    @State private var assemblyAIKey: String = ""
-    @State private var assemblyAIKeySaved: Bool = false
-
-    @State private var claudeKey: String = ""
-    @State private var claudeKeySaved: Bool = false
-
     @State private var micPermission = AVAudioApplication.shared.recordPermission
     @State private var calPermission = EKEventStore.authorizationStatus(for: .event)
     @State private var notifStatus: UNAuthorizationStatus = .notDetermined
@@ -40,8 +34,7 @@ struct SettingsView: View {
         let t = themeManager.currentTheme
         List {
             recordingModeSection(t)
-            bestQualitySection(t)
-            claudeSection(t)
+            momentusCloudSection(t)
             privacySection(t)
             quickRecordSection(t)
             permissionsSection(t)
@@ -54,7 +47,7 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.large)
         .listStyle(.insetGrouped)
-        .onAppear { refreshPermissions(); loadKeys(); refreshWidgetStatus() }
+        .onAppear { refreshPermissions(); refreshWidgetStatus() }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             refreshPermissions()
             refreshWidgetStatus()
@@ -113,7 +106,7 @@ struct SettingsView: View {
         } header: {
             sectionHeader("Default Recording Mode", t: t)
         } footer: {
-            Text("This is the single provider decision. Private stays on device. Quality uses AssemblyAI for transcription and Claude if configured for summaries, with fallbacks shown above.")
+            Text("This is the single provider decision. Private stays on device. Quality uses Momentus Cloud, with automatic fallbacks shown above.")
                 .font(t.typography.caption)
                 .foregroundStyle(t.colors.textTertiary)
         }
@@ -124,191 +117,34 @@ struct SettingsView: View {
         case .onDevice:
             return "Transcript: Whisper on device. Summary: Apple on device."
         case .hybrid:
-            let summary: String
-            if !claudeKey.isEmpty {
-                summary = "Claude"
-            } else if !assemblyAIKey.isEmpty {
-                summary = "AssemblyAI LeMUR"
-            } else {
-                summary = "Apple fallback until a cloud summary key is saved"
-            }
-            return "Transcript: Whisper on device. Summary: \(summary)."
+            return "Transcript: Whisper on device. Summary: Momentus Cloud."
         case .bestQuality:
-            let transcript = assemblyAIKey.isEmpty ? "Apple fallback until AssemblyAI key is saved" : "AssemblyAI"
-            let summary: String
-            if !claudeKey.isEmpty {
-                summary = "Claude"
-            } else if !assemblyAIKey.isEmpty {
-                summary = "AssemblyAI LeMUR"
-            } else {
-                summary = "Apple fallback"
-            }
-            return "Transcript: \(transcript). Summary: \(summary)."
+            return "Transcript: AssemblyAI. Summary: Claude via Momentus Cloud."
         }
     }
 
-    // MARK: - Best Quality / AssemblyAI Section
-
-    private func bestQualitySection(_ t: AppTheme) -> some View {
+    private func momentusCloudSection(_ t: AppTheme) -> some View {
         Section {
-            apiKeyRow(
-                label: "AssemblyAI API Key",
-                key: $assemblyAIKey,
-                saved: $assemblyAIKeySaved,
-                onSave: { trimmed in
-                    assemblyAIKeySaved = KeychainService.store(trimmed, for: .assemblyAIAPIKey)
-                    syncWatchProviderConfig()
-                },
-                onRemove: {
-                    assemblyAIKey = ""
-                    KeychainService.delete(.assemblyAIAPIKey)
-                    assemblyAIKeySaved = false
-                    syncWatchProviderConfig()
-                },
-                t: t
-            )
-
-            // Status
             HStack(spacing: t.spacing.s) {
-                let hasKey = !assemblyAIKey.isEmpty
-                Image(systemName: hasKey ? "checkmark.circle.fill" : "xmark.circle")
-                    .font(.system(size: 12))
-                    .foregroundStyle(hasKey ? t.colors.accentSuccess : t.colors.accentWarning)
-                Text(hasKey ? "Transcription: AssemblyAI (speaker labels)" : "Transcription: not configured")
-                    .font(t.typography.caption)
-                    .foregroundStyle(hasKey ? t.colors.accentSuccess : t.colors.accentWarning)
-            }
-            .listRowBackground(t.colors.surfacePrimary)
-
-        } header: {
-            sectionHeader("Best Quality — Transcription (AssemblyAI)", t: t)
-        } footer: {
-            Text("AssemblyAI transcribes your meetings with speaker labels. Audio is sent to AssemblyAI for processing. Transcripts are stored locally on your device only.\n\nCopy your key from assemblyai.com, then tap the row above to paste it.")
-                .font(t.typography.caption)
-                .foregroundStyle(t.colors.textTertiary)
-        }
-    }
-
-
-    // MARK: - Claude / Summary Section
-
-    private func claudeSection(_ t: AppTheme) -> some View {
-        Section {
-            apiKeyRow(
-                label: "Anthropic API Key",
-                key: $claudeKey,
-                saved: $claudeKeySaved,
-                onSave: { trimmed in
-                    claudeKeySaved = KeychainService.store(trimmed, for: .anthropicAPIKey)
-                    syncWatchProviderConfig()
-                },
-                onRemove: {
-                    claudeKey = ""
-                    KeychainService.delete(.anthropicAPIKey)
-                    claudeKeySaved = false
-                    syncWatchProviderConfig()
-                },
-                t: t
-            )
-
-            // Status
-            HStack(spacing: t.spacing.s) {
-                let hasClaudeKey     = !claudeKey.isEmpty
-                let hasAssemblyAIKey = !assemblyAIKey.isEmpty
-                let (icon, label, color): (String, String, Color) = {
-                    if hasClaudeKey {
-                        return ("checkmark.circle.fill", "Summary: Claude Sonnet", t.colors.accentSuccess)
-                    } else if hasAssemblyAIKey {
-                        return ("arrow.triangle.2.circlepath", "Summary: AssemblyAI LeMUR (fallback)", t.colors.accentWarning)
-                    } else {
-                        return ("xmark.circle", "Summary: not configured", t.colors.accentWarning)
-                    }
-                }()
-                Image(systemName: icon).font(.system(size: 12)).foregroundStyle(color)
-                Text(label).font(t.typography.caption).foregroundStyle(color)
-            }
-            .listRowBackground(t.colors.surfacePrimary)
-
-        } header: {
-            sectionHeader("Best Quality — Summary & Chat (Claude Sonnet)", t: t)
-        } footer: {
-            Text("Claude Sonnet generates structured meeting notes and answers questions about one meeting at a time. In Best Quality chat, Claude can search the web when a question asks for external or current information. Transcript text, chat messages, web queries, and search results are processed by Anthropic — audio is never sent for summaries or chat.\n\nAnthropic bills web searches to your API key (currently $10 per 1,000 searches, plus normal token usage). AssemblyAI LeMUR is used automatically for notes if no Claude key is set. Chat history is stored locally only.\n\nCopy your key from console.anthropic.com, then tap the row above to paste it.")
-                .font(t.typography.caption)
-                .foregroundStyle(t.colors.textTertiary)
-        }
-    }
-
-    // MARK: - Shared API Key Row
-
-    @ViewBuilder
-    private func apiKeyRow(
-        label: String,
-        key: Binding<String>,
-        saved: Binding<Bool>,
-        onSave: @escaping (String) -> Void,
-        onRemove: @escaping () -> Void,
-        t: AppTheme
-    ) -> some View {
-        if saved.wrappedValue {
-            HStack(spacing: t.spacing.m) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(label)
+                Image(systemName: "checkmark.shield.fill")
+                    .foregroundStyle(t.colors.accentSuccess)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Cloud AI ready")
                         .font(t.typography.headlineSmall)
                         .foregroundStyle(t.colors.textPrimary)
-                    Text(maskedKey(key.wrappedValue))
-                        .font(.system(.callout, design: .monospaced))
+                    Text("No provider keys required")
+                        .font(t.typography.caption)
                         .foregroundStyle(t.colors.textSecondary)
                 }
-                Spacer()
-                Label("Saved", systemImage: "checkmark.circle.fill")
-                    .font(t.typography.labelLarge)
-                    .foregroundStyle(t.colors.accentSuccess)
             }
-            .padding(.vertical, t.spacing.s)
             .listRowBackground(t.colors.surfacePrimary)
-            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                Button(role: .destructive) {
-                    onRemove()
-                    HapticStyle.medium.trigger()
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-                .tint(.red)
-            }
-        } else {
-            Button {
-                guard let pasted = UIPasteboard.general.string?
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
-                      !pasted.isEmpty else { return }
-                key.wrappedValue = pasted
-                onSave(pasted)
-                HapticStyle.light.trigger()
-            } label: {
-                HStack(spacing: t.spacing.m) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(label)
-                            .font(t.typography.headlineSmall)
-                            .foregroundStyle(t.colors.textPrimary)
-                        Text("Tap to paste from clipboard")
-                            .font(t.typography.bodySmall)
-                            .foregroundStyle(t.colors.textTertiary)
-                    }
-                    Spacer()
-                    Image(systemName: "doc.on.clipboard")
-                        .font(.system(size: 22))
-                        .foregroundStyle(t.colors.accentPrimary)
-                }
-                .padding(.vertical, t.spacing.m)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(PlainButtonStyle())
-            .listRowBackground(t.colors.surfacePrimary)
+        } header: {
+            sectionHeader("Momentus Cloud", t: t)
+        } footer: {
+            Text("Quality recordings use Momentus-managed AssemblyAI transcription and Claude summaries. Your provider credentials are never stored on this device. Private mode remains fully on device.")
+                .font(t.typography.caption)
+                .foregroundStyle(t.colors.textTertiary)
         }
-    }
-
-    private func maskedKey(_ key: String) -> String {
-        guard key.count > 6 else { return String(repeating: "•", count: key.count) }
-        return String(key.prefix(6)) + "••••••••••••"
     }
 
     // MARK: - Privacy Section
@@ -607,13 +443,6 @@ struct SettingsView: View {
     }
 
     // MARK: - Helpers
-
-    private func loadKeys() {
-        assemblyAIKey      = KeychainService.retrieve(.assemblyAIAPIKey) ?? ""
-        claudeKey          = KeychainService.retrieve(.anthropicAPIKey)  ?? ""
-        assemblyAIKeySaved = !assemblyAIKey.isEmpty
-        claudeKeySaved     = !claudeKey.isEmpty
-    }
 
     private func refreshPermissions() {
         micPermission = AVAudioApplication.shared.recordPermission

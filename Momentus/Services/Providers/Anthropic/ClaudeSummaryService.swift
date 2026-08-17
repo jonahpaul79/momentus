@@ -21,7 +21,7 @@ final class ClaudeSummaryService: SummaryService {
     private let client: AnthropicClient
     private let model: String
 
-    init(apiKey: String, model: String = AnthropicClient.defaultModel) {
+    init(apiKey: String? = nil, model: String = AnthropicClient.defaultModel) {
         self.model = model
         self.providerName = "Claude Sonnet (\(model))"
         self.client = AnthropicClient(apiKey: apiKey)
@@ -314,7 +314,7 @@ enum ClaudeSummaryError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            return "Anthropic API key missing. Add it in Settings to use Claude summaries."
+            return "Momentus Cloud is not configured for Claude summaries."
         }
     }
 }

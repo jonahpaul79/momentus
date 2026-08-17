@@ -473,7 +473,7 @@ struct MeetingSummaryDetailView: View {
                     .foregroundStyle(t.colors.textTertiary)
 
             case .missingAPIKey:
-                Text("Add an AssemblyAI API key in Settings to use Best Quality transcription.")
+                Text("Momentus Cloud is required to use Best Quality transcription.")
                     .font(t.typography.bodySmall)
                     .foregroundStyle(t.colors.textTertiary)
 

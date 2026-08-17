@@ -300,7 +300,7 @@ struct TranscriptChatView: View {
                     .font(t.typography.labelLarge)
                     .foregroundStyle(t.colors.accentPrimary)
                 } else {
-                    Text("To switch, add your Anthropic API key in Settings → Best Quality — Summary.")
+                    Text("Best Quality will be available when Momentus Cloud is online.")
                         .font(t.typography.caption)
                         .foregroundStyle(t.colors.textTertiary)
                 }

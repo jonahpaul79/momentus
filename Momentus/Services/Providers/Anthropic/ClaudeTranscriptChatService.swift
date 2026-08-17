@@ -6,7 +6,7 @@ final class ClaudeTranscriptChatService: TranscriptChatService {
 
     private let client: AnthropicClient
 
-    init(apiKey: String) {
+    init(apiKey: String? = nil) {
         client = AnthropicClient(apiKey: apiKey)
     }
 

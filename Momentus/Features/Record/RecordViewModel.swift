@@ -118,19 +118,14 @@ extension Notification.Name {
     /// Display name of the active summary provider (e.g. "Claude Sonnet" or "AssemblyAI LeMUR").
     var summaryProviderName: String { summaryService.providerName }
 
-    /// True when Best Quality mode is selected but no AssemblyAI key is configured
-    /// (transcription is the hard requirement — without it, Best Quality is effectively mock).
+    /// True when Best Quality mode is selected but Momentus Cloud is unavailable.
     var isMissingTranscriptionKey: Bool {
         selectedMode == .bestQuality && !ServiceFactory.isConfigured(for: .bestQuality)
     }
 
-    /// True when Best Quality is selected, AssemblyAI transcription is configured,
-    /// but no Claude key is present — so summary will use AssemblyAI LeMUR instead.
+    /// Legacy banner hook. Cloud summaries now manage fallback server-side.
     var isUsingSummaryFallback: Bool {
-        guard selectedMode == .bestQuality else { return false }
-        let hasAssemblyAI = ServiceFactory.isConfigured(for: .bestQuality)
-        let hasClaude = !(KeychainService.retrieve(.anthropicAPIKey) ?? "").isEmpty
-        return hasAssemblyAI && !hasClaude
+        false
     }
 
     /// Backwards-compat alias used by RecordHomeView.

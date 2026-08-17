@@ -234,7 +234,7 @@ struct RecordHomeView: View {
                     Image(systemName: "key.slash")
                         .font(.system(size: 11))
                         .foregroundStyle(t.colors.accentWarning)
-                    Text("AssemblyAI key missing — add it in Settings for Best Quality")
+                    Text("Momentus Cloud is unavailable — use Private mode for now")
                         .font(t.typography.caption)
                         .foregroundStyle(t.colors.accentWarning)
                 }
@@ -244,7 +244,7 @@ struct RecordHomeView: View {
                     Image(systemName: "info.circle")
                         .font(.system(size: 11))
                         .foregroundStyle(t.colors.textTertiary)
-                    Text("Claude key missing — summary will use AssemblyAI LeMUR")
+                    Text("Claude is unavailable — summary will use the cloud fallback")
                         .font(t.typography.caption)
                         .foregroundStyle(t.colors.textTertiary)
                 }

@@ -52,16 +52,12 @@ enum WatchProcessingStatus: Equatable {
     private var watchRecordingURL: URL?
     private var pendingProcessingURL: URL?
     private var activeTransferFileNames: Set<String> = []
-    private var assemblyAIAPIKey = UserDefaults.standard.string(forKey: "watchAssemblyAIAPIKey") ?? ""
-    private var anthropicAPIKey = UserDefaults.standard.string(forKey: "watchAnthropicAPIKey") ?? ""
-    private var providerConfigRecoveryMessage: String?
 
     override init() {
         super.init()
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self
         WCSession.default.activate()
-        Task { await refreshCloudConfig() }
     }
 
     // MARK: - Actions
@@ -94,18 +90,7 @@ enum WatchProcessingStatus: Equatable {
             selectedMode = .bestQuality
             processingStatus = .checkingProvider
             processingErrorMessage = nil
-            if assemblyAIAPIKey.isEmpty {
-                await refreshCloudConfig()
-            }
-            if !assemblyAIAPIKey.isEmpty {
-                await processDirectlyInCloud(transferURL)
-            } else {
-                failProcessing(
-                    status: .needsCloudConfig,
-                    message: providerConfigRecoveryMessage
-                        ?? "Open Momentus on iPhone, save your AssemblyAI key in Settings, then retry."
-                )
-            }
+            await processDirectlyInCloud(transferURL)
         } else {
             failProcessing(status: .failed, message: "The recording file was too small or could not be saved.")
         }
@@ -161,34 +146,13 @@ enum WatchProcessingStatus: Equatable {
         processingErrorMessage = nil
         processingStatus = .checkingProvider
         startProcessingTimer()
-        await refreshCloudConfig()
-
-        guard !assemblyAIAPIKey.isEmpty else {
-            failProcessing(
-                status: .needsCloudConfig,
-                message: providerConfigRecoveryMessage
-                    ?? "AssemblyAI is not synced to this Watch yet. Open Momentus Settings on iPhone, then retry."
-            )
-            return
-        }
-
         await processDirectlyInCloud(pendingProcessingURL)
     }
 
     func requestProviderSettingsSync() async {
         processingStatus = .checkingProvider
         processingErrorMessage = nil
-        await refreshCloudConfig()
-
-        guard let pendingProcessingURL, !assemblyAIAPIKey.isEmpty else {
-            failProcessing(
-                status: .needsCloudConfig,
-                message: providerConfigRecoveryMessage
-                    ?? "Open Momentus Settings on iPhone so your provider key can sync to this Watch."
-            )
-            return
-        }
-
+        guard let pendingProcessingURL else { return }
         await processDirectlyInCloud(pendingProcessingURL)
     }
 
@@ -258,80 +222,6 @@ enum WatchProcessingStatus: Equatable {
         }
     }
 
-    private func refreshCloudConfig() async {
-        providerConfigRecoveryMessage = nil
-        do {
-            let config = try await WatchCloudKitConfigService.shared.fetchProviderConfig()
-            applyCloudConfig([
-                "defaultMode": config.defaultMode,
-                "assemblyAIAPIKey": config.assemblyAIAPIKey,
-                "anthropicAPIKey": config.anthropicAPIKey
-            ])
-            if !assemblyAIAPIKey.isEmpty { return }
-        } catch {
-            print("[Watch CloudKit] provider config fetch failed: \(error.localizedDescription)")
-            if let cloudKitError = error as? WatchCloudKitConfigError {
-                providerConfigRecoveryMessage = cloudKitError.errorDescription
-            } else {
-                providerConfigRecoveryMessage = "Could not read provider settings from Watch iCloud. Open Momentus on iPhone with your Watch nearby, then retry."
-            }
-        }
-
-        guard WCSession.default.activationState == .activated,
-              WCSession.default.isReachable
-        else {
-            if providerConfigRecoveryMessage == nil {
-                providerConfigRecoveryMessage = "Open Momentus on iPhone with your Watch nearby so provider settings can sync directly."
-            }
-            return
-        }
-
-        await withCheckedContinuation { continuation in
-            var didResume = false
-            let resume: () -> Void = {
-                guard !didResume else { return }
-                didResume = true
-                continuation.resume()
-            }
-
-            WCSession.default.sendMessage(
-                ["action": "watchCloudConfigRequest"],
-                replyHandler: { [weak self] reply in
-                    Task { @MainActor in
-                        self?.applyCloudConfig(reply)
-                        resume()
-                    }
-                },
-                errorHandler: { _ in resume() }
-            )
-
-            Task {
-                try? await Task.sleep(for: .seconds(2))
-                resume()
-            }
-        }
-
-        if assemblyAIAPIKey.isEmpty, providerConfigRecoveryMessage == nil {
-            providerConfigRecoveryMessage = "AssemblyAI is not synced to this Watch. Open Momentus Settings on iPhone, then retry."
-        }
-    }
-
-    private func applyCloudConfig(_ message: [String: Any]) {
-        if let defaultMode = message["defaultMode"] as? String {
-            if defaultMode == "bestQuality" || defaultMode == WatchRecordingMode.bestQuality.rawValue {
-                selectedMode = .bestQuality
-            }
-        }
-        if let assemblyKey = message["assemblyAIAPIKey"] as? String {
-            assemblyAIAPIKey = assemblyKey
-            UserDefaults.standard.set(assemblyAIAPIKey, forKey: "watchAssemblyAIAPIKey")
-        }
-        if let anthropicKey = message["anthropicAPIKey"] as? String {
-            anthropicAPIKey = anthropicKey
-            UserDefaults.standard.set(anthropicAPIKey, forKey: "watchAnthropicAPIKey")
-        }
-    }
-
     private func transferToPhone(_ transferURL: URL) {
         processingStatus = .sending
         let markerStr = markers.map { String(format: "%.2f", $0) }.joined(separator: ",")
@@ -353,7 +243,7 @@ enum WatchProcessingStatus: Equatable {
     private func processDirectlyInCloud(_ fileURL: URL) async {
         do {
             processingStatus = .uploadingCloud
-            let service = WatchCloudAssemblyAIService(apiKey: assemblyAIAPIKey)
+            let service = WatchCloudAssemblyAIService()
             processingStatus = .transcribingCloud
             let result = try await service.process(fileURL: fileURL)
             processingStatus = .readyToSync
@@ -611,13 +501,7 @@ extension WatchViewModel: WCSessionDelegate {
                     self.processingStatus = .needsPhoneWake
                 }
             case "watchCloudConfig":
-                self.applyCloudConfig(message)
-                if self.recordingState == .processing,
-                   self.processingStatus == .needsCloudConfig,
-                   !self.assemblyAIAPIKey.isEmpty,
-                   let pendingProcessingURL = self.pendingProcessingURL {
-                    await self.processDirectlyInCloud(pendingProcessingURL)
-                }
+                break
             case "startRecording":
                 if let mode = message["mode"] as? String {
                     if mode == WatchRecordingMode.bestQuality.rawValue {

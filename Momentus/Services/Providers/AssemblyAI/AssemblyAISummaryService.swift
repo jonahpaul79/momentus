@@ -6,7 +6,7 @@ final class AssemblyAISummaryService: SummaryService {
 
     private let client: AssemblyAIClient
 
-    init(apiKey: String) {
+    init(apiKey: String? = nil) {
         self.client = AssemblyAIClient(apiKey: apiKey)
     }
 

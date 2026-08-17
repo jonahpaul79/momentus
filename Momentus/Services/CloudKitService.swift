@@ -42,17 +42,11 @@ final class CloudKitService {
 
     func saveCurrentProviderConfig() async {
         await saveProviderConfig(
-            defaultMode: UserDefaults.standard.string(forKey: "defaultRecordingMode") ?? RecordingMode.onDevice.rawValue,
-            assemblyAIAPIKey: KeychainService.retrieve(.assemblyAIAPIKey) ?? "",
-            anthropicAPIKey: KeychainService.retrieve(.anthropicAPIKey) ?? ""
+            defaultMode: UserDefaults.standard.string(forKey: "defaultRecordingMode") ?? RecordingMode.onDevice.rawValue
         )
     }
 
-    func saveProviderConfig(
-        defaultMode: String,
-        assemblyAIAPIKey: String,
-        anthropicAPIKey: String
-    ) async {
+    func saveProviderConfig(defaultMode: String) async {
         do {
             let recordID = CKRecord.ID(recordName: providerConfigRecordName)
             let record: CKRecord
@@ -62,8 +56,8 @@ final class CloudKitService {
                 record = CKRecord(recordType: providerConfigRecordType, recordID: recordID)
             }
             record["defaultMode"] = defaultMode
-            record["assemblyAIAPIKey"] = assemblyAIAPIKey
-            record["anthropicAPIKey"] = anthropicAPIKey
+            record["assemblyAIAPIKey"] = nil
+            record["anthropicAPIKey"] = nil
             record["updatedAt"] = Date()
             try await db.save(record)
         } catch {

@@ -55,7 +55,7 @@ protocol TranscriptionService {
 /// executiveSummary, decisions[], actionItems[], openQuestions[], risks[], followUpDraft.
 /// Structured output / tool use is strongly preferred over free-text parsing.
 ///
-/// ⚠️  API keys must be stored in Keychain before wiring up cloud providers.
+/// Cloud provider credentials must remain in the Momentus backend, never in the app.
 ///
 /// TODO: implement providers in `Services/Providers/`
 /// - `AppleFoundationModelsSummaryService` — `LanguageModelSession` (iOS 26+, FoundationModels)

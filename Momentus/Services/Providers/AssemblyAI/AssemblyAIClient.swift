@@ -1,11 +1,11 @@
 import Foundation
 
 final class AssemblyAIClient {
-    private let apiKey: String
+    private let apiKey: String?
     private let baseURL = URL(string: "https://api.assemblyai.com")!
     private let session: URLSession
 
-    init(apiKey: String) {
+    init(apiKey: String? = nil) {
         self.apiKey = apiKey
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 60
@@ -18,6 +18,14 @@ final class AssemblyAIClient {
     /// Uploads raw audio bytes to AssemblyAI's CDN. Returns the upload_url used to create a transcript job.
     func upload(fileURL: URL) async throws -> String {
         let data = try Data(contentsOf: fileURL)
+        if apiKey == nil {
+            let responseData = try await MomentusBackendClient.shared.perform(
+                operation: "assemblyai.upload",
+                body: data,
+                contentType: "application/octet-stream"
+            )
+            return try decode(AssemblyAIUploadResponse.self, from: responseData).uploadURL
+        }
         var request = URLRequest(url: baseURL.appending(path: "/v2/upload"))
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "Authorization")
@@ -33,11 +41,19 @@ final class AssemblyAIClient {
 
     /// Submits a transcript job. Returns the transcript ID for polling.
     func createTranscript(uploadURL: String) async throws -> String {
+        let body = try JSONEncoder().encode(AssemblyAITranscriptRequest(audioURL: uploadURL))
+        if apiKey == nil {
+            let responseData = try await MomentusBackendClient.shared.perform(
+                operation: "assemblyai.create",
+                body: body
+            )
+            return try decode(AssemblyAITranscriptResponse.self, from: responseData).id
+        }
         var request = URLRequest(url: baseURL.appending(path: "/v2/transcript"))
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(AssemblyAITranscriptRequest(audioURL: uploadURL))
+        request.httpBody = body
 
         let (responseData, response) = try await session.data(for: request)
         try validate(response, data: responseData, context: "create transcript")
@@ -55,8 +71,17 @@ final class AssemblyAIClient {
             if attempt > 0 { try await Task.sleep(for: .seconds(5)) }
             try Task.checkCancellation()
 
-            let (responseData, response) = try await session.data(for: request)
-            try validate(response, data: responseData, context: "poll transcript")
+            let responseData: Data
+            if apiKey == nil {
+                responseData = try await MomentusBackendClient.shared.perform(
+                    operation: "assemblyai.poll",
+                    queryItems: [URLQueryItem(name: "id", value: id)]
+                )
+            } else {
+                let (data, response) = try await session.data(for: request)
+                try validate(response, data: data, context: "poll transcript")
+                responseData = data
+            }
             let transcript = try decode(AssemblyAITranscriptResponse.self, from: responseData)
 
             if transcript.isCompleted { return transcript }
@@ -72,11 +97,19 @@ final class AssemblyAIClient {
 
     /// Calls LeMUR with either transcript IDs or raw input text. Returns the model's response string.
     func lemurTask(_ lemurRequest: AssemblyAILeMURRequest) async throws -> String {
+        let body = try JSONEncoder().encode(lemurRequest)
+        if apiKey == nil {
+            let responseData = try await MomentusBackendClient.shared.perform(
+                operation: "assemblyai.lemur",
+                body: body
+            )
+            return try decode(AssemblyAILeMURResponse.self, from: responseData).response
+        }
         var request = URLRequest(url: baseURL.appending(path: "/lemur/v3/generate/task"))
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(lemurRequest)
+        request.httpBody = body
 
         let (responseData, response) = try await session.data(for: request)
         try validate(response, data: responseData, context: "LeMUR task")

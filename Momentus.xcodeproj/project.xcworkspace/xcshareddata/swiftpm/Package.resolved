@@ -1,6 +1,15 @@
 {
-  "originHash" : "e843284a09b9d7fb8d0032fe1a3fd1fbd38f28ea54d42a39ccbe396af16d225d",
+  "originHash" : "6528a0cd9bb1a74b65da98937b64ea5c9d0b15fb7520a502b50a68900358e1de",
   "pins" : [
+    {
+      "identity" : "supabase-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/supabase/supabase-swift.git",
+      "state" : {
+        "revision" : "21d3aaf21ee98f41611f9f75070489fc8b23d882",
+        "version" : "2.55.1"
+      }
+    },
     {
       "identity" : "swift-argument-parser",
       "kind" : "remoteSourceControl",
@@ -11,12 +20,66 @@
       }
     },
     {
+      "identity" : "swift-asn1",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-asn1.git",
+      "state" : {
+        "revision" : "a9a5efd40eaf558a2bcd48d64b1d1646be686008",
+        "version" : "1.7.1"
+      }
+    },
+    {
+      "identity" : "swift-clocks",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-clocks",
+      "state" : {
+        "revision" : "72d749bf341b78851203066ab421869b783ec42a",
+        "version" : "1.1.0"
+      }
+    },
+    {
+      "identity" : "swift-concurrency-extras",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-concurrency-extras",
+      "state" : {
+        "revision" : "5fa253428866f2360c3754e88537f700ed2656b5",
+        "version" : "1.4.1"
+      }
+    },
+    {
+      "identity" : "swift-crypto",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-crypto.git",
+      "state" : {
+        "revision" : "47d3869a7291f085c1fb9fb1e6d3b97a793f45c6",
+        "version" : "4.5.1"
+      }
+    },
+    {
+      "identity" : "swift-http-types",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-http-types.git",
+      "state" : {
+        "revision" : "db774a277f60063a32d854f2980299caf06da041",
+        "version" : "1.6.0"
+      }
+    },
+    {
       "identity" : "whisperkit",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/argmaxinc/WhisperKit",
       "state" : {
         "branch" : "main",
         "revision" : "984ab42f6d6824f17630109537829af26ca47fd6"
+      }
+    },
+    {
+      "identity" : "xctest-dynamic-overlay",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
+      "state" : {
+        "revision" : "8f6abcf4c8950e2679d5b2fee4ca284fd7c34886",
+        "version" : "1.11.0"
       }
     }
   ],

@@ -82,9 +82,7 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
     private func watchCloudConfigurationPayload() -> [String: String] {
         [
             "action": "watchCloudConfig",
-            "defaultMode": UserDefaults.standard.string(forKey: "defaultRecordingMode") ?? RecordingMode.onDevice.rawValue,
-            "assemblyAIAPIKey": KeychainService.retrieve(.assemblyAIAPIKey) ?? "",
-            "anthropicAPIKey": KeychainService.retrieve(.anthropicAPIKey) ?? ""
+            "defaultMode": UserDefaults.standard.string(forKey: "defaultRecordingMode") ?? RecordingMode.onDevice.rawValue
         ]
     }
 

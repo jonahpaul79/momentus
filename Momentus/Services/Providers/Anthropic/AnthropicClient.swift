@@ -13,11 +13,11 @@ final class AnthropicClient {
 
     // MARK: - Init
 
-    private let apiKey: String
+    private let apiKey: String?
     private let baseURL = URL(string: "https://api.anthropic.com")!
     private let session: URLSession
 
-    init(apiKey: String) {
+    init(apiKey: String? = nil) {
         self.apiKey = apiKey
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 60
@@ -397,12 +397,21 @@ final class AnthropicClient {
 
     private func send(_ body: MessageRequest) async throws -> MessageResponse {
 
+        let encodedBody = try JSONEncoder().encode(body)
+        if apiKey == nil {
+            let data = try await MomentusBackendClient.shared.perform(
+                operation: "anthropic.messages",
+                body: encodedBody
+            )
+            return try decode(MessageResponse.self, from: data)
+        }
+
         var request = URLRequest(url: baseURL.appending(path: "/v1/messages"))
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
-        request.httpBody = try JSONEncoder().encode(body)
+        request.httpBody = encodedBody
 
         let (data, response) = try await session.data(for: request)
         try validate(response, data: data)

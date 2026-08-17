@@ -1,14 +1,11 @@
 import Foundation
 
-/// Builds protocol-typed service instances based on recording mode and available API keys.
+/// Builds protocol-typed service instances based on recording mode.
 ///
 /// This is the single wiring point. All views and view models depend only on
 /// TranscriptionService and SummaryService protocols — never on concrete types.
 ///
-/// **Best Quality summary provider priority (key-driven):**
-///   1. Claude Sonnet — if Anthropic key is present (highest quality)
-///   2. AssemblyAI LeMUR — if AssemblyAI key is present (good quality, uses same transcript ID)
-///   3. Apple Foundation Models — on-device fallback (no cloud key required)
+/// Quality modes use Momentus Cloud. Provider credentials stay in backend secrets.
 ///
 /// **Fallback chain:**
 ///   ClaudeSummaryService → FallbackSummaryService → AssemblyAISummaryService or Apple
@@ -16,8 +13,7 @@ import Foundation
 ///
 /// To add a new provider:
 ///   1. Implement TranscriptionService or SummaryService
-///   2. Add its Keychain key to KeychainService.swift
-///   3. Insert it into the appropriate switch case below
+///   2. Insert it into the appropriate switch case below
 enum ServiceFactory {
 
     // MARK: - Transcript Chat
@@ -27,16 +23,12 @@ enum ServiceFactory {
         case .onDevice:
             return AppleFoundationModelsTranscriptChatService()
         case .bestQuality:
-            guard let key = KeychainService.retrieve(.anthropicAPIKey), !key.isEmpty else {
-                throw TranscriptChatError.missingAnthropicAPIKey
-            }
-            return ClaudeTranscriptChatService(apiKey: key)
+            return ClaudeTranscriptChatService()
         }
     }
 
     static var isAnthropicChatConfigured: Bool {
-        guard let key = KeychainService.retrieve(.anthropicAPIKey) else { return false }
-        return !key.isEmpty
+        MomentusBackendClient.isConfigured
     }
 
     // MARK: - Transcription
@@ -44,12 +36,8 @@ enum ServiceFactory {
     static func makeTranscriptionService(for mode: RecordingMode) -> any TranscriptionService {
         switch mode {
         case .bestQuality:
-            if let key = KeychainService.retrieve(.assemblyAIAPIKey), !key.isEmpty {
-                print("[ServiceFactory] Best Quality → AssemblyAITranscriptionService")
-                return AssemblyAITranscriptionService(apiKey: key)
-            }
-            print("[ServiceFactory] Best Quality — no AssemblyAI key, falling back to Apple on-device")
-            return AppleSpeechTranscriptionService()
+            print("[ServiceFactory] Best Quality → Momentus Cloud (AssemblyAI)")
+            return AssemblyAITranscriptionService()
 
         case .onDevice, .hybrid:
             return WhisperKitTranscriptionService()
@@ -68,75 +56,39 @@ enum ServiceFactory {
     }
 
     private static func makeCloudCapableSummaryService(for mode: RecordingMode) -> any SummaryService {
-        let claudeKey     = KeychainService.retrieve(.anthropicAPIKey) ?? ""
-        let assemblyAIKey = KeychainService.retrieve(.assemblyAIAPIKey) ?? ""
-        let label = mode.displayName
-
-        // Claude is the preferred summary provider. Use it as primary when a key exists,
-        // with AssemblyAI LeMUR (or Apple) as fallback when Claude is missing or fails.
-        if !claudeKey.isEmpty {
-            let claude = ClaudeSummaryService(apiKey: claudeKey)
-            let apple  = AppleFoundationModelsSummaryService()
-
-            if !assemblyAIKey.isEmpty {
-                // Claude → AssemblyAI LeMUR → Apple on-device (guaranteed last resort)
-                print("[ServiceFactory] \(label) → Claude → AssemblyAI LeMUR → Apple")
-                return FallbackSummaryService(
-                    primary: claude,
-                    fallback: FallbackSummaryService(
-                        primary: AssemblyAISummaryService(apiKey: assemblyAIKey),
-                        fallback: apple
-                    )
-                )
-            } else {
-                // Claude → Apple on-device
-                print("[ServiceFactory] \(label) → Claude → Apple")
-                return FallbackSummaryService(primary: claude, fallback: apple)
-            }
-        }
-
-        // No Claude key — try AssemblyAI LeMUR directly
-        if !assemblyAIKey.isEmpty {
-            print("[ServiceFactory] \(label) — no Claude key → AssemblyAI LeMUR")
-            return AssemblyAISummaryService(apiKey: assemblyAIKey)
-        }
-
-        // No cloud keys at all
-        print("[ServiceFactory] \(label) — no cloud keys → Apple Foundation Models")
-        return AppleFoundationModelsSummaryService()
+        print("[ServiceFactory] \(mode.displayName) → Momentus Cloud (Claude → AssemblyAI LeMUR → Apple)")
+        return FallbackSummaryService(
+            primary: ClaudeSummaryService(),
+            fallback: FallbackSummaryService(
+                primary: AssemblyAISummaryService(),
+                fallback: AppleFoundationModelsSummaryService()
+            )
+        )
     }
 
     // MARK: - Key Status
 
-    /// True if Best Quality transcription is available (requires AssemblyAI key).
+    /// True if Best Quality transcription can use Momentus Cloud.
     static func isTranscriptionConfigured(for mode: RecordingMode) -> Bool {
         guard mode == .bestQuality else { return true }
-        let key = KeychainService.retrieve(.assemblyAIAPIKey) ?? ""
-        return !key.isEmpty
+        return MomentusBackendClient.isConfigured
     }
 
     /// True if any cloud summary provider is configured for the given mode.
     static func isSummaryConfigured(for mode: RecordingMode) -> Bool {
         guard mode == .bestQuality || mode == .hybrid else { return true }
-        let claude     = KeychainService.retrieve(.anthropicAPIKey) ?? ""
-        let assemblyAI = KeychainService.retrieve(.assemblyAIAPIKey) ?? ""
-        return !claude.isEmpty || !assemblyAI.isEmpty
+        return MomentusBackendClient.isConfigured
     }
 
-    /// Convenience: true when ALL required keys for the mode are present.
-    /// (Drives the missing-key warning in RecordHomeView.)
+    /// Convenience used by recording UI availability checks.
     static func isConfigured(for mode: RecordingMode) -> Bool {
         isTranscriptionConfigured(for: mode)
     }
 
-    /// Name of the summary provider that will be used for the given mode, based on current keys.
+    /// Name of the summary provider that will be used for the given mode.
     static func summaryProviderName(for mode: RecordingMode) -> String {
         guard mode == .bestQuality || mode == .hybrid else { return "Apple Foundation Models" }
-        let claudeKey     = KeychainService.retrieve(.anthropicAPIKey) ?? ""
-        let assemblyAIKey = KeychainService.retrieve(.assemblyAIAPIKey) ?? ""
-        if !claudeKey.isEmpty     { return "Claude Sonnet (\(AnthropicClient.defaultModel))" }
-        if !assemblyAIKey.isEmpty { return "AssemblyAI LeMUR" }
-        return "Apple Foundation Models"
+        return "Claude Sonnet (Momentus Cloud)"
     }
 }
 

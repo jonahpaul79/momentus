@@ -36,17 +36,7 @@ struct WatchCloudSummary {
 }
 
 final class WatchCloudAssemblyAIService {
-    private let apiKey: String
-    private let baseURL = URL(string: "https://api.assemblyai.com")!
-    private let session: URLSession
-
-    init(apiKey: String) {
-        self.apiKey = apiKey
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 300
-        config.timeoutIntervalForResource = 7200
-        self.session = URLSession(configuration: config)
-    }
+    init() {}
 
     func process(fileURL: URL) async throws -> WatchCloudProcessingResult {
         let uploadURL = try await upload(fileURL: fileURL)
@@ -63,38 +53,31 @@ final class WatchCloudAssemblyAIService {
     }
 
     private func upload(fileURL: URL) async throws -> String {
-        var request = URLRequest(url: baseURL.appending(path: "/v2/upload"))
-        request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "Authorization")
-        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 300
-
-        let (responseData, response) = try await session.upload(for: request, fromFile: fileURL)
-        try validate(response, data: responseData)
+        let audio = try Data(contentsOf: fileURL)
+        let responseData = try await WatchBackendClient.shared.perform(
+            operation: "assemblyai.upload",
+            body: audio,
+            contentType: "application/octet-stream"
+        )
         return try JSONDecoder().decode(UploadResponse.self, from: responseData).uploadURL
     }
 
     private func createTranscript(uploadURL: String) async throws -> String {
-        var request = URLRequest(url: baseURL.appending(path: "/v2/transcript"))
-        request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(TranscriptRequest(audioURL: uploadURL))
-
-        let (responseData, response) = try await session.data(for: request)
-        try validate(response, data: responseData)
+        let body = try JSONEncoder().encode(TranscriptRequest(audioURL: uploadURL))
+        let responseData = try await WatchBackendClient.shared.perform(
+            operation: "assemblyai.create",
+            body: body
+        )
         return try JSONDecoder().decode(TranscriptResponse.self, from: responseData).id
     }
 
     private func pollTranscript(id: String) async throws -> TranscriptResponse {
-        let url = baseURL.appending(path: "/v2/transcript/\(id)")
-        var request = URLRequest(url: url)
-        request.setValue(apiKey, forHTTPHeaderField: "Authorization")
-
         for attempt in 0..<360 {
             if attempt > 0 { try await Task.sleep(for: .seconds(10)) }
-            let (responseData, response) = try await session.data(for: request)
-            try validate(response, data: responseData)
+            let responseData = try await WatchBackendClient.shared.perform(
+                operation: "assemblyai.poll",
+                queryItems: [URLQueryItem(name: "id", value: id)]
+            )
             let transcript = try JSONDecoder().decode(TranscriptResponse.self, from: responseData)
             if transcript.status == "completed" { return transcript }
             if transcript.status == "error" {
@@ -145,14 +128,11 @@ final class WatchCloudAssemblyAIService {
     }
 
     private func requestSummary(_ body: LeMURRequest) async throws -> WatchCloudSummary? {
-        var request = URLRequest(url: baseURL.appending(path: "/lemur/v3/generate/task"))
-        request.httpMethod = "POST"
-        request.setValue(apiKey, forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(body)
-
-        let (responseData, response) = try await session.data(for: request)
-        try validate(response, data: responseData)
+        let encoded = try JSONEncoder().encode(body)
+        let responseData = try await WatchBackendClient.shared.perform(
+            operation: "assemblyai.lemur",
+            body: encoded
+        )
         let responseText = try JSONDecoder().decode(LeMURResponse.self, from: responseData).response
         let jsonText = extractJSON(responseText)
         guard let data = jsonText.data(using: .utf8),
@@ -351,7 +331,7 @@ enum WatchCloudAssemblyAIError: LocalizedError {
         let normalized = message.lowercased()
 
         if statusCode == 401 || statusCode == 403 || normalized.contains("unauthorized") || normalized.contains("auth") || normalized.contains("api key") {
-            return "AssemblyAI rejected the API key. Open Momentus on iPhone, paste a valid key in Settings, then sync settings."
+            return "Momentus Cloud could not authenticate this request. Please try again later."
         }
 
         if statusCode == 402 ||

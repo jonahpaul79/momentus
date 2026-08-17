@@ -25,7 +25,7 @@ enum TranscriptChatMode: String, Codable, CaseIterable, Identifiable {
         case .onDevice:
             return "Transcript and questions stay on this device."
         case .bestQuality:
-            return "Transcript text, chat, and any web queries are sent to Anthropic using your API key. Audio is never sent."
+            return "Transcript text, chat, and any web queries are processed by Momentus Cloud. Audio is never sent for chat."
         }
     }
 }
@@ -78,7 +78,7 @@ enum TranscriptChatError: LocalizedError {
         case .emptyTranscript:
             return "This recording does not have enough transcript text to chat with."
         case .missingAnthropicAPIKey:
-            return "Best Quality chat needs your Anthropic API key. Add it in Settings → Best Quality — Summary."
+            return "Best Quality chat is temporarily unavailable because Momentus Cloud is not configured."
         case .onDeviceTranscriptTooLong(let estimatedTokens, let recommendedMaximum):
             return "This transcript is about \(estimatedTokens.formatted()) tokens. Private chat works best below about \(recommendedMaximum.formatted()) tokens."
         case .onDeviceContextLimit:

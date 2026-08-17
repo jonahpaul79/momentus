@@ -1,0 +1,7 @@
+project_id = "hbljfwhhyxppcughhulp"
+
+[auth]
+enable_anonymous_sign_ins = true
+
+[functions.ai-gateway]
+verify_jwt = true

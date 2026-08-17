@@ -11,6 +11,8 @@
 		B1000000000000000000000C /* Momentus Watch Widgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* Momentus Watch Widgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		8CAA6EC72FC91345007D0CB1 /* Momentus Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 8CAA6EC62FC91345007D0CB1 /* Momentus Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		8CCE68CD2FCF2BE40077F268 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 8CCE68CC2FCF2BE40077F268 /* WhisperKit */; };
+		D10000000000000000000001 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = D10000000000000000000004 /* Supabase */; };
+		D10000000000000000000002 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = D10000000000000000000004 /* Supabase */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -227,6 +229,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D10000000000000000000001 /* Supabase in Frameworks */,
 				8CCE68CD2FCF2BE40077F268 /* WhisperKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -249,6 +252,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D10000000000000000000002 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -381,6 +385,7 @@
 			name = Momentus;
 			packageProductDependencies = (
 				8CCE68CC2FCF2BE40077F268 /* WhisperKit */,
+				D10000000000000000000004 /* Supabase */,
 			);
 			productName = Momentus;
 			productReference = 8CAA6EA32FC91343007D0CB1 /* Momentus.app */;
@@ -452,6 +457,7 @@
 			);
 			name = "Momentus Watch App";
 			packageProductDependencies = (
+				D10000000000000000000004 /* Supabase */,
 			);
 			productName = "Momentus Watch App";
 			productReference = 8CAA6EC62FC91345007D0CB1 /* Momentus Watch App.app */;
@@ -554,6 +560,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				8CCE68CA2FCF2A6B0077F268 /* XCRemoteSwiftPackageReference "WhisperKit" */,
+				D10000000000000000000003 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8CAA6EA42FC91343007D0CB1 /* Products */;
@@ -734,7 +741,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Momentus Widgets/Info.plist";
@@ -744,7 +751,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -764,7 +771,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Momentus Widgets/Info.plist";
@@ -774,7 +781,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -795,7 +802,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Momentus Watch Widgets/Info.plist";
@@ -804,7 +811,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.watchkitapp.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -825,7 +832,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Momentus Watch Widgets/Info.plist";
@@ -834,7 +841,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.watchkitapp.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -978,7 +985,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Momentus Watch App/Momentus Watch App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -991,7 +998,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1014,7 +1021,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Momentus Watch App/Momentus Watch App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -1027,7 +1034,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1051,7 +1058,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Momentus/Momentus.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1073,7 +1080,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1094,7 +1101,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Momentus/Momentus.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1116,7 +1123,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1136,11 +1143,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1159,11 +1166,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1182,11 +1189,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1204,11 +1211,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1228,10 +1235,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "jonahpaul.momentus.watch-app-tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1251,10 +1258,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "jonahpaul.momentus.watch-app-tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1274,10 +1281,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "jonahpaul.momentus.watch-app-uitests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1296,10 +1303,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = C5SKKESF4C;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "jonahpaul.momentus.watch-app-uitests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -1410,6 +1417,14 @@
 				kind = branch;
 			};
 		};
+		D10000000000000000000003 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.54.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1417,6 +1432,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 8CCE68CA2FCF2A6B0077F268 /* XCRemoteSwiftPackageReference "WhisperKit" */;
 			productName = WhisperKit;
+		};
+		D10000000000000000000004 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D10000000000000000000003 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
