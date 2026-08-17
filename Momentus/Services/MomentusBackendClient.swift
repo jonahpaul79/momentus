@@ -71,7 +71,7 @@ actor MomentusBackendClient {
     }
 }
 
-private struct BackendErrorBody: Decodable {
+private nonisolated struct BackendErrorBody: Decodable, Sendable {
     let error: String
 }
 
