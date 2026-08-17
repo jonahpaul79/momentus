@@ -284,10 +284,8 @@ struct RecordHomeView: View {
                 ForEach(Array(meetings.enumerated()), id: \.element.id) { index, meeting in
                     Button {
                         if meeting.isHappeningNow {
-                            vm.suggestedMeetingTitle = meeting.title
-                            vm.suggestedSpeakers = meeting.attendees
-                            HapticStyle.medium.trigger()
-                            Task { await vm.startRecording() }
+                            vm.selectCalendarMeeting(meeting)
+                            HapticStyle.selection.trigger()
                         } else {
                             HapticStyle.light.trigger()
                         }
@@ -332,8 +330,8 @@ struct RecordHomeView: View {
                 }
             }
             Spacer()
-            if vm.suggestedMeetingTitle == meeting.title {
-                Image(systemName: "checkmark.circle.fill")
+            if vm.calendarMeeting?.id == meeting.id {
+                Image(systemName: "mic.circle.fill")
                     .font(.system(size: 20))
                     .foregroundStyle(t.colors.accentPrimary)
             } else {

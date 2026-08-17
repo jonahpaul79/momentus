@@ -30,6 +30,14 @@ struct SettingsView: View {
         nonmutating set { audioRetentionRaw = newValue.rawValue }
     }
 
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+    }
+
+    private var appBuild: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+    }
+
     var body: some View {
         let t = themeManager.currentTheme
         List {
@@ -276,7 +284,7 @@ struct SettingsView: View {
                 Text("Version")
                     .foregroundStyle(t.colors.textPrimary)
                 Spacer()
-                Text("1.0 (MVP)")
+                Text(appVersion)
                     .foregroundStyle(t.colors.textSecondary)
             }
             .listRowBackground(t.colors.surfacePrimary)
@@ -285,7 +293,7 @@ struct SettingsView: View {
                 Text("Build")
                     .foregroundStyle(t.colors.textPrimary)
                 Spacer()
-                Text("2026.05")
+                Text(appBuild)
                     .foregroundStyle(t.colors.textSecondary)
             }
             .listRowBackground(t.colors.surfacePrimary)

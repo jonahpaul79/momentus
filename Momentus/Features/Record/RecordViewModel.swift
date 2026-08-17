@@ -140,10 +140,14 @@ extension Notification.Name {
         // The next upcoming event may be unrelated to a recording started now.
         // Only attach names automatically when the calendar event is in progress.
         let currentMeeting = current.first
-        calendarMeeting = currentMeeting
-        suggestedMeetingTitle = currentMeeting?.title
-        suggestedSpeakers = currentMeeting?.attendees ?? []
+        selectCalendarMeeting(currentMeeting)
         await MeetingNotificationService.shared.scheduleReminders(for: upcoming)
+    }
+
+    func selectCalendarMeeting(_ meeting: CalendarMeeting?) {
+        calendarMeeting = meeting
+        suggestedMeetingTitle = meeting?.title
+        suggestedSpeakers = meeting?.attendees ?? []
     }
 
     // MARK: Recording Control
