@@ -17,11 +17,10 @@ final class AssemblyAIClient {
 
     /// Uploads raw audio bytes to AssemblyAI's CDN. Returns the upload_url used to create a transcript job.
     func upload(fileURL: URL) async throws -> String {
-        let data = try Data(contentsOf: fileURL)
         if apiKey == nil {
-            let responseData = try await MomentusBackendClient.shared.perform(
+            let responseData = try await MomentusBackendClient.shared.upload(
                 operation: "assemblyai.upload",
-                body: data,
+                fileURL: fileURL,
                 contentType: "application/octet-stream"
             )
             return try decode(AssemblyAIUploadResponse.self, from: responseData).uploadURL
@@ -30,9 +29,7 @@ final class AssemblyAIClient {
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "Authorization")
         request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-        request.httpBody = data
-
-        let (responseData, response) = try await session.data(for: request)
+        let (responseData, response) = try await session.upload(for: request, fromFile: fileURL)
         try validate(response, data: responseData, context: "upload")
         return try decode(AssemblyAIUploadResponse.self, from: responseData).uploadURL
     }
@@ -61,13 +58,14 @@ final class AssemblyAIClient {
     }
 
     /// Polls at 5-second intervals until the transcript job completes or fails.
-    /// Times out after ~10 minutes (120 attempts).
+    /// Allows up to six hours. The transcript ID is persisted by the caller, so a
+    /// suspended or relaunched app can continue polling the same provider job.
     func pollTranscript(id: String) async throws -> AssemblyAITranscriptResponse {
         let url = baseURL.appending(path: "/v2/transcript/\(id)")
         var request = URLRequest(url: url)
         request.setValue(apiKey, forHTTPHeaderField: "Authorization")
 
-        for attempt in 0..<120 {
+        for attempt in 0..<4_320 {
             if attempt > 0 { try await Task.sleep(for: .seconds(5)) }
             try Task.checkCancellation()
 

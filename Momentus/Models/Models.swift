@@ -23,6 +23,9 @@ struct Recording: Identifiable, Codable, Equatable {
     var processingState: ProcessingState
     /// The last processing failure, persisted so Notes can explain and retry it.
     var processingError: String?
+    /// Remote transcription job checkpoint. Keeping this lets an interrupted cloud
+    /// pipeline resume polling without uploading a large recording a second time.
+    var transcriptionJobID: String?
     var transcript: Transcript?
     var summary: MeetingSummary?
     var isFavorite: Bool
@@ -48,6 +51,7 @@ struct Recording: Identifiable, Codable, Equatable {
         audioFileID: String? = nil,
         processingState: ProcessingState = .idle,
         processingError: String? = nil,
+        transcriptionJobID: String? = nil,
         transcript: Transcript? = nil,
         summary: MeetingSummary? = nil,
         isFavorite: Bool = false,
@@ -63,6 +67,7 @@ struct Recording: Identifiable, Codable, Equatable {
         self.audioFileID = audioFileID
         self.processingState = processingState
         self.processingError = processingError
+        self.transcriptionJobID = transcriptionJobID
         self.transcript = transcript
         self.summary = summary
         self.isFavorite = isFavorite

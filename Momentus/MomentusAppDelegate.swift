@@ -49,6 +49,18 @@ final class MomentusAppDelegate: NSObject, UIApplicationDelegate {
         ) { task in
             self.handleWatchRecordingProcessingTask(task)
         }
+        BGTaskScheduler.shared.register(
+            forTaskWithIdentifier: ContinuedProcessingManager.taskIdentifier,
+            using: nil
+        ) { task in
+            guard let task = task as? BGContinuedProcessingTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
+            Task { @MainActor in
+                ContinuedProcessingManager.shared.handle(task)
+            }
+        }
     }
 
     private func handleWatchRecordingProcessingTask(_ task: BGTask) {

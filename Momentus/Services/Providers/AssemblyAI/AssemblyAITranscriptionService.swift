@@ -1,6 +1,6 @@
 import Foundation
 
-final class AssemblyAITranscriptionService: TranscriptionService {
+final class AssemblyAITranscriptionService: ResumableTranscriptionService {
     let providerName = "AssemblyAI"
     let isOnDevice = false
 
@@ -11,6 +11,11 @@ final class AssemblyAITranscriptionService: TranscriptionService {
     }
 
     func transcribe(audioFileID: String, recordingId: UUID) async throws -> Transcript {
+        let transcriptID = try await createTranscription(audioFileID: audioFileID)
+        return try await awaitTranscription(id: transcriptID, recordingId: recordingId)
+    }
+
+    func createTranscription(audioFileID: String) async throws -> String {
         let fileURL = AVAudioRecorderService.recordingsDirectory.appendingPathComponent(audioFileID)
 
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
@@ -21,8 +26,10 @@ final class AssemblyAITranscriptionService: TranscriptionService {
         let uploadURL = try await client.upload(fileURL: fileURL)
 
         print("[AssemblyAI] creating transcript job")
-        let transcriptID = try await client.createTranscript(uploadURL: uploadURL)
+        return try await client.createTranscript(uploadURL: uploadURL)
+    }
 
+    func awaitTranscription(id transcriptID: String, recordingId: UUID) async throws -> Transcript {
         print("[AssemblyAI] polling transcript \(transcriptID)")
         let response = try await client.pollTranscript(id: transcriptID)
 

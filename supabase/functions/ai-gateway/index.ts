@@ -3,7 +3,9 @@ import { withSupabase } from "jsr:@supabase/server@^1";
 
 const assemblyAIBaseURL = "https://api.assemblyai.com";
 const anthropicBaseURL = "https://api.anthropic.com";
-const maxAudioBytes = 50 * 1024 * 1024;
+// Large meetings commonly exceed the original 50 MB guard. Keep a defensive
+// ceiling while allowing multi-hour AAC recordings to stream through the proxy.
+const maxAudioBytes = 500 * 1024 * 1024;
 const dailyQuotaUnits = 25;
 
 const corsHeaders = {
@@ -56,7 +58,7 @@ export default {
 async function assemblyAIUpload(request: Request): Promise<Response> {
   requireSecret("ASSEMBLYAI_API_KEY");
   const contentLength = Number(request.headers.get("content-length") ?? "0");
-  if (contentLength > maxAudioBytes) return jsonError("Recording is larger than 50 MB", 413);
+  if (contentLength > maxAudioBytes) return jsonError("Recording is larger than 500 MB", 413);
   if (!request.body) return jsonError("Recording data is required", 400);
 
   const response = await fetch(`${assemblyAIBaseURL}/v2/upload`, {

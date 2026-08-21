@@ -52,10 +52,14 @@ struct ContentView: View {
             WatchRecordingProcessor.shared.configure(store: store)
             await CloudKitService.shared.saveCurrentProviderConfig()
             await store.importCloudRecordingsWithRetry()
+            store.resumeInterruptedProcessing()
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
-            Task { await store.importCloudRecordingsWithRetry() }
+            Task {
+                await store.importCloudRecordingsWithRetry()
+                store.resumeInterruptedProcessing()
+            }
         }
         .onChange(of: showingSplash) { _, isShowing in
             if !isShowing { presentWidgetEducationIfNeeded() }

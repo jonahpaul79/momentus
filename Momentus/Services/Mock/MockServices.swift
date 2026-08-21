@@ -14,6 +14,7 @@ import UIKit
 /// `@Observable` means any view reading `store.recordings` re-renders automatically.
 @Observable final class RecordingsStore {
     private let storageKey = "stored_recordings"
+    static let interruptedProcessingMessage = "Processing was interrupted before it finished. Your recording is preserved and will resume automatically."
     var recordings: [Recording] = []
     var isSyncing = false
     private(set) var processingRecordingIDs: Set<UUID> = []
@@ -31,7 +32,7 @@ import UIKit
                 var recovered = stored
                 if recovered.processingState.isInProgress {
                     recovered.processingState = .failed
-                    recovered.processingError = "Processing was interrupted before it finished. Your recording is preserved and can be retried."
+                    recovered.processingError = Self.interruptedProcessingMessage
                 } else if recovered.processingState == .failed,
                           recovered.processingError?.isEmpty != false {
                     recovered.processingError = "AI processing did not finish. Your recording is preserved and can be retried."
@@ -97,7 +98,7 @@ import UIKit
 
     /// Reuses any completed transcript and only repeats the failed portion of the pipeline.
     /// The task is owned by the app-level store, so dismissing the detail screen does not cancel it.
-    func retryProcessing(recordingID: UUID) {
+    func retryProcessing(recordingID: UUID, userInitiated: Bool = true) {
         guard !processingRecordingIDs.contains(recordingID),
               var recording = recording(for: recordingID),
               canRetryProcessing(recording)
@@ -109,7 +110,21 @@ import UIKit
         update(recording)
 
         Task { [weak self] in
-            await self?.performProcessingRetry(recordingID: recordingID)
+            await self?.performProcessingRetry(recordingID: recordingID, userInitiated: userInitiated)
+        }
+    }
+
+    /// Continue work that was persisted in an in-progress state before the app exited.
+    /// Cloud recordings reuse their saved provider job ID rather than uploading again.
+    func resumeInterruptedProcessing() {
+        let interruptedIDs = recordings.compactMap { recording in
+            recording.processingState == .failed
+                && recording.processingError == Self.interruptedProcessingMessage
+                ? recording.id
+                : nil
+        }
+        for id in interruptedIDs {
+            retryProcessing(recordingID: id, userInitiated: false)
         }
     }
 
@@ -206,72 +221,108 @@ import UIKit
         }
     }
 
-    private func performProcessingRetry(recordingID: UUID) async {
+    private func performProcessingRetry(recordingID: UUID, userInitiated: Bool) async {
         defer { processingRecordingIDs.remove(recordingID) }
-        guard var recording = recording(for: recordingID) else { return }
-
-        let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "RetryRecordingProcessing") {
-            print("[Retry Pipeline] background execution time expired")
-        }
-        defer {
-            if backgroundTask != .invalid {
-                UIApplication.shared.endBackgroundTask(backgroundTask)
-            }
-        }
-
         do {
-            let transcript: Transcript
-            if let existingTranscript = recording.transcript {
-                transcript = existingTranscript
-            } else {
-                guard let audioFileID = recording.audioFileID,
-                      audioIsPlayable(audioFileID)
-                else { throw RecordingProcessingRetryError.audioUnavailable }
-
-                var generated = try await ServiceFactory.makeTranscriptionService(for: recording.mode)
-                    .transcribe(audioFileID: audioFileID, recordingId: recording.id)
-                generated.providerData["momentus_markers"] = recording.markers
-                    .map { String(format: "%.1f", $0) }
-                    .joined(separator: ",")
-                if let attendees = recording.calendarAttendees, !attendees.isEmpty {
-                    generated.providerData["momentus_attendees"] = attendees.joined(separator: ",")
+            if userInitiated, let recording = recording(for: recordingID) {
+                try await ContinuedProcessingManager.shared.run(
+                    recordingID: recordingID,
+                    title: recording.title
+                ) { reporter in
+                    try await self.performProcessingRetryBody(
+                        recordingID: recordingID,
+                        reporter: reporter
+                    )
                 }
-                transcript = generated
-                recording.transcript = generated
-                recording.processingState = .summarizing
-                update(recording)
+            } else {
+                try await performProcessingRetryBody(recordingID: recordingID, reporter: nil)
             }
-
-            try Task.checkCancellation()
-            let summary = try await ServiceFactory.makeSummaryService(for: recording.mode)
-                .summarize(transcript: transcript, recordingId: recording.id)
-            recording.summary = summary
-            if let suggestedTitle = summary.suggestedTitle {
-                recording.title = suggestedTitle
-            }
-            recording.processingState = .preparingNotes
-            update(recording)
-
-            try await Task.sleep(for: .milliseconds(350))
-            recording.processingState = .completed
-            recording.processingError = nil
-            update(recording)
-            HapticStyle.success.trigger()
-            NotificationCenter.default.post(
-                name: .recordingProcessingCompleted,
-                object: nil,
-                userInfo: ["recordingId": recording.id]
-            )
         } catch is CancellationError {
+            guard var recording = recording(for: recordingID) else { return }
             recording.processingState = .failed
-            recording.processingError = "Processing was interrupted. Please try again."
+            recording.processingError = Self.interruptedProcessingMessage
             update(recording)
         } catch {
+            guard var recording = recording(for: recordingID) else { return }
             recording.processingState = .failed
             recording.processingError = error.localizedDescription
             update(recording)
             print("[Retry Pipeline] failed \(recordingID): \(error)")
         }
+    }
+
+    private func performProcessingRetryBody(
+        recordingID: UUID,
+        reporter: ContinuedProcessingManager.Reporter?
+    ) async throws {
+        guard var recording = recording(for: recordingID) else { return }
+        let transcript: Transcript
+        if let existingTranscript = recording.transcript {
+            transcript = existingTranscript
+        } else {
+            guard let audioFileID = recording.audioFileID,
+                  audioIsPlayable(audioFileID)
+            else { throw RecordingProcessingRetryError.audioUnavailable }
+
+            reporter?.update(completed: 1, subtitle: "Transcribing your recording")
+            let service = ServiceFactory.makeTranscriptionService(for: recording.mode)
+            var generated: Transcript
+            if let resumable = service as? any ResumableTranscriptionService {
+                let jobID: String
+                if let checkpoint = recording.transcriptionJobID {
+                    jobID = checkpoint
+                    print("[Retry Pipeline] resuming transcription job \(jobID)")
+                } else {
+                    jobID = try await resumable.createTranscription(audioFileID: audioFileID)
+                    recording.transcriptionJobID = jobID
+                    update(recording)
+                    print("[Retry Pipeline] checkpointed transcription job \(jobID)")
+                }
+                generated = try await resumable.awaitTranscription(
+                    id: jobID,
+                    recordingId: recording.id
+                )
+            } else {
+                generated = try await service.transcribe(
+                    audioFileID: audioFileID,
+                    recordingId: recording.id
+                )
+            }
+            generated.providerData["momentus_markers"] = recording.markers
+                .map { String(format: "%.1f", $0) }
+                .joined(separator: ",")
+            if let attendees = recording.calendarAttendees, !attendees.isEmpty {
+                generated.providerData["momentus_attendees"] = attendees.joined(separator: ",")
+            }
+            transcript = generated
+            recording.transcript = generated
+            recording.processingState = .summarizing
+            update(recording)
+        }
+
+        try Task.checkCancellation()
+        reporter?.update(completed: 2, subtitle: "Generating meeting notes")
+        let summary = try await ServiceFactory.makeSummaryService(for: recording.mode)
+            .summarize(transcript: transcript, recordingId: recording.id)
+        recording.summary = summary
+        if let suggestedTitle = summary.suggestedTitle {
+            recording.title = suggestedTitle
+        }
+        recording.processingState = .preparingNotes
+        update(recording)
+
+        reporter?.update(completed: 3, subtitle: "Preparing your notes")
+        try await Task.sleep(for: .milliseconds(350))
+        recording.processingState = .completed
+        recording.processingError = nil
+        update(recording)
+        reporter?.update(completed: 4, subtitle: "Notes ready")
+        HapticStyle.success.trigger()
+        NotificationCenter.default.post(
+            name: .recordingProcessingCompleted,
+            object: nil,
+            userInfo: ["recordingId": recording.id]
+        )
     }
 
     // MARK: - Cloud Sync
@@ -358,7 +409,7 @@ import UIKit
     }
 }
 
-private enum RecordingProcessingRetryError: LocalizedError {
+enum RecordingProcessingRetryError: LocalizedError {
     case audioUnavailable
 
     var errorDescription: String? {

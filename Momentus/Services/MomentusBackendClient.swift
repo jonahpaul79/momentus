@@ -62,6 +62,40 @@ actor MomentusBackendClient {
         return data
     }
 
+    /// Upload a file without first copying the complete recording into app memory.
+    func upload(operation: String, fileURL: URL, contentType: String) async throws -> Data {
+        let session = try await authenticatedSession()
+        var components = URLComponents(
+            url: Self.projectURL.appending(path: "/functions/v1/ai-gateway"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [URLQueryItem(name: "operation", value: operation)]
+
+        guard let url = components.url else { throw MomentusBackendError.invalidConfiguration }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(Self.clientKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        request.setValue("momentus-ios/1", forHTTPHeaderField: "x-client-info")
+
+        let (data, response) = try await urlSession.upload(for: request, fromFile: fileURL)
+        try validate(response: response, data: data)
+        return data
+    }
+
+    private func validate(response: URLResponse, data: Data) throws {
+        guard let http = response as? HTTPURLResponse else {
+            throw MomentusBackendError.invalidResponse
+        }
+        guard (200...299).contains(http.statusCode) else {
+            let message = (try? JSONDecoder().decode(BackendErrorBody.self, from: data).error)
+                ?? String(data: data, encoding: .utf8)
+                ?? "HTTP \(http.statusCode)"
+            throw MomentusBackendError.server(status: http.statusCode, message: message)
+        }
+    }
+
     private func authenticatedSession() async throws -> Session {
         do {
             return try await supabase.auth.session

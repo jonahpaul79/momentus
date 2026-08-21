@@ -313,88 +313,121 @@ extension Notification.Name {
         state = .processing(.savingAudio)
         processingStepIndex = 0
 
+        do {
+            print("[Pipeline] stopping recording service")
+            let audioFileID = try await recordingService.stopRecording()
+            print("[Pipeline] audioFileID: \(audioFileID)")
+            recording.audioFileID = audioFileID
+            recording.processingState = .transcribing
+            store?.update(recording)
+            state = .processing(.transcribing)
+            processingStepIndex = 1
+        } catch {
+            recording.processingState = .failed
+            recording.processingError = error.localizedDescription
+            store?.update(recording)
+            errorMessage = error.localizedDescription
+            state = .idle
+            return
+        }
+
         let task = Task { [weak self] in
             guard let self else { return }
-            let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "ProcessRecording") {
-                print("[Pipeline] background execution time expired; processing will resume if iOS keeps the app alive")
-            }
-            defer {
-                if backgroundTask != .invalid {
-                    UIApplication.shared.endBackgroundTask(backgroundTask)
-                }
-            }
             do {
-                print("[Pipeline] stopping recording service")
-                let audioFileID = try await recordingService.stopRecording()
-                print("[Pipeline] audioFileID: \(audioFileID)")
-                recording.audioFileID = audioFileID
-                recording.processingState = .transcribing
-                store?.update(recording)
+                try await ContinuedProcessingManager.shared.run(
+                    recordingID: recordingId,
+                    title: recording.title
+                ) { reporter in
+                    reporter.update(completed: 1, subtitle: "Transcribing your recording")
+                    try Task.checkCancellation()
 
-                state = .processing(.transcribing)
-                processingStepIndex = 1
+                    guard let audioFileID = recording.audioFileID else {
+                        throw RecordingProcessingRetryError.audioUnavailable
+                    }
+                    print("[Pipeline] starting transcription")
+                    var transcript: Transcript
+                    if let resumable = self.transcriptionService as? any ResumableTranscriptionService {
+                        let jobID: String
+                        if let checkpoint = recording.transcriptionJobID {
+                            jobID = checkpoint
+                            print("[Pipeline] resuming transcription job \(jobID)")
+                        } else {
+                            jobID = try await resumable.createTranscription(audioFileID: audioFileID)
+                            recording.transcriptionJobID = jobID
+                            self.store?.update(recording)
+                            print("[Pipeline] checkpointed transcription job \(jobID)")
+                        }
+                        transcript = try await resumable.awaitTranscription(
+                            id: jobID,
+                            recordingId: recordingId
+                        )
+                    } else {
+                        transcript = try await self.transcriptionService.transcribe(
+                            audioFileID: audioFileID,
+                            recordingId: recordingId
+                        )
+                    }
+                    transcript.providerData["momentus_markers"] = self.markers.map { String(format: "%.1f", $0) }.joined(separator: ",")
+                    if !self.suggestedSpeakers.isEmpty {
+                        transcript.providerData["momentus_attendees"] = self.suggestedSpeakers.joined(separator: ",")
+                    }
+                    print("[Pipeline] transcription done — \(transcript.segments.count) segments")
+                    recording.transcript = transcript
+                    recording.processingState = .summarizing
+                    self.store?.update(recording)
 
-                try Task.checkCancellation()
+                    self.state = .processing(.summarizing)
+                    self.processingStepIndex = 2
+                    reporter.update(completed: 2, subtitle: "Generating meeting notes")
+                    try Task.checkCancellation()
 
-                print("[Pipeline] starting transcription")
-                var transcript = try await transcriptionService.transcribe(
-                    audioFileID: audioFileID,
-                    recordingId: recordingId
-                )
-                transcript.providerData["momentus_markers"] = markers.map { String(format: "%.1f", $0) }.joined(separator: ",")
-                if !suggestedSpeakers.isEmpty {
-                    transcript.providerData["momentus_attendees"] = suggestedSpeakers.joined(separator: ",")
-                }
-                print("[Pipeline] transcription done — \(transcript.segments.count) segments")
-                recording.transcript = transcript
-                recording.processingState = .summarizing
-                store?.update(recording)
+                    print("[Pipeline] starting summarization")
+                    let summary = try await self.summaryService.summarize(transcript: transcript, recordingId: recordingId)
+                    print("[Pipeline] summarization done")
+                    recording.summary = summary
+                    if let suggested = summary.suggestedTitle {
+                        recording.title = suggested
+                    }
+                    recording.processingState = .preparingNotes
+                    self.store?.update(recording)
 
-                state = .processing(.summarizing)
-                processingStepIndex = 2
+                    self.state = .processing(.preparingNotes)
+                    self.processingStepIndex = 3
+                    reporter.update(completed: 3, subtitle: "Preparing your notes")
 
-                try Task.checkCancellation()
+                    try await Task.sleep(for: .milliseconds(900))
 
-                print("[Pipeline] starting summarization")
-                let summary = try await summaryService.summarize(transcript: transcript, recordingId: recordingId)
-                print("[Pipeline] summarization done")
-                recording.summary = summary
-                if let suggested = summary.suggestedTitle {
-                    recording.title = suggested
-                }
-                recording.processingState = .preparingNotes
-                store?.update(recording)
+                    recording.processingState = .completed
+                    recording.processingError = nil
+                    self.store?.update(recording)
+                    reporter.update(completed: 4, subtitle: "Notes ready")
 
-                state = .processing(.preparingNotes)
-                processingStepIndex = 3
+                    HapticStyle.success.trigger()
+                    self.state = .completed
 
-                try await Task.sleep(for: .milliseconds(900))
+                    if UIApplication.shared.applicationState == .background {
+                        await MeetingNotificationService.shared.notifySummaryReady(
+                            title: recording.title,
+                            recordingId: recordingId
+                        )
+                    }
 
-                recording.processingState = .completed
-                recording.processingError = nil
-                store?.update(recording)
-
-                HapticStyle.success.trigger()
-                state = .completed
-
-                if UIApplication.shared.applicationState == .background {
-                    await MeetingNotificationService.shared.notifySummaryReady(
-                        title: recording.title,
-                        recordingId: recordingId
+                    try await Task.sleep(for: .milliseconds(700))
+                    NotificationCenter.default.post(
+                        name: .recordingProcessingCompleted,
+                        object: nil,
+                        userInfo: ["recordingId": recordingId]
                     )
+                    try await Task.sleep(for: .milliseconds(1300))
+                    self.reset()
                 }
-
-                try await Task.sleep(for: .milliseconds(700))
-                NotificationCenter.default.post(
-                    name: .recordingProcessingCompleted,
-                    object: nil,
-                    userInfo: ["recordingId": recordingId]
-                )
-                try await Task.sleep(for: .milliseconds(1300))
-                reset()
 
             } catch is CancellationError {
-                // cancelProcessing() handles store cleanup and state reset
+                recording.processingState = .failed
+                recording.processingError = RecordingsStore.interruptedProcessingMessage
+                store?.update(recording)
+                errorMessage = recording.processingError
+                state = .idle
             } catch {
                 recording.processingState = .failed
                 recording.processingError = error.localizedDescription
@@ -413,6 +446,7 @@ extension Notification.Name {
         processingTask?.cancel()
         processingTask = nil
         if let id = currentRecordingId {
+            ContinuedProcessingManager.shared.cancel(recordingID: id)
             store?.delete(id: id)
         }
         HapticStyle.light.trigger()

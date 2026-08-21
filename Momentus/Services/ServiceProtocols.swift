@@ -44,6 +44,13 @@ protocol TranscriptionService {
     func transcribe(audioFileID: String, recordingId: UUID) async throws -> Transcript
 }
 
+/// A cloud transcription service whose remote job can be checkpointed and resumed.
+/// Persist the identifier returned by `createTranscription` before awaiting the result.
+protocol ResumableTranscriptionService: TranscriptionService {
+    func createTranscription(audioFileID: String) async throws -> String
+    func awaitTranscription(id: String, recordingId: UUID) async throws -> Transcript
+}
+
 // MARK: - Summary Service
 
 /// Generates a structured `MeetingSummary` from a `Transcript`.

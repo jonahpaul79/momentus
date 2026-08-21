@@ -12,6 +12,7 @@
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>jonahpaul.momentus.watch-recording-processing</string>
+		<string>jonahpaul.momentus.recording-processing.*</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict>

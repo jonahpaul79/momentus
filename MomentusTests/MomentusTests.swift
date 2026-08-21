@@ -4,6 +4,34 @@ import Testing
 
 struct MomentusTests {
 
+    @Test @MainActor func recordingPersistsRemoteTranscriptionCheckpoint() throws {
+        let recording = Recording(
+            id: UUID(),
+            title: "Long meeting",
+            processingState: .transcribing,
+            transcriptionJobID: "assembly-job-123"
+        )
+
+        let data = try JSONEncoder().encode(recording)
+        let decoded = try JSONDecoder().decode(Recording.self, from: data)
+
+        #expect(decoded.transcriptionJobID == "assembly-job-123")
+        #expect(decoded.processingState == .transcribing)
+    }
+
+    @Test @MainActor func recordingWithoutCheckpointStillDecodes() throws {
+        let recording = Recording(id: UUID(), title: "Legacy meeting")
+        let encoded = try JSONEncoder().encode(recording)
+        var json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        json.removeValue(forKey: "transcriptionJobID")
+
+        let legacyData = try JSONSerialization.data(withJSONObject: json)
+        let decoded = try JSONDecoder().decode(Recording.self, from: legacyData)
+
+        #expect(decoded.transcriptionJobID == nil)
+        #expect(decoded.title == "Legacy meeting")
+    }
+
     @Test func sanitizerDropsInferredDecisionFromPositiveComment() {
         let decision = MeetingSummarySanitizer.cleanDecision(
             text: "The UI looks better than a previous version, indicating an improvement was accepted or noted positively.",
