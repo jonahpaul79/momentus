@@ -182,30 +182,54 @@ actor MomentusBackendClient {
             string: "https://\(ref).storage.supabase.co/storage/v1/upload/resumable"
         ) else { throw MomentusBackendError.invalidConfiguration }
 
-        let session = try await authenticatedSession()
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        addTusAuthorization(to: &request, accessToken: session.accessToken)
-        request.setValue(Self.tusVersion, forHTTPHeaderField: "Tus-Resumable")
-        request.setValue(String(fileSize), forHTTPHeaderField: "Upload-Length")
-        request.setValue("true", forHTTPHeaderField: "x-upsert")
-        request.setValue(
-            tusMetadata([
-                "bucketName": Self.recordingAudioBucket,
-                "objectName": objectPath,
-                "contentType": "audio/mp4",
-                "cacheControl": "3600",
-            ]),
-            forHTTPHeaderField: "Upload-Metadata"
-        )
+        var lastError: Error?
+        for attempt in 0..<3 {
+            do {
+                let session = try await authenticatedSession()
+                var request = URLRequest(url: endpoint)
+                request.httpMethod = "POST"
+                // Some HTTP stacks omit Content-Length for a bodyless POST. TUS
+                // creation requires an explicitly empty request when creation-with-
+                // upload is not being used.
+                request.httpBody = Data()
+                addTusAuthorization(to: &request, accessToken: session.accessToken)
+                request.setValue(Self.tusVersion, forHTTPHeaderField: "Tus-Resumable")
+                request.setValue(String(fileSize), forHTTPHeaderField: "Upload-Length")
+                request.setValue("true", forHTTPHeaderField: "x-upsert")
+                request.setValue(
+                    tusMetadata([
+                        "bucketName": Self.recordingAudioBucket,
+                        "objectName": objectPath,
+                        "contentType": "audio/mp4",
+                        "cacheControl": "3600",
+                    ]),
+                    forHTTPHeaderField: "Upload-Metadata"
+                )
 
-        let (_, response) = try await urlSession.data(for: request)
-        guard let http = response as? HTTPURLResponse,
-              (200...299).contains(http.statusCode),
-              let location = http.value(forHTTPHeaderField: "Location"),
-              let uploadURL = URL(string: location, relativeTo: endpoint)?.absoluteURL
-        else { throw MomentusBackendError.invalidResponse }
-        return uploadURL
+                let (data, response) = try await urlSession.data(for: request)
+                guard let http = response as? HTTPURLResponse else {
+                    throw MomentusBackendError.invalidResponse
+                }
+                guard (200...299).contains(http.statusCode) else {
+                    throw storageResponseError(http: http, data: data, context: "starting upload")
+                }
+                guard let location = http.value(forHTTPHeaderField: "Location"),
+                      let uploadURL = URL(string: location, relativeTo: endpoint)?.absoluteURL
+                else {
+                    throw MomentusBackendError.storageResponse(
+                        status: http.statusCode,
+                        message: "The upload service did not provide a resume URL."
+                    )
+                }
+                return uploadURL
+            } catch {
+                lastError = error
+                guard attempt < 2, isRetryableUploadError(error) else { break }
+                print("[MomentusBackend] upload creation attempt \(attempt + 1) failed: \(error.localizedDescription)")
+                try await Task.sleep(for: .seconds(attempt == 0 ? 1 : 3))
+            }
+        }
+        throw lastError ?? MomentusBackendError.invalidResponse
     }
 
     private func tusOffset(at uploadURL: URL) async throws -> Int64 {
@@ -214,8 +238,8 @@ actor MomentusBackendClient {
         request.httpMethod = "HEAD"
         addTusAuthorization(to: &request, accessToken: session.accessToken)
         request.setValue(Self.tusVersion, forHTTPHeaderField: "Tus-Resumable")
-        let (_, response) = try await urlSession.data(for: request)
-        return try uploadOffset(from: response)
+        let (data, response) = try await urlSession.data(for: request)
+        return try uploadOffset(from: response, data: data, context: "resuming upload")
     }
 
     private func patchTusUpload(url: URL, offset: Int64, chunk: Data) async throws -> Int64 {
@@ -229,8 +253,12 @@ actor MomentusBackendClient {
                 request.setValue(Self.tusVersion, forHTTPHeaderField: "Tus-Resumable")
                 request.setValue(String(offset), forHTTPHeaderField: "Upload-Offset")
                 addTusAuthorization(to: &request, accessToken: session.accessToken)
-                let (_, response) = try await urlSession.upload(for: request, from: chunk)
-                return try uploadOffset(from: response)
+                let (data, response) = try await urlSession.upload(for: request, from: chunk)
+                let nextOffset = try uploadOffset(from: response, data: data, context: "uploading audio")
+                guard nextOffset > offset, nextOffset <= offset + Int64(chunk.count) else {
+                    throw MomentusBackendError.invalidUploadOffset
+                }
+                return nextOffset
             } catch {
                 lastError = error
                 // The server may have committed the chunk even if the response was
@@ -245,13 +273,50 @@ actor MomentusBackendClient {
         throw lastError ?? MomentusBackendError.invalidResponse
     }
 
-    private func uploadOffset(from response: URLResponse) throws -> Int64 {
-        guard let http = response as? HTTPURLResponse,
-              (200...299).contains(http.statusCode),
-              let rawOffset = http.value(forHTTPHeaderField: "Upload-Offset"),
+    private func uploadOffset(from response: URLResponse, data: Data, context: String) throws -> Int64 {
+        guard let http = response as? HTTPURLResponse else {
+            throw MomentusBackendError.invalidResponse
+        }
+        guard (200...299).contains(http.statusCode) else {
+            throw storageResponseError(http: http, data: data, context: context)
+        }
+        guard let rawOffset = http.value(forHTTPHeaderField: "Upload-Offset"),
               let offset = Int64(rawOffset)
-        else { throw MomentusBackendError.invalidUploadOffset }
+        else {
+            throw MomentusBackendError.storageResponse(
+                status: http.statusCode,
+                message: "The upload service did not return a valid resume position."
+            )
+        }
         return offset
+    }
+
+    private func storageResponseError(
+        http: HTTPURLResponse,
+        data: Data,
+        context: String
+    ) -> MomentusBackendError {
+        let rawMessage = (try? JSONDecoder().decode(BackendErrorBody.self, from: data).error)
+            ?? String(data: data, encoding: .utf8)
+            ?? "HTTP \(http.statusCode)"
+        let message = rawMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        print("[MomentusBackend] Storage \(context) failed — HTTP \(http.statusCode): \(message)")
+        return .storageResponse(
+            status: http.statusCode,
+            message: message.isEmpty ? "HTTP \(http.statusCode)" : message
+        )
+    }
+
+    private func isRetryableUploadError(_ error: Error) -> Bool {
+        if let urlError = error as? URLError {
+            return [.timedOut, .networkConnectionLost, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed]
+                .contains(urlError.code)
+        }
+        if let backendError = error as? MomentusBackendError,
+           case .storageResponse(let status, _) = backendError {
+            return status == 408 || status == 425 || status == 429 || (500...599).contains(status)
+        }
+        return false
     }
 
     private func addTusAuthorization(to request: inout URLRequest, accessToken: String) {
@@ -296,6 +361,7 @@ enum MomentusBackendError: LocalizedError {
     case invalidResponse
     case invalidUploadOffset
     case emptyRecording
+    case storageResponse(status: Int, message: String)
     case server(status: Int, message: String)
 
     var errorDescription: String? {
@@ -308,6 +374,14 @@ enum MomentusBackendError: LocalizedError {
             return "Momentus could not resume the recording upload. Please try again."
         case .emptyRecording:
             return "The recording audio file is empty."
+        case .storageResponse(let status, let message):
+            if status == 401 { return "Your Momentus session expired before the upload started. Please retry." }
+            if status == 403 { return "Momentus Storage refused this recording upload. Please retry or contact support." }
+            if status == 404 { return "Momentus recording storage is unavailable. Please contact support." }
+            if status == 409 { return "Another upload is already using this recording. Wait a moment and retry." }
+            if status == 413 { return "This recording is larger than the current cloud upload limit." }
+            if status == 429 { return "Momentus Storage is busy. Wait a moment and retry." }
+            return "Momentus Storage returned HTTP \(status): \(message)"
         case .server(let status, let message):
             if status == 401 { return "Your Momentus session expired. Please try again." }
             if status == 429 { return "You have reached the current usage limit. Please try again later." }

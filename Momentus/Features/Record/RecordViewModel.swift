@@ -60,6 +60,8 @@ extension Notification.Name {
     var processingStepIndex: Int = 0
     var processingDetail: String?
     var processingProgress: Double?
+    var liveTranscriptText: String = ""
+    var liveTranscriptionDetail: String?
     var errorMessage: String?
     var currentRecordingId: UUID?
     var suggestedMeetingTitle: String?
@@ -87,6 +89,7 @@ extension Notification.Name {
     private var waveformTask: Task<Void, Never>?
     private var watchActionTask: Task<Void, Never>?
     private var processingTask: Task<Void, Never>?
+    private var liveTranscriptionSession: LiveWhisperTranscriptionSession?
 
     // MARK: Init
 
@@ -175,6 +178,7 @@ extension Notification.Name {
             state = .recording
             elapsedTime = 0
             markers = []
+            startLivePrivateTranscription(recordingID: id)
             await RecordingLiveActivityManager.shared.start(
                 recordingID: id,
                 title: suggestedMeetingTitle ?? titleFromTime()
@@ -320,6 +324,8 @@ extension Notification.Name {
         do {
             print("[Pipeline] stopping recording service")
             let audioFileID = try await recordingService.stopRecording()
+            await liveTranscriptionSession?.stop()
+            liveTranscriptionSession = nil
             print("[Pipeline] audioFileID: \(audioFileID)")
             recording.audioFileID = audioFileID
             let uploadsAudio = transcriptionService is any ResumableTranscriptionService
@@ -332,6 +338,8 @@ extension Notification.Name {
             processingDetail = recording.processingDetail
             processingProgress = recording.processingProgress
         } catch {
+            await liveTranscriptionSession?.stop()
+            liveTranscriptionSession = nil
             recording.processingState = .failed
             recording.processingError = RecordingsStore.failureMessage(stage: .savingAudio, error: error)
             store?.update(recording)
@@ -485,7 +493,26 @@ extension Notification.Name {
                     try Task.checkCancellation()
 
                     print("[Pipeline] starting summarization")
-                    let summary = try await self.summaryService.summarize(transcript: transcript, recordingId: recordingId)
+                    let summary: MeetingSummary
+                    if let progressService = self.summaryService as? any ProgressReportingSummaryService {
+                        summary = try await progressService.summarize(
+                            transcript: transcript,
+                            recordingId: recordingId,
+                            progress: { progress in
+                                recording.processingDetail = progress.displayText
+                                recording.processingProgress = progress.fraction
+                                self.store?.update(recording)
+                                self.processingDetail = progress.displayText
+                                self.processingProgress = progress.fraction
+                                reporter.update(completed: 3, total: 5, subtitle: progress.displayText)
+                            }
+                        )
+                    } else {
+                        summary = try await self.summaryService.summarize(
+                            transcript: transcript,
+                            recordingId: recordingId
+                        )
+                    }
                     print("[Pipeline] summarization done")
                     recording.summary = summary
                     if let suggested = summary.suggestedTitle {
@@ -493,11 +520,13 @@ extension Notification.Name {
                     }
                     recording.processingState = .preparingNotes
                     recording.processingDetail = "Organizing your insights"
+                    recording.processingProgress = nil
                     self.store?.update(recording)
 
                     self.state = .processing(.preparingNotes)
                     self.processingStepIndex = ProcessingState.preparingNotes.stepIndex
                     self.processingDetail = recording.processingDetail
+                    self.processingProgress = nil
                     reporter.update(completed: 4, total: 5, subtitle: "Preparing your notes")
 
                     try await Task.sleep(for: .milliseconds(900))
@@ -651,7 +680,34 @@ extension Notification.Name {
         processingStepIndex = 0
         processingDetail = nil
         processingProgress = nil
+        liveTranscriptText = ""
+        liveTranscriptionDetail = nil
+        liveTranscriptionSession = nil
         suggestedSpeakers = []
+    }
+
+    private func startLivePrivateTranscription(recordingID: UUID) {
+        guard selectedMode == .onDevice || selectedMode == .hybrid,
+              let sampleSource = recordingService as? any LiveAudioSampleSource else {
+            return
+        }
+
+        let session = LiveWhisperTranscriptionSession(recordingID: recordingID) { [weak self] detail, text in
+            self?.liveTranscriptionDetail = detail
+            self?.liveTranscriptText = text
+        }
+        liveTranscriptionSession = session
+        do {
+            try sampleSource.startLiveSampleDelivery { [weak self] samples, sampleRate in
+                Task { @MainActor [weak self] in
+                    self?.liveTranscriptionSession?.append(samples: samples, sourceSampleRate: sampleRate)
+                }
+            }
+        } catch {
+            liveTranscriptionSession = nil
+            liveTranscriptionDetail = "Live preview unavailable — audio is still recording"
+            print("[WhisperKit Live] sample delivery unavailable: \(error)")
+        }
     }
 
     private func titleFromTime() -> String {

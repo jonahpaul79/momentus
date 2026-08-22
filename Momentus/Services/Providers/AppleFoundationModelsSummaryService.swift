@@ -1,7 +1,7 @@
 import FoundationModels
 import Foundation
 
-final class AppleFoundationModelsSummaryService: SummaryService {
+final class AppleFoundationModelsSummaryService: ProgressReportingSummaryService {
     let providerName = "Apple Foundation Models"
     let isOnDevice = true
 
@@ -23,6 +23,20 @@ final class AppleFoundationModelsSummaryService: SummaryService {
         var followUpDraft: String
     }
 
+    @Generable
+    struct ChunkOutput {
+        @Guide(description: "A concise factual summary of this portion of the meeting")
+        var summary: String
+        @Guide(description: "Explicit decisions in this portion; empty if none")
+        var decisions: [String]
+        @Guide(description: "Explicit action items in this portion; empty if none")
+        var actionItems: [String]
+        @Guide(description: "Questions left unresolved in this portion; empty if none")
+        var openQuestions: [String]
+    }
+
+    private static let maximumDirectTranscriptCharacters = 9_000
+
     private static let useFallback: Bool = {
         let isSimulator = ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] != nil
         let isMac = ProcessInfo.processInfo.isiOSAppOnMac
@@ -34,6 +48,14 @@ final class AppleFoundationModelsSummaryService: SummaryService {
     }()
 
     func summarize(transcript: Transcript, recordingId: UUID) async throws -> MeetingSummary {
+        try await summarize(transcript: transcript, recordingId: recordingId, progress: nil)
+    }
+
+    func summarize(
+        transcript: Transcript,
+        recordingId: UUID,
+        progress: (@MainActor @Sendable (OnDeviceSummaryProgress) -> Void)?
+    ) async throws -> MeetingSummary {
         print("[Summary] summarize called, segments: \(transcript.segments.count), chars: \(transcript.fullText.count), useFallback=\(Self.useFallback)")
         let text = transcript.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -58,22 +80,34 @@ final class AppleFoundationModelsSummaryService: SummaryService {
             throw FoundationModelsSummaryError.modelUnavailable
         }
 
-        let session = LanguageModelSession(instructions: SummaryPrompts.systemInstruction)
         let markedContext = MeetingSummaryPromptBuilder.fallbackMarkedMoments(from: transcript)
             .map { "- [\(MeetingSummaryPromptBuilder.formatTimestamp($0.timestamp))] \($0.transcriptExcerpt ?? "")" }
             .joined(separator: "\n")
         let identityContext = transcript.speakers.contains(where: \.requiresIdentification)
             ? "Speaker identity is unconfirmed. Private on-device transcription may combine multiple voices under one generic speaker label. Do not guess speaker names or attribute remarks to a named person."
             : "The speaker names in this transcript were confirmed by the user."
-        let transcriptContext = "\(identityContext)\n\nTranscript:\n\(text)"
-        let promptText = markedContext.isEmpty
-            ? transcriptContext
-            : "User-marked moments:\n\(markedContext)\n\n\(transcriptContext)"
+        let promptText: String
+        if text.count > Self.maximumDirectTranscriptCharacters {
+            print("[Summary] long transcript — creating bounded section digests")
+            let digest = try await buildLongTranscriptDigest(from: transcript, progress: progress)
+            let digestContext = "\(identityContext)\n\nChronological section digests:\n\(digest)"
+            promptText = markedContext.isEmpty
+                ? digestContext
+                : "User-marked moments:\n\(markedContext)\n\n\(digestContext)"
+        } else {
+            let transcriptContext = "\(identityContext)\n\nTranscript:\n\(text)"
+            promptText = markedContext.isEmpty
+                ? transcriptContext
+                : "User-marked moments:\n\(markedContext)\n\n\(transcriptContext)"
+        }
+        progress?(OnDeviceSummaryProgress(fraction: 0.9, displayText: "Combining section notes"))
+        let session = LanguageModelSession(instructions: SummaryPrompts.systemInstruction)
         let response = try await session.respond(
             to: SummaryPrompts.userMessage(transcript: promptText),
             generating: Output.self
         )
         let output = response.content
+        progress?(OnDeviceSummaryProgress(fraction: 1, displayText: "Meeting notes generated"))
 
         return MeetingSummary(
             id: UUID(),
@@ -102,6 +136,71 @@ final class AppleFoundationModelsSummaryService: SummaryService {
             createdAt: Date(),
             confidenceNotes: ["Summarized with Apple Foundation Models"]
         )
+    }
+
+    private func buildLongTranscriptDigest(
+        from transcript: Transcript,
+        progress: (@MainActor @Sendable (OnDeviceSummaryProgress) -> Void)?
+    ) async throws -> String {
+        let chunks = transcriptChunks(transcript.segments, maximumCharacters: Self.maximumDirectTranscriptCharacters)
+        var digests: [String] = []
+        digests.reserveCapacity(chunks.count)
+
+        for (index, chunk) in chunks.enumerated() {
+            try Task.checkCancellation()
+            progress?(OnDeviceSummaryProgress(
+                fraction: Double(index) / Double(max(1, chunks.count)) * 0.85,
+                displayText: "Summarizing section \(index + 1) of \(chunks.count)"
+            ))
+            let session = LanguageModelSession(instructions: SummaryPrompts.systemInstruction)
+            let response = try await session.respond(
+                to: "Analyze only this chronological section (\(index + 1) of \(chunks.count)). Preserve facts and explicit commitments; do not invent missing context.\n\n\(chunk)",
+                generating: ChunkOutput.self
+            )
+            let output = response.content
+            let decisions = output.decisions.prefix(8).map { "Decision: \(String($0.prefix(280)))" }
+            let actions = output.actionItems.prefix(8).map { "Action: \(String($0.prefix(280)))" }
+            let questions = output.openQuestions.prefix(8).map { "Open question: \(String($0.prefix(280)))" }
+            let details = ([String(output.summary.prefix(1_200))] + decisions + actions + questions)
+                .joined(separator: "\n")
+            digests.append("Section \(index + 1):\n\(details)")
+            progress?(OnDeviceSummaryProgress(
+                fraction: Double(index + 1) / Double(chunks.count) * 0.85,
+                displayText: "Summarized section \(index + 1) of \(chunks.count)"
+            ))
+            print("[Summary] completed section digest \(index + 1)/\(chunks.count)")
+        }
+        return digests.joined(separator: "\n\n")
+    }
+
+    private func transcriptChunks(
+        _ segments: [TranscriptSegment],
+        maximumCharacters: Int
+    ) -> [String] {
+        var chunks: [String] = []
+        var current = ""
+
+        for segment in segments {
+            let timestamp = MeetingSummaryPromptBuilder.formatTimestamp(segment.startTime)
+            let line = "[\(timestamp)] \(segment.text)"
+            if !current.isEmpty, current.count + line.count + 1 > maximumCharacters {
+                chunks.append(current)
+                current = ""
+            }
+            if line.count > maximumCharacters {
+                if !current.isEmpty { chunks.append(current); current = "" }
+                var remaining = line[...]
+                while !remaining.isEmpty {
+                    let end = remaining.index(remaining.startIndex, offsetBy: min(maximumCharacters, remaining.count))
+                    chunks.append(String(remaining[..<end]))
+                    remaining = remaining[end...]
+                }
+            } else {
+                current += current.isEmpty ? line : "\n\(line)"
+            }
+        }
+        if !current.isEmpty { chunks.append(current) }
+        return chunks
     }
 
     // Simple sentence-extraction fallback used in the simulator.

@@ -1,12 +1,14 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import Foundation
 
-final class AVAudioRecorderService: RecordingService {
+/// Single-source audio capture. One input tap writes the authoritative AAC file
+/// and optionally fans copied PCM samples out to the live private transcript.
+final class AVAudioRecorderService: LiveAudioSampleSource {
+    var isRecording: Bool { engine?.isRunning == true && captureState?.writeError == nil }
+    var recordedDuration: TimeInterval { captureState?.duration ?? lastRecordedDuration }
 
-    var isRecording: Bool { recorder?.isRecording ?? false }
-    var recordedDuration: TimeInterval { recorder?.currentTime ?? lastRecordedDuration }
-
-    private var recorder: AVAudioRecorder?
+    private var engine: AVAudioEngine?
+    private var captureState: AudioCaptureState?
     private var currentFileURL: URL?
     private var lastRecordedDuration: TimeInterval = 0
 
@@ -19,94 +21,179 @@ final class AVAudioRecorderService: RecordingService {
 
     func startRecording(mode: RecordingMode, source: MicSource) async throws -> UUID {
         print("[Audio] startRecording — mic permission: \(AVAudioApplication.shared.recordPermission.rawValue)")
-
         let session = AVAudioSession.sharedInstance()
-        // .playAndRecord is more reliable than .record on many devices:
-        // it keeps the audio engine active and avoids session-transition stalls.
         try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
         try session.setActive(true)
-        print("[Audio] session active — category: \(session.category.rawValue), sampleRate: \(session.sampleRate)")
 
         let recordingId = UUID()
         let fileURL = Self.recordingsDirectory.appendingPathComponent("\(recordingId.uuidString).m4a")
-        currentFileURL = fileURL
-
+        let engine = AVAudioEngine()
+        let input = engine.inputNode
+        let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            throw AVAudioRecorderServiceError.recordingFailed
+        }
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: 44100.0,
-            AVNumberOfChannelsKey: 1,
-            // Voice does not benefit from an unconstrained high AAC bitrate. A
-            // fixed 32 kbps keeps a two-hour meeting near 29 MB and makes cloud
-            // recovery practical on mobile networks.
+            AVSampleRateKey: format.sampleRate,
+            AVNumberOfChannelsKey: Int(format.channelCount),
             AVEncoderBitRateKey: 32_000,
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
         ]
+        let audioFile = try AVAudioFile(forWriting: fileURL, settings: settings)
 
-        let rec = try AVAudioRecorder(url: fileURL, settings: settings)
-        rec.isMeteringEnabled = true
-        rec.prepareToRecord()
-        let started = rec.record()
-        print("[Audio] recorder.record() returned \(started), isRecording: \(rec.isRecording)")
-
-        guard started else {
-            throw AVAudioRecorderServiceError.recordingFailed
+        let state = AudioCaptureState(file: audioFile, sampleRate: format.sampleRate)
+        input.installTap(onBus: 0, bufferSize: 4_096, format: format) { buffer, _ in
+            state.consume(buffer)
+        }
+        engine.prepare()
+        do {
+            try engine.start()
+        } catch {
+            input.removeTap(onBus: 0)
+            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+            throw error
         }
 
-        recorder = rec
+        self.engine = engine
+        captureState = state
+        currentFileURL = fileURL
         lastRecordedDuration = 0
+        print("[Audio] capture engine active — \(format.sampleRate) Hz, \(format.channelCount) channel(s)")
         return recordingId
     }
 
     func stopRecording() async throws -> String {
-        print("[Audio] stopRecording — recorder.isRecording: \(recorder?.isRecording ?? false)")
-        if let recorder {
-            lastRecordedDuration = recorder.currentTime
-            recorder.stop()
+        print("[Audio] stopRecording — engine.isRunning: \(engine?.isRunning ?? false)")
+        stopLiveSampleDelivery()
+        if let engine {
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
         }
+        let writeError: Error?
+        if let captureState {
+            lastRecordedDuration = captureState.duration
+            captureState.close()
+            writeError = captureState.writeError
+        } else {
+            writeError = nil
+        }
+        self.engine = nil
+        self.captureState = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
 
-        guard let url = currentFileURL else {
-            throw AVAudioRecorderServiceError.noActiveRecording
-        }
-
+        guard let url = currentFileURL else { throw AVAudioRecorderServiceError.noActiveRecording }
         let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
         print("[Audio] file: \(url.lastPathComponent) — \(fileSize) bytes")
-
+        if let writeError {
+            print("[Audio] capture ended after a write error; preserving playable audio: \(writeError)")
+            if fileSize == 0 { throw writeError }
+        }
         return url.lastPathComponent
     }
 
     func pauseRecording() async throws {
-        guard recorder?.isRecording == true else { return }
-        lastRecordedDuration = recorder?.currentTime ?? lastRecordedDuration
-        recorder?.pause()
+        guard engine?.isRunning == true else { return }
+        lastRecordedDuration = captureState?.duration ?? lastRecordedDuration
+        engine?.pause()
     }
 
     func resumeRecording() async throws {
-        guard let recorder else { throw AVAudioRecorderServiceError.noActiveRecording }
+        guard let engine else { throw AVAudioRecorderServiceError.noActiveRecording }
         try AVAudioSession.sharedInstance().setActive(true)
-        guard recorder.record() else { throw AVAudioRecorderServiceError.recordingFailed }
+        try engine.start()
     }
 
-    func getCurrentLevel() -> Float {
-        guard let recorder, recorder.isRecording else { return 0.03 }
-        recorder.updateMeters()
-        let db = recorder.averagePower(forChannel: 0)
-        // Map -55 dB (noise floor) → 0.0 and -5 dB (loud voice) → 1.0,
-        // then apply a power curve so background noise stays near the bottom
-        // and voice peaks visibly dominate.
-        let normalized = max(0, min(1, (db + 55) / 50))
-        return pow(normalized, 1.7)
+    func getCurrentLevel() -> Float { captureState?.level ?? 0.03 }
+
+    func startLiveSampleDelivery(
+        _ handler: @escaping @Sendable ([Float], Double) -> Void
+    ) throws {
+        guard let captureState else { throw AVAudioRecorderServiceError.liveSamplesUnavailable }
+        captureState.setLiveHandler(handler)
+        print("[Audio] live sample fan-out enabled")
+    }
+
+    func stopLiveSampleDelivery() {
+        captureState?.setLiveHandler(nil)
+    }
+}
+
+private final class AudioCaptureState: @unchecked Sendable {
+    private let lock = NSLock()
+    nonisolated(unsafe) private var file: AVAudioFile?
+    private let sampleRate: Double
+    nonisolated(unsafe) private var writtenFrames: AVAudioFramePosition = 0
+    nonisolated(unsafe) private var currentLevel: Float = 0.03
+    nonisolated(unsafe) private var handler: (@Sendable ([Float], Double) -> Void)?
+    nonisolated(unsafe) private var capturedWriteError: Error?
+
+    init(file: AVAudioFile, sampleRate: Double) {
+        self.file = file
+        self.sampleRate = sampleRate
+    }
+
+    var duration: TimeInterval { lock.withLock { Double(writtenFrames) / sampleRate } }
+    var level: Float { lock.withLock { currentLevel } }
+    var writeError: Error? { lock.withLock { capturedWriteError } }
+
+    nonisolated func consume(_ buffer: AVAudioPCMBuffer) {
+        let liveHandler: (@Sendable ([Float], Double) -> Void)?
+        var mono: [Float] = []
+
+        lock.lock()
+        if capturedWriteError == nil {
+            do {
+                try file?.write(from: buffer)
+                writtenFrames += AVAudioFramePosition(buffer.frameLength)
+            } catch {
+                capturedWriteError = error
+            }
+        }
+        liveHandler = handler
+
+        if let channels = buffer.floatChannelData {
+            let frameCount = Int(buffer.frameLength)
+            let channelCount = Int(buffer.format.channelCount)
+            var sumSquares: Float = 0
+            if liveHandler != nil { mono = [Float](repeating: 0, count: frameCount) }
+            for channel in 0..<channelCount {
+                let source = channels[channel]
+                for frame in 0..<frameCount {
+                    let sample = source[frame]
+                    sumSquares += sample * sample / Float(channelCount)
+                    if liveHandler != nil { mono[frame] += sample / Float(channelCount) }
+                }
+            }
+            if frameCount > 0 {
+                let rms = sqrt(sumSquares / Float(frameCount))
+                currentLevel = min(1, max(0.02, pow(rms * 8, 0.7)))
+            }
+        }
+        lock.unlock()
+
+        if !mono.isEmpty { liveHandler?(mono, buffer.format.sampleRate) }
+    }
+
+    func setLiveHandler(_ handler: (@Sendable ([Float], Double) -> Void)?) {
+        lock.withLock { self.handler = handler }
+    }
+
+    func close() {
+        lock.withLock { file = nil }
     }
 }
 
 enum AVAudioRecorderServiceError: LocalizedError {
     case noActiveRecording
     case recordingFailed
+    case liveSamplesUnavailable
 
     var errorDescription: String? {
         switch self {
         case .noActiveRecording: return "No active recording to stop."
         case .recordingFailed: return "Failed to start the audio recorder. Check microphone permission."
+        case .liveSamplesUnavailable: return "Live private transcription is unavailable for this microphone. The recording will continue normally."
         }
     }
 }

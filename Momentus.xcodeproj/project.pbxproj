@@ -1411,10 +1411,10 @@
 /* Begin XCRemoteSwiftPackageReference section */
 		8CCE68CA2FCF2A6B0077F268 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/argmaxinc/WhisperKit";
+			repositoryURL = "https://github.com/argmaxinc/argmax-oss-swift";
 			requirement = {
-				branch = main;
-				kind = branch;
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
 			};
 		};
 		D10000000000000000000003 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {

@@ -22,6 +22,9 @@ struct ActiveRecordingView: View {
                 if let errorMessage = vm.errorMessage {
                     captureWarning(errorMessage, t: t)
                 }
+                if let detail = vm.liveTranscriptionDetail {
+                    liveTranscriptPreview(detail: detail, t: t)
+                }
                 waveformSection(t)
                 controlBar(t)
             }
@@ -128,6 +131,31 @@ struct ActiveRecordingView: View {
             RoundedRectangle(cornerRadius: t.radius.m)
                 .strokeBorder(t.colors.accentError.opacity(0.35), lineWidth: 0.5)
         )
+        .padding(.horizontal, t.spacing.xl)
+        .padding(.top, t.spacing.m)
+    }
+
+    private func liveTranscriptPreview(detail: String, t: AppTheme) -> some View {
+        VStack(alignment: .leading, spacing: t.spacing.xs) {
+            HStack(spacing: t.spacing.xs) {
+                Image(systemName: "waveform.badge.mic")
+                    .foregroundStyle(t.colors.accentPrimary)
+                Text(detail)
+                    .font(t.typography.caption)
+                    .foregroundStyle(t.colors.textSecondary)
+            }
+
+            if !vm.liveTranscriptText.isEmpty {
+                Text(String(vm.liveTranscriptText.suffix(260)))
+                    .font(t.typography.bodySmall)
+                    .foregroundStyle(t.colors.textPrimary)
+                    .lineLimit(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(t.spacing.m)
+        .background(t.colors.surfacePrimary.opacity(0.65))
+        .clipShape(RoundedRectangle(cornerRadius: t.radius.m))
         .padding(.horizontal, t.spacing.xl)
         .padding(.top, t.spacing.m)
     }

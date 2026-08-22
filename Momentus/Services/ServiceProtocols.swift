@@ -22,6 +22,15 @@ protocol RecordingService {
     var isRecording: Bool { get }
 }
 
+/// Optional PCM fan-out from the same active microphone session used for the
+/// authoritative recording file. Consumers must copy/process samples quickly.
+protocol LiveAudioSampleSource: RecordingService {
+    func startLiveSampleDelivery(
+        _ handler: @escaping @Sendable (_ samples: [Float], _ sampleRate: Double) -> Void
+    ) throws
+    func stopLiveSampleDelivery()
+}
+
 // MARK: - Transcription Service
 
 /// Converts audio to a `Transcript` with speaker-labeled segments and confidence scores.
@@ -70,9 +79,15 @@ protocol ProgressReportingTranscriptionService: TranscriptionService {
 
 struct OnDeviceTranscriptionProgress: Sendable, Equatable {
     let fraction: Double
+    var currentChunk: Int? = nil
+    var totalChunks: Int? = nil
 
     var displayText: String {
-        "Transcribing on device (\(Int(min(1, max(0, fraction)) * 100))%)"
+        let percentage = Int(min(1, max(0, fraction)) * 100)
+        if let currentChunk, let totalChunks {
+            return "Transcribing on device — part \(currentChunk) of \(totalChunks) (\(percentage)%)"
+        }
+        return "Transcribing on device (\(percentage)%)"
     }
 }
 
@@ -113,6 +128,19 @@ protocol SummaryService {
     var providerName: String { get }
     var isOnDevice: Bool { get }
     func summarize(transcript: Transcript, recordingId: UUID) async throws -> MeetingSummary
+}
+
+protocol ProgressReportingSummaryService: SummaryService {
+    func summarize(
+        transcript: Transcript,
+        recordingId: UUID,
+        progress: (@MainActor @Sendable (OnDeviceSummaryProgress) -> Void)?
+    ) async throws -> MeetingSummary
+}
+
+struct OnDeviceSummaryProgress: Sendable, Equatable {
+    let fraction: Double
+    let displayText: String
 }
 
 // MARK: - Transcript Chat Service

@@ -32,6 +32,16 @@ struct MomentusTests {
         #expect(progress.displayText.contains("42%"))
     }
 
+    @Test func longOnDeviceProgressIdentifiesCurrentDiskChunk() {
+        let progress = OnDeviceTranscriptionProgress(
+            fraction: 0.25,
+            currentChunk: 6,
+            totalChunks: 24
+        )
+        #expect(progress.displayText.contains("part 6 of 24"))
+        #expect(progress.displayText.contains("25%"))
+    }
+
     @Test @MainActor func recordingPersistsRemoteTranscriptionCheckpoint() throws {
         let recording = Recording(
             id: UUID(),

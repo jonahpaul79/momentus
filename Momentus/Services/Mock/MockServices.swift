@@ -434,14 +434,34 @@ import UIKit
 
         try Task.checkCancellation()
         reporter?.update(completed: 3, total: 5, subtitle: "Generating meeting notes")
-        let summary = try await ServiceFactory.makeSummaryService(for: recording.mode)
-            .summarize(transcript: transcript, recordingId: recording.id)
+        let summaryService = ServiceFactory.makeSummaryService(for: recording.mode)
+        let summary: MeetingSummary
+        if let progressService = summaryService as? any ProgressReportingSummaryService {
+            summary = try await progressService.summarize(
+                transcript: transcript,
+                recordingId: recording.id,
+                progress: { [weak self] progress in
+                    guard let self, var current = self.recording(for: recordingID) else { return }
+                    current.processingState = .summarizing
+                    current.processingDetail = progress.displayText
+                    current.processingProgress = progress.fraction
+                    self.update(current)
+                    reporter?.update(completed: 3, total: 5, subtitle: progress.displayText)
+                }
+            )
+        } else {
+            summary = try await summaryService.summarize(
+                transcript: transcript,
+                recordingId: recording.id
+            )
+        }
         recording.summary = summary
         if let suggestedTitle = summary.suggestedTitle {
             recording.title = suggestedTitle
         }
         recording.processingState = .preparingNotes
         recording.processingDetail = "Organizing your insights"
+        recording.processingProgress = nil
         update(recording)
 
         reporter?.update(completed: 4, total: 5, subtitle: "Preparing your notes")
