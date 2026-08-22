@@ -11,11 +11,11 @@ final class AssemblyAITranscriptionService: ResumableTranscriptionService {
     }
 
     func transcribe(audioFileID: String, recordingId: UUID) async throws -> Transcript {
-        let transcriptID = try await createTranscription(audioFileID: audioFileID)
+        let transcriptID = try await createTranscription(audioFileID: audioFileID, recordingId: recordingId)
         return try await awaitTranscription(id: transcriptID, recordingId: recordingId)
     }
 
-    func createTranscription(audioFileID: String) async throws -> String {
+    func createTranscription(audioFileID: String, recordingId: UUID) async throws -> String {
         let fileURL = AVAudioRecorderService.recordingsDirectory.appendingPathComponent(audioFileID)
 
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
@@ -23,15 +23,27 @@ final class AssemblyAITranscriptionService: ResumableTranscriptionService {
         }
 
         print("[AssemblyAI] uploading \(audioFileID) (\(fileSizeDescription(at: fileURL)))")
-        let uploadURL = try await client.upload(fileURL: fileURL)
+        let uploadURL = try await client.upload(fileURL: fileURL, recordingId: recordingId)
 
         print("[AssemblyAI] creating transcript job")
-        return try await client.createTranscript(uploadURL: uploadURL)
+        do {
+            return try await client.createTranscript(uploadURL: uploadURL)
+        } catch {
+            await MomentusBackendClient.shared.deleteStagedRecordingAudio(recordingID: recordingId)
+            throw error
+        }
     }
 
     func awaitTranscription(id transcriptID: String, recordingId: UUID) async throws -> Transcript {
         print("[AssemblyAI] polling transcript \(transcriptID)")
-        let response = try await client.pollTranscript(id: transcriptID)
+        let response: AssemblyAITranscriptResponse
+        do {
+            response = try await client.pollTranscript(id: transcriptID)
+        } catch {
+            await MomentusBackendClient.shared.deleteStagedRecordingAudio(recordingID: recordingId)
+            throw error
+        }
+        await MomentusBackendClient.shared.deleteStagedRecordingAudio(recordingID: recordingId)
 
         guard let text = response.text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw AssemblyAIError.noSpeechDetected

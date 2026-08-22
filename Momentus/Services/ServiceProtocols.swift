@@ -47,7 +47,7 @@ protocol TranscriptionService {
 /// A cloud transcription service whose remote job can be checkpointed and resumed.
 /// Persist the identifier returned by `createTranscription` before awaiting the result.
 protocol ResumableTranscriptionService: TranscriptionService {
-    func createTranscription(audioFileID: String) async throws -> String
+    func createTranscription(audioFileID: String, recordingId: UUID) async throws -> String
     func awaitTranscription(id: String, recordingId: UUID) async throws -> Transcript
 }
 

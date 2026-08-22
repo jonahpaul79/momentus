@@ -35,6 +35,10 @@ final class AVAudioRecorderService: RecordingService {
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
             AVSampleRateKey: 44100.0,
             AVNumberOfChannelsKey: 1,
+            // Voice does not benefit from an unconstrained high AAC bitrate. A
+            // fixed 32 kbps keeps a two-hour meeting near 29 MB and makes cloud
+            // recovery practical on mobile networks.
+            AVEncoderBitRateKey: 32_000,
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
         ]
 

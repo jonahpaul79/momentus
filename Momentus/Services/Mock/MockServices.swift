@@ -294,7 +294,10 @@ import UIKit
                     jobID = checkpoint
                     print("[Retry Pipeline] resuming transcription job \(jobID)")
                 } else {
-                    jobID = try await resumable.createTranscription(audioFileID: audioFileID)
+                    jobID = try await resumable.createTranscription(
+                        audioFileID: audioFileID,
+                        recordingId: recording.id
+                    )
                     recording.transcriptionJobID = jobID
                     update(recording)
                     print("[Retry Pipeline] checkpointed transcription job \(jobID)")

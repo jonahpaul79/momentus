@@ -362,7 +362,10 @@ extension Notification.Name {
                             jobID = checkpoint
                             print("[Pipeline] resuming transcription job \(jobID)")
                         } else {
-                            jobID = try await resumable.createTranscription(audioFileID: audioFileID)
+                            jobID = try await resumable.createTranscription(
+                                audioFileID: audioFileID,
+                                recordingId: recordingId
+                            )
                             recording.transcriptionJobID = jobID
                             self.store?.update(recording)
                             print("[Pipeline] checkpointed transcription job \(jobID)")

@@ -16,14 +16,25 @@ final class AssemblyAIClient {
     // MARK: - Upload
 
     /// Uploads raw audio bytes to AssemblyAI's CDN. Returns the upload_url used to create a transcript job.
-    func upload(fileURL: URL) async throws -> String {
+    func upload(fileURL: URL, recordingId: UUID) async throws -> String {
         if apiKey == nil {
-            let responseData = try await MomentusBackendClient.shared.upload(
-                operation: "assemblyai.upload",
-                fileURL: fileURL,
-                contentType: "application/octet-stream"
-            )
-            return try decode(AssemblyAIUploadResponse.self, from: responseData).uploadURL
+            do {
+                let signedURL = try await MomentusBackendClient.shared.stageRecordingAudio(
+                    fileURL: fileURL,
+                    recordingID: recordingId
+                )
+                print("[AssemblyAIClient] staged audio directly in private storage")
+                return signedURL.absoluteString
+            } catch {
+                // Compatibility path while the new private bucket is rolling out.
+                print("[AssemblyAIClient] direct storage unavailable; using legacy proxy: \(error)")
+                let responseData = try await MomentusBackendClient.shared.upload(
+                    operation: "assemblyai.upload",
+                    fileURL: fileURL,
+                    contentType: "application/octet-stream"
+                )
+                return try decode(AssemblyAIUploadResponse.self, from: responseData).uploadURL
+            }
         }
         var request = URLRequest(url: baseURL.appending(path: "/v2/upload"))
         request.httpMethod = "POST"
