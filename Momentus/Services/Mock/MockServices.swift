@@ -117,6 +117,19 @@ import UIKit
     /// Continue work that was persisted in an in-progress state before the app exited.
     /// Cloud recordings reuse their saved provider job ID rather than uploading again.
     func resumeInterruptedProcessing() {
+        // A continued task can be terminated by the system while this process is
+        // still alive. Reconcile any iPhone recording that says it is processing
+        // but has no app or system operation before attempting the saved retry.
+        for index in recordings.indices where
+            recordings[index].micSource == .iPhone
+                && recordings[index].processingState.isInProgress
+                && !processingRecordingIDs.contains(recordings[index].id)
+                && !ContinuedProcessingManager.shared.isProcessing(recordingID: recordings[index].id) {
+            recordings[index].processingState = .failed
+            recordings[index].processingError = Self.interruptedProcessingMessage
+        }
+        persist()
+
         let interruptedIDs = recordings.compactMap { recording in
             recording.processingState == .failed
                 && recording.processingError == Self.interruptedProcessingMessage
@@ -227,7 +240,15 @@ import UIKit
             if userInitiated, let recording = recording(for: recordingID) {
                 try await ContinuedProcessingManager.shared.run(
                     recordingID: recordingID,
-                    title: recording.title
+                    title: recording.title,
+                    onFailure: { [weak self] error in
+                        guard let self, var failed = self.recording(for: recordingID) else { return }
+                        failed.processingState = .failed
+                        failed.processingError = error is CancellationError
+                            ? Self.interruptedProcessingMessage
+                            : error.localizedDescription
+                        self.update(failed)
+                    }
                 ) { reporter in
                     try await self.performProcessingRetryBody(
                         recordingID: recordingID,

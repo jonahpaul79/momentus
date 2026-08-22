@@ -7,7 +7,7 @@ import Foundation
 @MainActor
 final class ContinuedProcessingManager {
     static let shared = ContinuedProcessingManager()
-    static let taskIdentifier = "jonahpaul.momentus.recording-processing.active"
+    static let taskIdentifierPrefix = "jonahpaul.momentus.recording-processing"
 
     private var pendingJob: Job?
     private var activeJob: Job?
@@ -18,6 +18,7 @@ final class ContinuedProcessingManager {
     func run(
         recordingID: UUID,
         title: String,
+        onFailure: (@MainActor (Error) -> Void)? = nil,
         operation: @escaping @MainActor (Reporter) async throws -> Void
     ) async throws {
         try await withTaskCancellationHandler {
@@ -27,20 +28,51 @@ final class ContinuedProcessingManager {
                     return
                 }
 
+                // Registration is one-shot for the lifetime of this process, so a
+                // retry of the same recording needs a fresh task identifier too.
+                let taskIdentifier = "\(Self.taskIdentifierPrefix).\(UUID().uuidString.lowercased())"
                 let job = Job(
                     recordingID: recordingID,
+                    taskIdentifier: taskIdentifier,
                     title: title,
+                    onFailure: onFailure,
                     operation: operation,
                     continuation: continuation
                 )
                 pendingJob = job
 
+                let registered = BGTaskScheduler.shared.register(
+                    forTaskWithIdentifier: taskIdentifier,
+                    using: nil
+                ) { task in
+                    guard let task = task as? BGContinuedProcessingTask else {
+                        task.setTaskCompleted(success: false)
+                        return
+                    }
+                    Task { @MainActor in
+                        ContinuedProcessingManager.shared.handle(
+                            task,
+                            identifier: taskIdentifier
+                        )
+                    }
+                }
+
+                guard registered else {
+                    print("[Continued Processing] registration unavailable; using foreground fallback")
+                    pendingJob = nil
+                    start(job: job, systemTask: nil)
+                    return
+                }
+
                 let request = BGContinuedProcessingTaskRequest(
-                    identifier: Self.taskIdentifier,
+                    identifier: taskIdentifier,
                     title: "Processing \(title)",
                     subtitle: "Preparing your recording"
                 )
-                request.strategy = .queue
+                // This pipeline is represented by an in-memory operation with a
+                // persisted transcription checkpoint. Never leave a stale request
+                // queued after that operation is gone; fall back to foreground work.
+                request.strategy = .fail
 
                 do {
                     try BGTaskScheduler.shared.submit(request)
@@ -60,9 +92,9 @@ final class ContinuedProcessingManager {
         }
     }
 
-    func handle(_ task: BGContinuedProcessingTask) {
-        guard let job = pendingJob else {
-            print("[Continued Processing] launched without a pending recording")
+    func handle(_ task: BGContinuedProcessingTask, identifier: String) {
+        guard let job = pendingJob, job.taskIdentifier == identifier else {
+            print("[Continued Processing] launched without its pending recording: \(identifier)")
             task.setTaskCompleted(success: false)
             return
         }
@@ -72,13 +104,17 @@ final class ContinuedProcessingManager {
 
     func cancel(recordingID: UUID) {
         if let pendingJob, pendingJob.recordingID == recordingID {
-            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.taskIdentifier)
+            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: pendingJob.taskIdentifier)
             self.pendingJob = nil
             finish(job: pendingJob, systemTask: nil, result: .failure(CancellationError()))
             return
         }
         guard activeJob?.recordingID == recordingID else { return }
         activeOperation?.cancel()
+    }
+
+    func isProcessing(recordingID: UUID) -> Bool {
+        pendingJob?.recordingID == recordingID || activeJob?.recordingID == recordingID
     }
 
     private func start(job: Job, systemTask: BGContinuedProcessingTask?) {
@@ -120,6 +156,9 @@ final class ContinuedProcessingManager {
             systemTask?.setTaskCompleted(success: true)
             job.continuation.resume()
         case .failure(let error):
+            // Reconcile the app's persisted state before iOS presents a failed
+            // continued-processing task to the person.
+            job.onFailure?(error)
             systemTask?.setTaskCompleted(success: false)
             job.continuation.resume(throwing: error)
         }
@@ -145,19 +184,25 @@ final class ContinuedProcessingManager {
 
     private final class Job {
         let recordingID: UUID
+        let taskIdentifier: String
         let title: String
+        let onFailure: (@MainActor (Error) -> Void)?
         let operation: @MainActor (Reporter) async throws -> Void
         let continuation: CheckedContinuation<Void, Error>
         var isFinished = false
 
         init(
             recordingID: UUID,
+            taskIdentifier: String,
             title: String,
+            onFailure: (@MainActor (Error) -> Void)?,
             operation: @escaping @MainActor (Reporter) async throws -> Void,
             continuation: CheckedContinuation<Void, Error>
         ) {
             self.recordingID = recordingID
+            self.taskIdentifier = taskIdentifier
             self.title = title
+            self.onFailure = onFailure
             self.operation = operation
             self.continuation = continuation
         }

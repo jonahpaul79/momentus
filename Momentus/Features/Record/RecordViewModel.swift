@@ -336,7 +336,17 @@ extension Notification.Name {
             do {
                 try await ContinuedProcessingManager.shared.run(
                     recordingID: recordingId,
-                    title: recording.title
+                    title: recording.title,
+                    onFailure: { [weak self] error in
+                        guard let self else { return }
+                        recording.processingState = .failed
+                        recording.processingError = error is CancellationError
+                            ? RecordingsStore.interruptedProcessingMessage
+                            : error.localizedDescription
+                        self.store?.update(recording)
+                        self.errorMessage = recording.processingError
+                        self.state = .idle
+                    }
                 ) { reporter in
                     reporter.update(completed: 1, subtitle: "Transcribing your recording")
                     try Task.checkCancellation()
