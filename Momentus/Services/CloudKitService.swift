@@ -126,6 +126,10 @@ final class CloudKitService {
         record["audioFileID"]        = recording.audioFileID
         record["processingStateRaw"] = recording.processingState.rawValue
         record["processingError"]    = recording.processingError
+        record["processingDetail"]   = recording.processingDetail
+        record["processingProgress"] = recording.processingProgress
+        record["transcriptionJobID"] = recording.transcriptionJobID
+        record["transcriptionJobCreatedAt"] = recording.transcriptionJobCreatedAt
         record["isFavorite"]         = Int64(recording.isFavorite ? 1 : 0)
 
         if let data = try? JSONEncoder().encode(recording.markers) {
@@ -186,6 +190,10 @@ final class CloudKitService {
             audioFileID: audioFileID,
             processingState: ProcessingState(rawValue: stateRaw) ?? .completed,
             processingError: record["processingError"] as? String,
+            processingDetail: record["processingDetail"] as? String,
+            processingProgress: record["processingProgress"] as? Double,
+            transcriptionJobID: record["transcriptionJobID"] as? String,
+            transcriptionJobCreatedAt: record["transcriptionJobCreatedAt"] as? Date,
             transcript: transcript,
             summary: summary,
             isFavorite: (record["isFavorite"] as? Int64) == 1,

@@ -15,6 +15,10 @@ import UIKit
 @Observable final class RecordingsStore {
     private let storageKey = "stored_recordings"
     static let interruptedProcessingMessage = "Processing was interrupted before it finished. Your recording is preserved and will resume automatically."
+    static func failureMessage(stage: ProcessingState, error: Error) -> String {
+        if stage == .failed { return error.localizedDescription }
+        return "\(stage.displayName) failed: \(error.localizedDescription)"
+    }
     var recordings: [Recording] = []
     var isSyncing = false
     private(set) var processingRecordingIDs: Set<UUID> = []
@@ -106,7 +110,20 @@ import UIKit
 
         processingRecordingIDs.insert(recordingID)
         recording.processingError = nil
-        recording.processingState = recording.transcript == nil ? .transcribing : .summarizing
+        if recording.transcript != nil {
+            recording.processingState = .summarizing
+            recording.processingDetail = "Generating meeting notes"
+        } else if recording.hasUsableTranscriptionCheckpoint {
+            recording.processingState = .transcribing
+            recording.processingDetail = "Resuming cloud transcription"
+        } else if recording.mode == .bestQuality {
+            recording.processingState = .uploading
+            recording.processingDetail = "Preparing resumable upload"
+            recording.processingProgress = 0
+        } else {
+            recording.processingState = .transcribing
+            recording.processingDetail = "Preparing on-device transcription"
+        }
         update(recording)
 
         Task { [weak self] in
@@ -243,10 +260,16 @@ import UIKit
                     title: recording.title,
                     onFailure: { [weak self] error in
                         guard let self, var failed = self.recording(for: recordingID) else { return }
+                        let failedStage = failed.processingState
+                        if let providerError = error as? AssemblyAIError,
+                           providerError.invalidatesTranscriptionCheckpoint {
+                            failed.transcriptionJobID = nil
+                            failed.transcriptionJobCreatedAt = nil
+                        }
                         failed.processingState = .failed
                         failed.processingError = error is CancellationError
                             ? Self.interruptedProcessingMessage
-                            : error.localizedDescription
+                            : Self.failureMessage(stage: failedStage, error: error)
                         self.update(failed)
                     }
                 ) { reporter in
@@ -265,8 +288,15 @@ import UIKit
             update(recording)
         } catch {
             guard var recording = recording(for: recordingID) else { return }
+            guard recording.processingState != .failed else { return }
+            let failedStage = recording.processingState
+            if let providerError = error as? AssemblyAIError,
+               providerError.invalidatesTranscriptionCheckpoint {
+                recording.transcriptionJobID = nil
+                recording.transcriptionJobCreatedAt = nil
+            }
             recording.processingState = .failed
-            recording.processingError = error.localizedDescription
+            recording.processingError = Self.failureMessage(stage: failedStage, error: error)
             update(recording)
             print("[Retry Pipeline] failed \(recordingID): \(error)")
         }
@@ -285,28 +315,68 @@ import UIKit
                   audioIsPlayable(audioFileID)
             else { throw RecordingProcessingRetryError.audioUnavailable }
 
-            reporter?.update(completed: 1, subtitle: "Transcribing your recording")
             let service = ServiceFactory.makeTranscriptionService(for: recording.mode)
             var generated: Transcript
             if let resumable = service as? any ResumableTranscriptionService {
                 let jobID: String
-                if let checkpoint = recording.transcriptionJobID {
+                if let checkpoint = recording.transcriptionJobID,
+                   recording.hasUsableTranscriptionCheckpoint {
                     jobID = checkpoint
                     print("[Retry Pipeline] resuming transcription job \(jobID)")
                 } else {
+                    if recording.transcriptionJobID != nil {
+                        print("[Retry Pipeline] discarding stale transcription checkpoint")
+                        recording.transcriptionJobID = nil
+                        recording.transcriptionJobCreatedAt = nil
+                    }
+                    recording.processingState = .uploading
+                    recording.processingDetail = "Starting secure upload"
+                    recording.processingProgress = 0
+                    update(recording)
+                    reporter?.update(completed: 1, total: 5, subtitle: recording.processingDetail!)
                     jobID = try await resumable.createTranscription(
                         audioFileID: audioFileID,
-                        recordingId: recording.id
+                        recordingId: recording.id,
+                        uploadProgress: { [weak self] progress in
+                            guard let self, var current = self.recording(for: recordingID) else { return }
+                            current.processingState = .uploading
+                            current.processingDetail = progress.displayText
+                            current.processingProgress = progress.fraction
+                            self.update(current)
+                            reporter?.update(
+                                completed: 1,
+                                total: 5,
+                                subtitle: progress.displayText
+                            )
+                        }
                     )
                     recording.transcriptionJobID = jobID
+                    recording.transcriptionJobCreatedAt = Date()
                     update(recording)
                     print("[Retry Pipeline] checkpointed transcription job \(jobID)")
                 }
+                recording.processingState = .transcribing
+                recording.processingDetail = "Audio uploaded — transcription in progress"
+                recording.processingProgress = nil
+                update(recording)
+                reporter?.update(completed: 2, total: 5, subtitle: recording.processingDetail!)
                 generated = try await resumable.awaitTranscription(
                     id: jobID,
-                    recordingId: recording.id
+                    recordingId: recording.id,
+                    statusUpdate: { [weak self] detail in
+                        guard let self, var current = self.recording(for: recordingID) else { return }
+                        current.processingState = .transcribing
+                        current.processingDetail = detail
+                        self.update(current)
+                        reporter?.update(completed: 2, total: 5, subtitle: detail)
+                    }
                 )
             } else {
+                recording.processingState = .transcribing
+                recording.processingDetail = "Transcribing on device"
+                recording.processingProgress = nil
+                update(recording)
+                reporter?.update(completed: 2, total: 5, subtitle: recording.processingDetail!)
                 generated = try await service.transcribe(
                     audioFileID: audioFileID,
                     recordingId: recording.id
@@ -320,12 +390,15 @@ import UIKit
             }
             transcript = generated
             recording.transcript = generated
+            recording.transcriptionJobID = nil
+            recording.transcriptionJobCreatedAt = nil
             recording.processingState = .summarizing
+            recording.processingDetail = "Generating meeting notes"
             update(recording)
         }
 
         try Task.checkCancellation()
-        reporter?.update(completed: 2, subtitle: "Generating meeting notes")
+        reporter?.update(completed: 3, total: 5, subtitle: "Generating meeting notes")
         let summary = try await ServiceFactory.makeSummaryService(for: recording.mode)
             .summarize(transcript: transcript, recordingId: recording.id)
         recording.summary = summary
@@ -333,14 +406,17 @@ import UIKit
             recording.title = suggestedTitle
         }
         recording.processingState = .preparingNotes
+        recording.processingDetail = "Organizing your insights"
         update(recording)
 
-        reporter?.update(completed: 3, subtitle: "Preparing your notes")
+        reporter?.update(completed: 4, total: 5, subtitle: "Preparing your notes")
         try await Task.sleep(for: .milliseconds(350))
         recording.processingState = .completed
         recording.processingError = nil
+        recording.processingDetail = nil
+        recording.processingProgress = nil
         update(recording)
-        reporter?.update(completed: 4, subtitle: "Notes ready")
+        reporter?.update(completed: 5, total: 5, subtitle: "Notes ready")
         HapticStyle.success.trigger()
         NotificationCenter.default.post(
             name: .recordingProcessingCompleted,

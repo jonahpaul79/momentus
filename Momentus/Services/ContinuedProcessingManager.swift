@@ -120,7 +120,7 @@ final class ContinuedProcessingManager {
     private func start(job: Job, systemTask: BGContinuedProcessingTask?) {
         activeJob = job
         let reporter = Reporter(task: systemTask, title: "Processing \(job.title)")
-        reporter.update(completed: 0, total: 4, subtitle: "Preparing your recording")
+        reporter.update(completed: 0, total: 5, subtitle: "Preparing your recording")
 
         let operationTask = Task { @MainActor in
             do {
@@ -152,7 +152,7 @@ final class ContinuedProcessingManager {
 
         switch result {
         case .success:
-            systemTask?.progress.completedUnitCount = systemTask?.progress.totalUnitCount ?? 4
+            systemTask?.progress.completedUnitCount = systemTask?.progress.totalUnitCount ?? 5
             systemTask?.setTaskCompleted(success: true)
             job.continuation.resume()
         case .failure(let error):
@@ -174,7 +174,7 @@ final class ContinuedProcessingManager {
             self.title = title
         }
 
-        func update(completed: Int64, total: Int64 = 4, subtitle: String) {
+        func update(completed: Int64, total: Int64 = 5, subtitle: String) {
             guard let task else { return }
             task.progress.totalUnitCount = total
             task.progress.completedUnitCount = min(completed, total)

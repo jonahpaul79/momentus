@@ -58,6 +58,8 @@ extension Notification.Name {
         didSet { UserDefaults.standard.set(selectedMicSource.rawValue, forKey: "defaultMicSource") }
     }
     var processingStepIndex: Int = 0
+    var processingDetail: String?
+    var processingProgress: Double?
     var errorMessage: String?
     var currentRecordingId: UUID?
     var suggestedMeetingTitle: String?
@@ -312,21 +314,28 @@ extension Notification.Name {
 
         state = .processing(.savingAudio)
         processingStepIndex = 0
+        processingDetail = "Securing your recording"
+        processingProgress = nil
 
         do {
             print("[Pipeline] stopping recording service")
             let audioFileID = try await recordingService.stopRecording()
             print("[Pipeline] audioFileID: \(audioFileID)")
             recording.audioFileID = audioFileID
-            recording.processingState = .transcribing
+            let uploadsAudio = transcriptionService is any ResumableTranscriptionService
+            recording.processingState = uploadsAudio ? .uploading : .transcribing
+            recording.processingDetail = uploadsAudio ? "Starting secure upload" : "Preparing on-device transcription"
+            recording.processingProgress = uploadsAudio ? 0 : nil
             store?.update(recording)
-            state = .processing(.transcribing)
-            processingStepIndex = 1
+            state = .processing(recording.processingState)
+            processingStepIndex = recording.processingState.stepIndex
+            processingDetail = recording.processingDetail
+            processingProgress = recording.processingProgress
         } catch {
             recording.processingState = .failed
-            recording.processingError = error.localizedDescription
+            recording.processingError = RecordingsStore.failureMessage(stage: .savingAudio, error: error)
             store?.update(recording)
-            errorMessage = error.localizedDescription
+            errorMessage = recording.processingError
             state = .idle
             return
         }
@@ -339,16 +348,22 @@ extension Notification.Name {
                     title: recording.title,
                     onFailure: { [weak self] error in
                         guard let self else { return }
+                        let failedStage = recording.processingState
+                        if let providerError = error as? AssemblyAIError,
+                           providerError.invalidatesTranscriptionCheckpoint {
+                            recording.transcriptionJobID = nil
+                            recording.transcriptionJobCreatedAt = nil
+                        }
                         recording.processingState = .failed
                         recording.processingError = error is CancellationError
                             ? RecordingsStore.interruptedProcessingMessage
-                            : error.localizedDescription
+                            : RecordingsStore.failureMessage(stage: failedStage, error: error)
                         self.store?.update(recording)
                         self.errorMessage = recording.processingError
                         self.state = .idle
                     }
                 ) { reporter in
-                    reporter.update(completed: 1, subtitle: "Transcribing your recording")
+                    reporter.update(completed: 1, total: 5, subtitle: recording.processingDetail ?? "Preparing audio")
                     try Task.checkCancellation()
 
                     guard let audioFileID = recording.audioFileID else {
@@ -358,23 +373,78 @@ extension Notification.Name {
                     var transcript: Transcript
                     if let resumable = self.transcriptionService as? any ResumableTranscriptionService {
                         let jobID: String
-                        if let checkpoint = recording.transcriptionJobID {
+                        if let checkpoint = recording.transcriptionJobID,
+                           recording.hasUsableTranscriptionCheckpoint {
                             jobID = checkpoint
                             print("[Pipeline] resuming transcription job \(jobID)")
                         } else {
+                            if recording.transcriptionJobID != nil {
+                                print("[Pipeline] discarding stale transcription checkpoint")
+                                recording.transcriptionJobID = nil
+                                recording.transcriptionJobCreatedAt = nil
+                            }
+                            recording.processingState = .uploading
+                            recording.processingDetail = "Starting secure upload"
+                            recording.processingProgress = 0
+                            self.store?.update(recording)
+                            self.state = .processing(.uploading)
+                            self.processingStepIndex = ProcessingState.uploading.stepIndex
+                            self.processingDetail = recording.processingDetail
+                            self.processingProgress = 0
                             jobID = try await resumable.createTranscription(
                                 audioFileID: audioFileID,
-                                recordingId: recordingId
+                                recordingId: recordingId,
+                                uploadProgress: { progress in
+                                    recording.processingState = .uploading
+                                    recording.processingDetail = progress.displayText
+                                    recording.processingProgress = progress.fraction
+                                    self.store?.update(recording)
+                                    self.state = .processing(.uploading)
+                                    self.processingStepIndex = ProcessingState.uploading.stepIndex
+                                    self.processingDetail = progress.displayText
+                                    self.processingProgress = progress.fraction
+                                    reporter.update(
+                                        completed: 1,
+                                        total: 5,
+                                        subtitle: progress.displayText
+                                    )
+                                }
                             )
                             recording.transcriptionJobID = jobID
+                            recording.transcriptionJobCreatedAt = Date()
                             self.store?.update(recording)
                             print("[Pipeline] checkpointed transcription job \(jobID)")
                         }
+                        recording.processingState = .transcribing
+                        recording.processingDetail = "Audio uploaded — transcription in progress"
+                        recording.processingProgress = nil
+                        self.store?.update(recording)
+                        self.state = .processing(.transcribing)
+                        self.processingStepIndex = ProcessingState.transcribing.stepIndex
+                        self.processingDetail = recording.processingDetail
+                        self.processingProgress = nil
+                        reporter.update(completed: 2, total: 5, subtitle: recording.processingDetail!)
                         transcript = try await resumable.awaitTranscription(
                             id: jobID,
-                            recordingId: recordingId
+                            recordingId: recordingId,
+                            statusUpdate: { detail in
+                                recording.processingState = .transcribing
+                                recording.processingDetail = detail
+                                self.store?.update(recording)
+                                self.processingDetail = detail
+                                reporter.update(completed: 2, total: 5, subtitle: detail)
+                            }
                         )
                     } else {
+                        recording.processingState = .transcribing
+                        recording.processingDetail = "Transcribing on device"
+                        recording.processingProgress = nil
+                        self.store?.update(recording)
+                        self.state = .processing(.transcribing)
+                        self.processingStepIndex = ProcessingState.transcribing.stepIndex
+                        self.processingDetail = recording.processingDetail
+                        self.processingProgress = nil
+                        reporter.update(completed: 2, total: 5, subtitle: recording.processingDetail!)
                         transcript = try await self.transcriptionService.transcribe(
                             audioFileID: audioFileID,
                             recordingId: recordingId
@@ -386,12 +456,17 @@ extension Notification.Name {
                     }
                     print("[Pipeline] transcription done — \(transcript.segments.count) segments")
                     recording.transcript = transcript
+                    recording.transcriptionJobID = nil
+                    recording.transcriptionJobCreatedAt = nil
                     recording.processingState = .summarizing
+                    recording.processingDetail = "Generating meeting notes"
+                    recording.processingProgress = nil
                     self.store?.update(recording)
 
                     self.state = .processing(.summarizing)
-                    self.processingStepIndex = 2
-                    reporter.update(completed: 2, subtitle: "Generating meeting notes")
+                    self.processingStepIndex = ProcessingState.summarizing.stepIndex
+                    self.processingDetail = recording.processingDetail
+                    reporter.update(completed: 3, total: 5, subtitle: "Generating meeting notes")
                     try Task.checkCancellation()
 
                     print("[Pipeline] starting summarization")
@@ -402,21 +477,27 @@ extension Notification.Name {
                         recording.title = suggested
                     }
                     recording.processingState = .preparingNotes
+                    recording.processingDetail = "Organizing your insights"
                     self.store?.update(recording)
 
                     self.state = .processing(.preparingNotes)
-                    self.processingStepIndex = 3
-                    reporter.update(completed: 3, subtitle: "Preparing your notes")
+                    self.processingStepIndex = ProcessingState.preparingNotes.stepIndex
+                    self.processingDetail = recording.processingDetail
+                    reporter.update(completed: 4, total: 5, subtitle: "Preparing your notes")
 
                     try await Task.sleep(for: .milliseconds(900))
 
                     recording.processingState = .completed
                     recording.processingError = nil
+                    recording.processingDetail = nil
+                    recording.processingProgress = nil
                     self.store?.update(recording)
-                    reporter.update(completed: 4, subtitle: "Notes ready")
+                    reporter.update(completed: 5, total: 5, subtitle: "Notes ready")
 
                     HapticStyle.success.trigger()
                     self.state = .completed
+                    self.processingDetail = nil
+                    self.processingProgress = nil
 
                     if UIApplication.shared.applicationState == .background {
                         await MeetingNotificationService.shared.notifySummaryReady(
@@ -442,8 +523,17 @@ extension Notification.Name {
                 errorMessage = recording.processingError
                 state = .idle
             } catch {
+                guard recording.processingState != .failed else {
+                    errorMessage = recording.processingError
+                    state = .idle
+                    return
+                }
+                let failedStage = recording.processingState
                 recording.processingState = .failed
-                recording.processingError = error.localizedDescription
+                recording.processingError = RecordingsStore.failureMessage(
+                    stage: failedStage,
+                    error: error
+                )
                 // Preserve everything collected so far so the recording isn't lost.
                 store?.update(recording)
                 errorMessage = error.localizedDescription
@@ -544,6 +634,8 @@ extension Notification.Name {
         markers = []
         currentRecordingId = nil
         processingStepIndex = 0
+        processingDetail = nil
+        processingProgress = nil
         suggestedSpeakers = []
     }
 

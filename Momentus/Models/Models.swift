@@ -10,7 +10,7 @@ import Foundation
 /// - `Recording` is stored in `RecordingsStore` and serialized via `Codable`.
 ///
 /// **State machine:** `processingState` drives what UI is shown.
-/// `idle` → `savingAudio` → `transcribing` → `summarizing` → `preparingNotes` → `completed`
+/// `idle` → `savingAudio` → `uploading` → `transcribing` → `summarizing` → `preparingNotes` → `completed`
 /// A recording is never shown in the Notes list in `.idle` state.
 struct Recording: Identifiable, Codable, Equatable {
     let id: UUID
@@ -23,9 +23,15 @@ struct Recording: Identifiable, Codable, Equatable {
     var processingState: ProcessingState
     /// The last processing failure, persisted so Notes can explain and retry it.
     var processingError: String?
+    /// Stage-specific status such as "Uploading 18.0 MB of 92.4 MB (19%)".
+    var processingDetail: String?
+    /// Fractional progress for stages that can report it, currently audio upload.
+    var processingProgress: Double?
     /// Remote transcription job checkpoint. Keeping this lets an interrupted cloud
     /// pipeline resume polling without uploading a large recording a second time.
     var transcriptionJobID: String?
+    /// Used to reject legacy or stale jobs that would otherwise be polled indefinitely.
+    var transcriptionJobCreatedAt: Date?
     var transcript: Transcript?
     var summary: MeetingSummary?
     var isFavorite: Bool
@@ -40,6 +46,10 @@ struct Recording: Identifiable, Codable, Equatable {
     var shortSummary: String? { summary?.executiveSummary }
     var confidenceScore: Float? { transcript?.averageConfidence }
     var isLowConfidence: Bool { (confidenceScore ?? 1.0) < 0.75 }
+    var hasUsableTranscriptionCheckpoint: Bool {
+        guard transcriptionJobID != nil, let createdAt = transcriptionJobCreatedAt else { return false }
+        return Date().timeIntervalSince(createdAt) < 24 * 60 * 60
+    }
 
     init(
         id: UUID = UUID(),
@@ -51,7 +61,10 @@ struct Recording: Identifiable, Codable, Equatable {
         audioFileID: String? = nil,
         processingState: ProcessingState = .idle,
         processingError: String? = nil,
+        processingDetail: String? = nil,
+        processingProgress: Double? = nil,
         transcriptionJobID: String? = nil,
+        transcriptionJobCreatedAt: Date? = nil,
         transcript: Transcript? = nil,
         summary: MeetingSummary? = nil,
         isFavorite: Bool = false,
@@ -67,7 +80,10 @@ struct Recording: Identifiable, Codable, Equatable {
         self.audioFileID = audioFileID
         self.processingState = processingState
         self.processingError = processingError
+        self.processingDetail = processingDetail
+        self.processingProgress = processingProgress
         self.transcriptionJobID = transcriptionJobID
+        self.transcriptionJobCreatedAt = transcriptionJobCreatedAt
         self.transcript = transcript
         self.summary = summary
         self.isFavorite = isFavorite
@@ -380,6 +396,7 @@ struct Risk: Identifiable, Codable, Equatable {
 enum ProcessingState: String, Codable, CaseIterable, Equatable {
     case idle
     case savingAudio
+    case uploading
     case transcribing
     case summarizing
     case preparingNotes
@@ -390,6 +407,7 @@ enum ProcessingState: String, Codable, CaseIterable, Equatable {
         switch self {
         case .idle: return "Idle"
         case .savingAudio: return "Saving audio"
+        case .uploading: return "Uploading audio"
         case .transcribing: return "Transcribing"
         case .summarizing: return "Summarizing"
         case .preparingNotes: return "Preparing notes"
@@ -402,17 +420,18 @@ enum ProcessingState: String, Codable, CaseIterable, Equatable {
         switch self {
         case .idle: return -1
         case .savingAudio: return 0
-        case .transcribing: return 1
-        case .summarizing: return 2
-        case .preparingNotes: return 3
-        case .completed: return 4
+        case .uploading: return 1
+        case .transcribing: return 2
+        case .summarizing: return 3
+        case .preparingNotes: return 4
+        case .completed: return 5
         case .failed: return -1
         }
     }
 
     var isInProgress: Bool {
         switch self {
-        case .savingAudio, .transcribing, .summarizing, .preparingNotes:
+        case .savingAudio, .uploading, .transcribing, .summarizing, .preparingNotes:
             return true
         case .idle, .completed, .failed:
             return false

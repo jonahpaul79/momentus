@@ -11,11 +11,23 @@ final class AssemblyAITranscriptionService: ResumableTranscriptionService {
     }
 
     func transcribe(audioFileID: String, recordingId: UUID) async throws -> Transcript {
-        let transcriptID = try await createTranscription(audioFileID: audioFileID, recordingId: recordingId)
-        return try await awaitTranscription(id: transcriptID, recordingId: recordingId)
+        let transcriptID = try await createTranscription(
+            audioFileID: audioFileID,
+            recordingId: recordingId,
+            uploadProgress: nil
+        )
+        return try await awaitTranscription(
+            id: transcriptID,
+            recordingId: recordingId,
+            statusUpdate: nil
+        )
     }
 
-    func createTranscription(audioFileID: String, recordingId: UUID) async throws -> String {
+    func createTranscription(
+        audioFileID: String,
+        recordingId: UUID,
+        uploadProgress: (@MainActor (AudioUploadProgress) -> Void)?
+    ) async throws -> String {
         let fileURL = AVAudioRecorderService.recordingsDirectory.appendingPathComponent(audioFileID)
 
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
@@ -23,7 +35,11 @@ final class AssemblyAITranscriptionService: ResumableTranscriptionService {
         }
 
         print("[AssemblyAI] uploading \(audioFileID) (\(fileSizeDescription(at: fileURL)))")
-        let uploadURL = try await client.upload(fileURL: fileURL, recordingId: recordingId)
+        let uploadURL = try await client.upload(
+            fileURL: fileURL,
+            recordingId: recordingId,
+            progress: uploadProgress
+        )
 
         print("[AssemblyAI] creating transcript job")
         do {
@@ -34,11 +50,15 @@ final class AssemblyAITranscriptionService: ResumableTranscriptionService {
         }
     }
 
-    func awaitTranscription(id transcriptID: String, recordingId: UUID) async throws -> Transcript {
+    func awaitTranscription(
+        id transcriptID: String,
+        recordingId: UUID,
+        statusUpdate: (@MainActor (String) -> Void)?
+    ) async throws -> Transcript {
         print("[AssemblyAI] polling transcript \(transcriptID)")
         let response: AssemblyAITranscriptResponse
         do {
-            response = try await client.pollTranscript(id: transcriptID)
+            response = try await client.pollTranscript(id: transcriptID, statusUpdate: statusUpdate)
         } catch {
             await MomentusBackendClient.shared.deleteStagedRecordingAudio(recordingID: recordingId)
             throw error

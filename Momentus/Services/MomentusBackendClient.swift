@@ -90,11 +90,20 @@ actor MomentusBackendClient {
     /// Stages a recording directly in private object storage. This deliberately
     /// bypasses the Edge Function proxy, whose request can time out while a large
     /// mobile upload is still in flight.
-    func stageRecordingAudio(fileURL: URL, recordingID: UUID) async throws -> URL {
+    func stageRecordingAudio(
+        fileURL: URL,
+        recordingID: UUID,
+        progress: (@MainActor (AudioUploadProgress) -> Void)? = nil
+    ) async throws -> URL {
         let session = try await authenticatedSession()
         let path = recordingAudioPath(userID: session.user.id.uuidString, recordingID: recordingID)
         let bucket = supabase.storage.from(Self.recordingAudioBucket)
-        try await resumableUpload(fileURL: fileURL, objectPath: path, recordingID: recordingID)
+        try await resumableUpload(
+            fileURL: fileURL,
+            objectPath: path,
+            recordingID: recordingID,
+            progress: progress
+        )
         return try await bucket.createSignedURL(path: path, expiresIn: 86_400)
     }
 
@@ -115,7 +124,12 @@ actor MomentusBackendClient {
 
     // MARK: - Resumable recording upload (TUS)
 
-    private func resumableUpload(fileURL: URL, objectPath: String, recordingID: UUID) async throws {
+    private func resumableUpload(
+        fileURL: URL,
+        objectPath: String,
+        recordingID: UUID,
+        progress: (@MainActor (AudioUploadProgress) -> Void)?
+    ) async throws {
         let fileSize = try fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
         guard fileSize > 0 else { throw MomentusBackendError.emptyRecording }
 
@@ -141,6 +155,7 @@ actor MomentusBackendClient {
             UserDefaults.standard.set(uploadURL, forKey: checkpointKey)
         }
         guard let uploadURL else { throw MomentusBackendError.invalidResponse }
+        await progress?(AudioUploadProgress(bytesSent: offset, totalBytes: Int64(fileSize)))
 
         let handle = try FileHandle(forReadingFrom: fileURL)
         defer { try? handle.close() }
@@ -154,6 +169,7 @@ actor MomentusBackendClient {
                 throw MomentusBackendError.invalidResponse
             }
             offset = try await patchTusUpload(url: uploadURL, offset: offset, chunk: chunk)
+            await progress?(AudioUploadProgress(bytesSent: offset, totalBytes: Int64(fileSize)))
             print("[MomentusBackend] staged audio \(offset)/\(fileSize) bytes")
         }
 

@@ -16,9 +16,14 @@ struct ProcessingView: View {
             ("Saving audio",
              "Securing your recording",
              "square.and.arrow.down"),
+            ("Uploading audio",
+             isBestQuality
+                 ? (vm.processingDetail ?? "Sending resumable encrypted chunks")
+                 : "Skipped — audio stays on device",
+             "arrow.up.circle"),
             ("Transcribing",
              isBestQuality
-                 ? "Uploading & transcribing with speaker labels"
+                 ? "Creating transcript with speaker labels"
                  : "Converting speech to text",
              "waveform"),
             ("Summarizing",
@@ -85,13 +90,23 @@ struct ProcessingView: View {
                 // Steps
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
-                        ProcessingStepRow(
-                            title: step.title,
-                            subtitle: step.subtitle,
-                            icon: step.icon,
-                            status: stepStatus(for: index)
-                        )
-                        .environment(themeManager)
+                        VStack(alignment: .leading, spacing: t.spacing.s) {
+                            ProcessingStepRow(
+                                title: step.title,
+                                subtitle: step.subtitle,
+                                icon: step.icon,
+                                status: stepStatus(for: index)
+                            )
+                            .environment(themeManager)
+
+                            if index == ProcessingState.uploading.stepIndex,
+                               stepStatus(for: index) == .active,
+                               let progress = vm.processingProgress {
+                                ProgressView(value: progress)
+                                    .tint(t.colors.accentPrimary)
+                                    .padding(.leading, 52)
+                            }
+                        }
 
                         if index < steps.count - 1 {
                             Rectangle()
@@ -161,8 +176,8 @@ struct ProcessingView: View {
 
     private func cloudPrivacyNote(_ t: AppTheme) -> some View {
         let noteText = vm.selectedMode == .bestQuality
-            ? "Audio is sent to AssemblyAI for transcription and summarization. Transcripts and notes are stored locally on your device only."
-            : "Audio is sent only to your selected provider and deleted after processing when possible."
+            ? "Audio is uploaded in resumable encrypted chunks for AssemblyAI transcription, then deleted from temporary storage. Notes are generated from the transcript."
+            : "Audio stays on this device. Only transcript text is sent to the cloud to generate notes."
         return HStack(alignment: .top, spacing: t.spacing.m) {
             Image(systemName: "info.circle")
                 .font(.system(size: 14))
@@ -274,7 +289,7 @@ struct ProcessingView: View {
 
 // MARK: - Processing Step Row
 
-enum ProcessingStepStatus { case pending, active, completed }
+enum ProcessingStepStatus: Equatable { case pending, active, completed }
 
 struct ProcessingStepRow: View {
     @Environment(ThemeManager.self) private var themeManager

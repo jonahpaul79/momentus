@@ -856,10 +856,15 @@ struct MeetingSummaryDetailView: View {
             Text("Processing in progress")
                 .font(t.typography.headlineMedium)
                 .foregroundStyle(t.colors.textSecondary)
-            Text("\(recording.processingState.displayName). You can leave this screen while the app continues working.")
+            Text(recording.processingDetail ?? "\(recording.processingState.displayName). You can leave this screen while the app continues working.")
                 .font(t.typography.bodySmall)
                 .foregroundStyle(t.colors.textTertiary)
                 .multilineTextAlignment(.center)
+            if let progress = recording.processingProgress {
+                ProgressView(value: progress)
+                    .tint(t.colors.accentPrimary)
+                    .frame(maxWidth: 260)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(t.spacing.huge)

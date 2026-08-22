@@ -47,8 +47,32 @@ protocol TranscriptionService {
 /// A cloud transcription service whose remote job can be checkpointed and resumed.
 /// Persist the identifier returned by `createTranscription` before awaiting the result.
 protocol ResumableTranscriptionService: TranscriptionService {
-    func createTranscription(audioFileID: String, recordingId: UUID) async throws -> String
-    func awaitTranscription(id: String, recordingId: UUID) async throws -> Transcript
+    func createTranscription(
+        audioFileID: String,
+        recordingId: UUID,
+        uploadProgress: (@MainActor (AudioUploadProgress) -> Void)?
+    ) async throws -> String
+    func awaitTranscription(
+        id: String,
+        recordingId: UUID,
+        statusUpdate: (@MainActor (String) -> Void)?
+    ) async throws -> Transcript
+}
+
+struct AudioUploadProgress: Sendable, Equatable {
+    let bytesSent: Int64
+    let totalBytes: Int64
+
+    var fraction: Double {
+        guard totalBytes > 0 else { return 0 }
+        return min(1, max(0, Double(bytesSent) / Double(totalBytes)))
+    }
+
+    var displayText: String {
+        let sent = ByteCountFormatter.string(fromByteCount: bytesSent, countStyle: .file)
+        let total = ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file)
+        return "Uploading \(sent) of \(total) (\(Int(fraction * 100))%)"
+    }
 }
 
 // MARK: - Summary Service

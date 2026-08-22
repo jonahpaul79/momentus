@@ -16,25 +16,22 @@ final class AssemblyAIClient {
     // MARK: - Upload
 
     /// Uploads raw audio bytes to AssemblyAI's CDN. Returns the upload_url used to create a transcript job.
-    func upload(fileURL: URL, recordingId: UUID) async throws -> String {
+    func upload(
+        fileURL: URL,
+        recordingId: UUID,
+        progress: (@MainActor (AudioUploadProgress) -> Void)? = nil
+    ) async throws -> String {
         if apiKey == nil {
-            do {
-                let signedURL = try await MomentusBackendClient.shared.stageRecordingAudio(
-                    fileURL: fileURL,
-                    recordingID: recordingId
-                )
-                print("[AssemblyAIClient] staged audio directly in private storage")
-                return signedURL.absoluteString
-            } catch {
-                // Compatibility path while the new private bucket is rolling out.
-                print("[AssemblyAIClient] direct storage unavailable; using legacy proxy: \(error)")
-                let responseData = try await MomentusBackendClient.shared.upload(
-                    operation: "assemblyai.upload",
-                    fileURL: fileURL,
-                    contentType: "application/octet-stream"
-                )
-                return try decode(AssemblyAIUploadResponse.self, from: responseData).uploadURL
-            }
+            // Never proxy a long recording through an Edge Function. Apart from its
+            // request limits, doing so loses the resumable Storage checkpoint and can
+            // make a failed upload look like an endlessly running transcription.
+            let signedURL = try await MomentusBackendClient.shared.stageRecordingAudio(
+                fileURL: fileURL,
+                recordingID: recordingId,
+                progress: progress
+            )
+            print("[AssemblyAIClient] staged audio directly in private storage")
+            return signedURL.absoluteString
         }
         var request = URLRequest(url: baseURL.appending(path: "/v2/upload"))
         request.httpMethod = "POST"
@@ -69,14 +66,17 @@ final class AssemblyAIClient {
     }
 
     /// Polls at 5-second intervals until the transcript job completes or fails.
-    /// Allows up to six hours. The transcript ID is persisted by the caller, so a
-    /// suspended or relaunched app can continue polling the same provider job.
-    func pollTranscript(id: String) async throws -> AssemblyAITranscriptResponse {
+    /// A 90-minute deadline prevents a dead provider job from looking alive forever.
+    func pollTranscript(
+        id: String,
+        statusUpdate: (@MainActor (String) -> Void)? = nil
+    ) async throws -> AssemblyAITranscriptResponse {
         let url = baseURL.appending(path: "/v2/transcript/\(id)")
         var request = URLRequest(url: url)
         request.setValue(apiKey, forHTTPHeaderField: "Authorization")
 
-        for attempt in 0..<4_320 {
+        var lastReportedStatus: String?
+        for attempt in 0..<1_080 {
             if attempt > 0 { try await Task.sleep(for: .seconds(5)) }
             try Task.checkCancellation()
 
@@ -96,6 +96,17 @@ final class AssemblyAIClient {
             if transcript.isCompleted { return transcript }
             if transcript.isFailed {
                 throw AssemblyAIError.transcriptionFailed(transcript.error ?? "Unknown error from AssemblyAI")
+            }
+            if transcript.status != lastReportedStatus || attempt.isMultiple(of: 6) {
+                let elapsedSeconds = attempt * 5
+                let elapsed = elapsedSeconds < 60
+                    ? "less than a minute"
+                    : "\(elapsedSeconds / 60) min"
+                let detail = transcript.status == "queued"
+                    ? "Queued for transcription — \(elapsed) elapsed"
+                    : "Transcribing with AssemblyAI — \(elapsed) elapsed"
+                statusUpdate?(detail)
+                lastReportedStatus = transcript.status
             }
             print("[AssemblyAIClient] attempt \(attempt + 1) — status: \(transcript.status)")
         }
@@ -188,6 +199,17 @@ enum AssemblyAIError: LocalizedError {
             return "Received an unexpected response from AssemblyAI."
         case .lemurFailed(let msg):
             return "Could not generate meeting notes: \(msg). Your transcript is still saved."
+        }
+    }
+}
+
+extension AssemblyAIError {
+    var invalidatesTranscriptionCheckpoint: Bool {
+        switch self {
+        case .transcriptionFailed, .noSpeechDetected, .timeout:
+            return true
+        default:
+            return false
         }
     }
 }

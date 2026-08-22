@@ -4,19 +4,45 @@ import Testing
 
 struct MomentusTests {
 
+    @Test func audioUploadProgressReportsFractionAndPercentage() {
+        let progress = AudioUploadProgress(bytesSent: 3 * 1024 * 1024, totalBytes: 12 * 1024 * 1024)
+
+        #expect(progress.fraction == 0.25)
+        #expect(progress.displayText.contains("25%"))
+    }
+
+    @Test func processingStagesExposeUploadBeforeTranscription() {
+        #expect(ProcessingState.uploading.stepIndex < ProcessingState.transcribing.stepIndex)
+        #expect(ProcessingState.uploading.isInProgress)
+    }
+
     @Test @MainActor func recordingPersistsRemoteTranscriptionCheckpoint() throws {
         let recording = Recording(
             id: UUID(),
             title: "Long meeting",
             processingState: .transcribing,
-            transcriptionJobID: "assembly-job-123"
+            transcriptionJobID: "assembly-job-123",
+            transcriptionJobCreatedAt: Date()
         )
 
         let data = try JSONEncoder().encode(recording)
         let decoded = try JSONDecoder().decode(Recording.self, from: data)
 
         #expect(decoded.transcriptionJobID == "assembly-job-123")
+        #expect(decoded.transcriptionJobCreatedAt != nil)
+        #expect(decoded.hasUsableTranscriptionCheckpoint)
         #expect(decoded.processingState == .transcribing)
+    }
+
+    @Test func staleOrLegacyRemoteCheckpointIsNotReused() {
+        let legacy = Recording(transcriptionJobID: "legacy-job-without-date")
+        let stale = Recording(
+            transcriptionJobID: "stale-job",
+            transcriptionJobCreatedAt: Date().addingTimeInterval(-25 * 60 * 60)
+        )
+
+        #expect(!legacy.hasUsableTranscriptionCheckpoint)
+        #expect(!stale.hasUsableTranscriptionCheckpoint)
     }
 
     @Test @MainActor func recordingWithoutCheckpointStillDecodes() throws {
@@ -24,11 +50,13 @@ struct MomentusTests {
         let encoded = try JSONEncoder().encode(recording)
         var json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
         json.removeValue(forKey: "transcriptionJobID")
+        json.removeValue(forKey: "transcriptionJobCreatedAt")
 
         let legacyData = try JSONSerialization.data(withJSONObject: json)
         let decoded = try JSONDecoder().decode(Recording.self, from: legacyData)
 
         #expect(decoded.transcriptionJobID == nil)
+        #expect(decoded.transcriptionJobCreatedAt == nil)
         #expect(decoded.title == "Legacy meeting")
     }
 
