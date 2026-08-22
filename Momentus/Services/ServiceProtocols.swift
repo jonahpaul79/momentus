@@ -59,6 +59,23 @@ protocol ResumableTranscriptionService: TranscriptionService {
     ) async throws -> Transcript
 }
 
+/// An on-device engine that can expose progress while decoding a long file.
+protocol ProgressReportingTranscriptionService: TranscriptionService {
+    func transcribe(
+        audioFileID: String,
+        recordingId: UUID,
+        progress: (@MainActor @Sendable (OnDeviceTranscriptionProgress) -> Void)?
+    ) async throws -> Transcript
+}
+
+struct OnDeviceTranscriptionProgress: Sendable, Equatable {
+    let fraction: Double
+
+    var displayText: String {
+        "Transcribing on device (\(Int(min(1, max(0, fraction)) * 100))%)"
+    }
+}
+
 struct AudioUploadProgress: Sendable, Equatable {
     let bytesSent: Int64
     let totalBytes: Int64

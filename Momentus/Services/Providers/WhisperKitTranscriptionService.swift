@@ -1,4 +1,5 @@
 @preconcurrency import WhisperKit
+import AVFoundation
 import Foundation
 
 /// On-device transcription using OpenAI's Whisper model via WhisperKit.
@@ -7,7 +8,7 @@ import Foundation
 ///
 /// Call `warmup()` while the user is recording so the model is ready
 /// before `transcribe` is awaited.
-final class WhisperKitTranscriptionService: TranscriptionService {
+final class WhisperKitTranscriptionService: ProgressReportingTranscriptionService {
     let providerName = "Whisper (On-Device)"
     let isOnDevice = true
 
@@ -25,6 +26,14 @@ final class WhisperKitTranscriptionService: TranscriptionService {
     // MARK: - TranscriptionService
 
     func transcribe(audioFileID: String, recordingId: UUID) async throws -> Transcript {
+        try await transcribe(audioFileID: audioFileID, recordingId: recordingId, progress: nil)
+    }
+
+    func transcribe(
+        audioFileID: String,
+        recordingId: UUID,
+        progress statusUpdate: (@MainActor @Sendable (OnDeviceTranscriptionProgress) -> Void)?
+    ) async throws -> Transcript {
         await Self.ensureLoaded()
 
         guard let pipeline = Self.pipeline else {
@@ -35,8 +44,31 @@ final class WhisperKitTranscriptionService: TranscriptionService {
         let fileURL = AVAudioRecorderService.recordingsDirectory.appendingPathComponent(audioFileID)
         print("[WhisperKit] transcribing \(audioFileID)")
 
-        let results = try await pipeline.transcribe(audioPath: fileURL.path)
+        let asset = AVURLAsset(url: fileURL)
+        let duration = (try? await asset.load(.duration).seconds) ?? 0
+        let progressGate = WhisperProgressGate()
+        let callback: TranscriptionCallback?
+        if let statusUpdate {
+            let notifier = WhisperProgressNotifier(callback: statusUpdate)
+            callback = { @Sendable transcriptionProgress in
+                let windowID = transcriptionProgress.windowId
+                guard progressGate.shouldReport(windowID: windowID) else {
+                    return !Task.isCancelled
+                }
+                // Whisper processes roughly 30-second windows. Reporting completed
+                // windows gives long recordings useful progress without writing on
+                // every decoded token.
+                let processedSeconds = Double(windowID + 1) * 30
+                let fraction = duration > 0 ? min(0.99, processedSeconds / duration) : 0
+                notifier.send(OnDeviceTranscriptionProgress(fraction: fraction))
+                return !Task.isCancelled
+            }
+        } else {
+            callback = nil
+        }
+        let results = try await pipeline.transcribe(audioPath: fileURL.path, callback: callback)
         let result = results.first
+        statusUpdate?(OnDeviceTranscriptionProgress(fraction: 1))
         print("[WhisperKit] done — \(result?.segments.count ?? 0) segments")
         return buildTranscript(from: result, recordingId: recordingId)
     }
@@ -121,5 +153,30 @@ final class WhisperKitTranscriptionService: TranscriptionService {
             provider: providerName,
             createdAt: Date()
         )
+    }
+}
+
+private final class WhisperProgressGate: @unchecked Sendable {
+    private let lock = NSLock()
+    nonisolated(unsafe) private var lastWindowID = -1
+
+    nonisolated func shouldReport(windowID: Int) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard windowID != lastWindowID else { return false }
+        lastWindowID = windowID
+        return true
+    }
+}
+
+private final class WhisperProgressNotifier: @unchecked Sendable {
+    private let callback: @MainActor @Sendable (OnDeviceTranscriptionProgress) -> Void
+
+    init(callback: @escaping @MainActor @Sendable (OnDeviceTranscriptionProgress) -> Void) {
+        self.callback = callback
+    }
+
+    nonisolated func send(_ progress: OnDeviceTranscriptionProgress) {
+        Task { @MainActor [callback] in callback(progress) }
     }
 }

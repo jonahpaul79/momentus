@@ -16,6 +16,22 @@ struct MomentusTests {
         #expect(ProcessingState.uploading.isInProgress)
     }
 
+    @Test @MainActor func userRetryUsesCurrentModeButAutomaticRecoveryPreservesOriginal() {
+        let key = "defaultRecordingMode"
+        let original = UserDefaults.standard.string(forKey: key)
+        defer { UserDefaults.standard.set(original, forKey: key) }
+        UserDefaults.standard.set(RecordingMode.bestQuality.rawValue, forKey: key)
+        let privateRecording = Recording(mode: .onDevice, processingState: .failed)
+
+        #expect(RecordingsStore.processingMode(for: privateRecording, userInitiated: true) == .bestQuality)
+        #expect(RecordingsStore.processingMode(for: privateRecording, userInitiated: false) == .onDevice)
+    }
+
+    @Test func onDeviceProgressProducesVisiblePercentage() {
+        let progress = OnDeviceTranscriptionProgress(fraction: 0.42)
+        #expect(progress.displayText.contains("42%"))
+    }
+
     @Test @MainActor func recordingPersistsRemoteTranscriptionCheckpoint() throws {
         let recording = Recording(
             id: UUID(),

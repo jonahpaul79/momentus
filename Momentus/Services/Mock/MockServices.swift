@@ -110,6 +110,13 @@ import UIKit
 
         processingRecordingIDs.insert(recordingID)
         recording.processingError = nil
+        let retryMode = Self.processingMode(for: recording, userInitiated: userInitiated)
+        if retryMode != recording.mode {
+            print("[Retry Pipeline] switching from \(recording.mode.rawValue) to current setting \(retryMode.rawValue)")
+            recording.mode = retryMode
+            recording.transcriptionJobID = nil
+            recording.transcriptionJobCreatedAt = nil
+        }
         if recording.transcript != nil {
             recording.processingState = .summarizing
             recording.processingDetail = "Generating meeting notes"
@@ -131,6 +138,16 @@ import UIKit
         }
     }
 
+    static func processingMode(for recording: Recording, userInitiated: Bool) -> RecordingMode {
+        // A person tapping Retry reasonably expects the mode currently selected in
+        // Settings. Automatic crash recovery must preserve the recording's mode.
+        guard userInitiated, recording.transcript == nil,
+              let raw = UserDefaults.standard.string(forKey: "defaultRecordingMode"),
+              let selected = RecordingMode(rawValue: raw)
+        else { return recording.mode }
+        return selected
+    }
+
     /// Continue work that was persisted in an in-progress state before the app exited.
     /// Cloud recordings reuse their saved provider job ID rather than uploading again.
     func resumeInterruptedProcessing() {
@@ -147,13 +164,17 @@ import UIKit
         }
         persist()
 
-        let interruptedIDs = recordings.compactMap { recording in
+        let resumableCloudIDs = recordings.compactMap { recording in
             recording.processingState == .failed
                 && recording.processingError == Self.interruptedProcessingMessage
+                && recording.hasUsableTranscriptionCheckpoint
                 ? recording.id
                 : nil
         }
-        for id in interruptedIDs {
+        // Only a checkpointed provider job is safe to resume automatically. An
+        // interrupted local transcription or upload waits for an explicit Retry,
+        // allowing the person's current processing mode to be applied first.
+        for id in resumableCloudIDs {
             retryProcessing(recordingID: id, userInitiated: false)
         }
     }
@@ -377,10 +398,24 @@ import UIKit
                 recording.processingProgress = nil
                 update(recording)
                 reporter?.update(completed: 2, total: 5, subtitle: recording.processingDetail!)
-                generated = try await service.transcribe(
-                    audioFileID: audioFileID,
-                    recordingId: recording.id
-                )
+                if let progressService = service as? any ProgressReportingTranscriptionService {
+                    generated = try await progressService.transcribe(
+                        audioFileID: audioFileID,
+                        recordingId: recording.id,
+                        progress: { [weak self] progress in
+                            guard let self, var current = self.recording(for: recordingID) else { return }
+                            current.processingDetail = progress.displayText
+                            current.processingProgress = progress.fraction
+                            self.update(current)
+                            reporter?.update(completed: 2, total: 5, subtitle: progress.displayText)
+                        }
+                    )
+                } else {
+                    generated = try await service.transcribe(
+                        audioFileID: audioFileID,
+                        recordingId: recording.id
+                    )
+                }
             }
             generated.providerData["momentus_markers"] = recording.markers
                 .map { String(format: "%.1f", $0) }

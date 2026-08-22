@@ -445,10 +445,25 @@ extension Notification.Name {
                         self.processingDetail = recording.processingDetail
                         self.processingProgress = nil
                         reporter.update(completed: 2, total: 5, subtitle: recording.processingDetail!)
-                        transcript = try await self.transcriptionService.transcribe(
-                            audioFileID: audioFileID,
-                            recordingId: recordingId
-                        )
+                        if let progressService = self.transcriptionService as? any ProgressReportingTranscriptionService {
+                            transcript = try await progressService.transcribe(
+                                audioFileID: audioFileID,
+                                recordingId: recordingId,
+                                progress: { progress in
+                                    recording.processingDetail = progress.displayText
+                                    recording.processingProgress = progress.fraction
+                                    self.store?.update(recording)
+                                    self.processingDetail = progress.displayText
+                                    self.processingProgress = progress.fraction
+                                    reporter.update(completed: 2, total: 5, subtitle: progress.displayText)
+                                }
+                            )
+                        } else {
+                            transcript = try await self.transcriptionService.transcribe(
+                                audioFileID: audioFileID,
+                                recordingId: recordingId
+                            )
+                        }
                     }
                     transcript.providerData["momentus_markers"] = self.markers.map { String(format: "%.1f", $0) }.joined(separator: ",")
                     if !self.suggestedSpeakers.isEmpty {
