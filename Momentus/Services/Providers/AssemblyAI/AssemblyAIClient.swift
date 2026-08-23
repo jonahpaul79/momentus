@@ -25,8 +25,16 @@ final class AssemblyAIClient {
             // Never proxy a long recording through an Edge Function. Apart from its
             // request limits, doing so loses the resumable Storage checkpoint and can
             // make a failed upload look like an endlessly running transcription.
+            let prepared = try await CloudAudioPreparationService.prepare(
+                sourceURL: fileURL,
+                recordingID: recordingId,
+                progress: progress
+            )
+            defer {
+                if prepared.shouldRemove { try? FileManager.default.removeItem(at: prepared.url) }
+            }
             let signedURL = try await MomentusBackendClient.shared.stageRecordingAudio(
-                fileURL: fileURL,
+                fileURL: prepared.url,
                 recordingID: recordingId,
                 progress: progress
             )

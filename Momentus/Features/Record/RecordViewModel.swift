@@ -371,7 +371,7 @@ extension Notification.Name {
                         self.state = .idle
                     }
                 ) { reporter in
-                    reporter.update(completed: 1, total: 5, subtitle: recording.processingDetail ?? "Preparing audio")
+                    reporter.update(completed: 5, subtitle: recording.processingDetail ?? "Preparing audio")
                     try Task.checkCancellation()
 
                     guard let audioFileID = recording.audioFileID else {
@@ -411,11 +411,12 @@ extension Notification.Name {
                                     self.processingStepIndex = ProcessingState.uploading.stepIndex
                                     self.processingDetail = progress.displayText
                                     self.processingProgress = progress.fraction
-                                    reporter.update(
-                                        completed: 1,
-                                        total: 5,
-                                        subtitle: progress.displayText
-                                    )
+                                    let range: ClosedRange<Double> = progress.stage == .preparing
+                                        ? 5...15
+                                        : 15...30
+                                    let systemProgress = range.lowerBound
+                                        + progress.fraction * (range.upperBound - range.lowerBound)
+                                    reporter.update(completed: Int64(systemProgress), subtitle: progress.displayText)
                                 }
                             )
                             recording.transcriptionJobID = jobID
@@ -431,7 +432,7 @@ extension Notification.Name {
                         self.processingStepIndex = ProcessingState.transcribing.stepIndex
                         self.processingDetail = recording.processingDetail
                         self.processingProgress = nil
-                        reporter.update(completed: 2, total: 5, subtitle: recording.processingDetail!)
+                        reporter.update(completed: 30, subtitle: recording.processingDetail!)
                         transcript = try await resumable.awaitTranscription(
                             id: jobID,
                             recordingId: recordingId,
@@ -440,7 +441,7 @@ extension Notification.Name {
                                 recording.processingDetail = detail
                                 self.store?.update(recording)
                                 self.processingDetail = detail
-                                reporter.update(completed: 2, total: 5, subtitle: detail)
+                                reporter.advance(upTo: 64, subtitle: detail)
                             }
                         )
                     } else {
@@ -452,7 +453,7 @@ extension Notification.Name {
                         self.processingStepIndex = ProcessingState.transcribing.stepIndex
                         self.processingDetail = recording.processingDetail
                         self.processingProgress = nil
-                        reporter.update(completed: 2, total: 5, subtitle: recording.processingDetail!)
+                        reporter.update(completed: 30, subtitle: recording.processingDetail!)
                         if let progressService = self.transcriptionService as? any ProgressReportingTranscriptionService {
                             transcript = try await progressService.transcribe(
                                 audioFileID: audioFileID,
@@ -463,7 +464,10 @@ extension Notification.Name {
                                     self.store?.update(recording)
                                     self.processingDetail = progress.displayText
                                     self.processingProgress = progress.fraction
-                                    reporter.update(completed: 2, total: 5, subtitle: progress.displayText)
+                                    reporter.update(
+                                        completed: Int64(30 + progress.fraction * 35),
+                                        subtitle: progress.displayText
+                                    )
                                 }
                             )
                         } else {
@@ -489,7 +493,7 @@ extension Notification.Name {
                     self.state = .processing(.summarizing)
                     self.processingStepIndex = ProcessingState.summarizing.stepIndex
                     self.processingDetail = recording.processingDetail
-                    reporter.update(completed: 3, total: 5, subtitle: "Generating meeting notes")
+                    reporter.update(completed: 65, subtitle: "Generating meeting notes")
                     try Task.checkCancellation()
 
                     print("[Pipeline] starting summarization")
@@ -504,7 +508,10 @@ extension Notification.Name {
                                 self.store?.update(recording)
                                 self.processingDetail = progress.displayText
                                 self.processingProgress = progress.fraction
-                                reporter.update(completed: 3, total: 5, subtitle: progress.displayText)
+                                reporter.update(
+                                    completed: Int64(65 + progress.fraction * 25),
+                                    subtitle: progress.displayText
+                                )
                             }
                         )
                     } else {
@@ -527,7 +534,7 @@ extension Notification.Name {
                     self.processingStepIndex = ProcessingState.preparingNotes.stepIndex
                     self.processingDetail = recording.processingDetail
                     self.processingProgress = nil
-                    reporter.update(completed: 4, total: 5, subtitle: "Preparing your notes")
+                    reporter.update(completed: 95, subtitle: "Preparing your notes")
 
                     try await Task.sleep(for: .milliseconds(900))
 
@@ -536,7 +543,7 @@ extension Notification.Name {
                     recording.processingDetail = nil
                     recording.processingProgress = nil
                     self.store?.update(recording)
-                    reporter.update(completed: 5, total: 5, subtitle: "Notes ready")
+                    reporter.update(completed: 100, subtitle: "Notes ready")
 
                     HapticStyle.success.trigger()
                     self.state = .completed

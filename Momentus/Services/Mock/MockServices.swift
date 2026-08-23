@@ -354,7 +354,7 @@ import UIKit
                     recording.processingDetail = "Starting secure upload"
                     recording.processingProgress = 0
                     update(recording)
-                    reporter?.update(completed: 1, total: 5, subtitle: recording.processingDetail!)
+                    reporter?.update(completed: 5, subtitle: recording.processingDetail!)
                     jobID = try await resumable.createTranscription(
                         audioFileID: audioFileID,
                         recordingId: recording.id,
@@ -364,11 +364,12 @@ import UIKit
                             current.processingDetail = progress.displayText
                             current.processingProgress = progress.fraction
                             self.update(current)
-                            reporter?.update(
-                                completed: 1,
-                                total: 5,
-                                subtitle: progress.displayText
-                            )
+                            let range: ClosedRange<Double> = progress.stage == .preparing
+                                ? 5...15
+                                : 15...30
+                            let systemProgress = range.lowerBound
+                                + progress.fraction * (range.upperBound - range.lowerBound)
+                            reporter?.update(completed: Int64(systemProgress), subtitle: progress.displayText)
                         }
                     )
                     recording.transcriptionJobID = jobID
@@ -380,7 +381,7 @@ import UIKit
                 recording.processingDetail = "Audio uploaded — transcription in progress"
                 recording.processingProgress = nil
                 update(recording)
-                reporter?.update(completed: 2, total: 5, subtitle: recording.processingDetail!)
+                reporter?.update(completed: 30, subtitle: recording.processingDetail!)
                 generated = try await resumable.awaitTranscription(
                     id: jobID,
                     recordingId: recording.id,
@@ -389,7 +390,7 @@ import UIKit
                         current.processingState = .transcribing
                         current.processingDetail = detail
                         self.update(current)
-                        reporter?.update(completed: 2, total: 5, subtitle: detail)
+                        reporter?.advance(upTo: 64, subtitle: detail)
                     }
                 )
             } else {
@@ -397,7 +398,7 @@ import UIKit
                 recording.processingDetail = "Transcribing on device"
                 recording.processingProgress = nil
                 update(recording)
-                reporter?.update(completed: 2, total: 5, subtitle: recording.processingDetail!)
+                reporter?.update(completed: 30, subtitle: recording.processingDetail!)
                 if let progressService = service as? any ProgressReportingTranscriptionService {
                     generated = try await progressService.transcribe(
                         audioFileID: audioFileID,
@@ -407,7 +408,10 @@ import UIKit
                             current.processingDetail = progress.displayText
                             current.processingProgress = progress.fraction
                             self.update(current)
-                            reporter?.update(completed: 2, total: 5, subtitle: progress.displayText)
+                            reporter?.update(
+                                completed: Int64(30 + progress.fraction * 35),
+                                subtitle: progress.displayText
+                            )
                         }
                     )
                 } else {
@@ -433,7 +437,7 @@ import UIKit
         }
 
         try Task.checkCancellation()
-        reporter?.update(completed: 3, total: 5, subtitle: "Generating meeting notes")
+        reporter?.update(completed: 65, subtitle: "Generating meeting notes")
         let summaryService = ServiceFactory.makeSummaryService(for: recording.mode)
         let summary: MeetingSummary
         if let progressService = summaryService as? any ProgressReportingSummaryService {
@@ -446,7 +450,10 @@ import UIKit
                     current.processingDetail = progress.displayText
                     current.processingProgress = progress.fraction
                     self.update(current)
-                    reporter?.update(completed: 3, total: 5, subtitle: progress.displayText)
+                    reporter?.update(
+                        completed: Int64(65 + progress.fraction * 25),
+                        subtitle: progress.displayText
+                    )
                 }
             )
         } else {
@@ -464,14 +471,14 @@ import UIKit
         recording.processingProgress = nil
         update(recording)
 
-        reporter?.update(completed: 4, total: 5, subtitle: "Preparing your notes")
+        reporter?.update(completed: 95, subtitle: "Preparing your notes")
         try await Task.sleep(for: .milliseconds(350))
         recording.processingState = .completed
         recording.processingError = nil
         recording.processingDetail = nil
         recording.processingProgress = nil
         update(recording)
-        reporter?.update(completed: 5, total: 5, subtitle: "Notes ready")
+        reporter?.update(completed: 100, subtitle: "Notes ready")
         HapticStyle.success.trigger()
         NotificationCenter.default.post(
             name: .recordingProcessingCompleted,

@@ -69,10 +69,9 @@ final class ContinuedProcessingManager {
                     title: "Processing \(title)",
                     subtitle: "Preparing your recording"
                 )
-                // This pipeline is represented by an in-memory operation with a
-                // persisted transcription checkpoint. Never leave a stale request
-                // queued after that operation is gone; fall back to foreground work.
-                request.strategy = .fail
+                // Let iOS wait for processing capacity instead of rejecting a long
+                // on-device job immediately on a resource-constrained phone.
+                request.strategy = .queue
 
                 do {
                     try BGTaskScheduler.shared.submit(request)
@@ -120,7 +119,7 @@ final class ContinuedProcessingManager {
     private func start(job: Job, systemTask: BGContinuedProcessingTask?) {
         activeJob = job
         let reporter = Reporter(task: systemTask, title: "Processing \(job.title)")
-        reporter.update(completed: 0, total: 5, subtitle: "Preparing your recording")
+        reporter.update(completed: 0, subtitle: "Preparing your recording")
 
         let operationTask = Task { @MainActor in
             do {
@@ -135,6 +134,13 @@ final class ContinuedProcessingManager {
         systemTask?.expirationHandler = { [weak self] in
             print("[Continued Processing] system expiration requested for \(job.recordingID)")
             Task { @MainActor in
+                // Reconcile persisted/app UI state immediately. Model inference may
+                // take time to unwind after cancellation, while the system surface
+                // marks the continued task failed right away.
+                if !job.didReportFailure {
+                    job.didReportFailure = true
+                    job.onFailure?(CancellationError())
+                }
                 self?.activeOperation?.cancel()
             }
         }
@@ -152,13 +158,16 @@ final class ContinuedProcessingManager {
 
         switch result {
         case .success:
-            systemTask?.progress.completedUnitCount = systemTask?.progress.totalUnitCount ?? 5
+            systemTask?.progress.completedUnitCount = systemTask?.progress.totalUnitCount ?? 100
             systemTask?.setTaskCompleted(success: true)
             job.continuation.resume()
         case .failure(let error):
             // Reconcile the app's persisted state before iOS presents a failed
             // continued-processing task to the person.
-            job.onFailure?(error)
+            if !job.didReportFailure {
+                job.didReportFailure = true
+                job.onFailure?(error)
+            }
             systemTask?.setTaskCompleted(success: false)
             job.continuation.resume(throwing: error)
         }
@@ -174,10 +183,20 @@ final class ContinuedProcessingManager {
             self.title = title
         }
 
-        func update(completed: Int64, total: Int64 = 5, subtitle: String) {
+        func update(completed: Int64, total: Int64 = 100, subtitle: String) {
             guard let task else { return }
             task.progress.totalUnitCount = total
             task.progress.completedUnitCount = min(completed, total)
+            task.updateTitle(title, subtitle: subtitle)
+        }
+
+        func advance(upTo maximum: Int64, subtitle: String) {
+            guard let task else { return }
+            task.progress.totalUnitCount = 100
+            task.progress.completedUnitCount = min(
+                maximum,
+                max(task.progress.completedUnitCount + 1, 1)
+            )
             task.updateTitle(title, subtitle: subtitle)
         }
     }
@@ -190,6 +209,7 @@ final class ContinuedProcessingManager {
         let operation: @MainActor (Reporter) async throws -> Void
         let continuation: CheckedContinuation<Void, Error>
         var isFinished = false
+        var didReportFailure = false
 
         init(
             recordingID: UUID,

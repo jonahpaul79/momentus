@@ -42,6 +42,16 @@ struct MomentusTests {
         #expect(progress.displayText.contains("25%"))
     }
 
+    @Test func oversizedCloudAudioShowsPreparationBeforeUpload() {
+        let progress = AudioUploadProgress(
+            bytesSent: 25,
+            totalBytes: 100,
+            stage: .preparing
+        )
+        #expect(progress.fraction == 0.25)
+        #expect(progress.displayText == "Optimizing audio for cloud (25%)")
+    }
+
     @Test @MainActor func recordingPersistsRemoteTranscriptionCheckpoint() throws {
         let recording = Recording(
             id: UUID(),

@@ -92,8 +92,14 @@ struct OnDeviceTranscriptionProgress: Sendable, Equatable {
 }
 
 struct AudioUploadProgress: Sendable, Equatable {
+    enum Stage: Sendable, Equatable {
+        case preparing
+        case uploading
+    }
+
     let bytesSent: Int64
     let totalBytes: Int64
+    var stage: Stage = .uploading
 
     var fraction: Double {
         guard totalBytes > 0 else { return 0 }
@@ -101,6 +107,9 @@ struct AudioUploadProgress: Sendable, Equatable {
     }
 
     var displayText: String {
+        if stage == .preparing {
+            return "Optimizing audio for cloud (\(Int(fraction * 100))%)"
+        }
         let sent = ByteCountFormatter.string(fromByteCount: bytesSent, countStyle: .file)
         let total = ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file)
         return "Uploading \(sent) of \(total) (\(Int(fraction * 100))%)"
