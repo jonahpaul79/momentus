@@ -65,12 +65,17 @@ final class ClaudeSummaryService: SummaryService {
         let json = extractJSON(from: response)
 
         if let data = json.data(using: .utf8) {
-            do {
-                let parsed = try JSONDecoder().decode(ClaudeOutput.self, from: data)
+            if let parsed = try? JSONDecoder().decode(ClaudeOutput.self, from: data) {
                 return buildSummary(from: parsed, transcript: transcript, recordingId: recordingId)
-            } catch {
-                print("[Claude] JSON decode failed: \(error)")
             }
+            // Retry with normalized top-level keys — Claude sometimes returns inconsistent casing
+            if let normalized = normalizeJSONKeys(json),
+               let normalizedData = normalized.data(using: .utf8),
+               let parsed = try? JSONDecoder().decode(ClaudeOutput.self, from: normalizedData) {
+                print("[Claude] decoded with normalized keys")
+                return buildSummary(from: parsed, transcript: transcript, recordingId: recordingId)
+            }
+            print("[Claude] JSON decode failed")
         }
 
         print("[Claude] JSON parse failed — using extractive fallback")
@@ -78,7 +83,7 @@ final class ClaudeSummaryService: SummaryService {
             id: UUID(),
             recordingId: recordingId,
             suggestedTitle: nil,
-            executiveSummary: response.prefix(500).trimmingCharacters(in: .whitespacesAndNewlines),
+            executiveSummary: extractFallbackSummary(from: json),
             markedMoments: MeetingSummaryPromptBuilder.fallbackMarkedMoments(from: transcript),
             decisions: [], actionItems: [], openQuestions: [], risks: [],
             followUpDraft: "Hi team, following up on our meeting.",
@@ -90,6 +95,38 @@ final class ClaudeSummaryService: SummaryService {
                 tokenNote(usage)
             ]
         )
+    }
+
+    // Normalizes top-level JSON keys to the camelCase names ClaudeOutput expects.
+    // Claude occasionally returns keys with inconsistent casing (e.g. "ExecutiveSummary").
+    private func normalizeJSONKeys(_ json: String) -> String? {
+        guard let data = json.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        let keyMap: [String: String] = [
+            "suggestedtitle": "suggestedTitle",
+            "executivesummary": "executiveSummary",
+            "markedmoments": "markedMoments",
+            "actionitems": "actionItems",
+            "openquestions": "openQuestions",
+            "followupdraft": "followUpDraft",
+        ]
+        var normalized: [String: Any] = [:]
+        for (key, value) in obj { normalized[keyMap[key.lowercased()] ?? key] = value }
+        guard let out = try? JSONSerialization.data(withJSONObject: normalized),
+              let str = String(data: out, encoding: .utf8) else { return nil }
+        return str
+    }
+
+    // Extracts a readable summary string from the raw AI response, avoiding raw JSON in the UI.
+    private func extractFallbackSummary(from json: String) -> String {
+        if let data = json.data(using: .utf8),
+           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let summary = obj.first(where: { $0.key.lowercased() == "executivesummary" })?.value as? String,
+           !summary.isEmpty {
+            return summary
+        }
+        let trimmed = json.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.hasPrefix("{") ? "Meeting notes could not be fully parsed." : String(trimmed.prefix(500))
     }
 
     // Strip markdown fences and extract the outermost balanced JSON object.

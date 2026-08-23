@@ -16,6 +16,7 @@ struct AssemblyAITranscriptRequest: Encodable {
     let languageDetection: Bool
     let punctuate: Bool
     let formatText: Bool
+    let entityDetection: Bool
 
     enum CodingKeys: String, CodingKey {
         case audioURL = "audio_url"
@@ -24,6 +25,7 @@ struct AssemblyAITranscriptRequest: Encodable {
         case languageDetection = "language_detection"
         case punctuate
         case formatText = "format_text"
+        case entityDetection = "entity_detection"
     }
 
     init(audioURL: String) {
@@ -33,6 +35,7 @@ struct AssemblyAITranscriptRequest: Encodable {
         self.languageDetection = true
         self.punctuate = true
         self.formatText = true
+        self.entityDetection = true
     }
 }
 
@@ -41,19 +44,34 @@ struct AssemblyAITranscriptResponse: Decodable {
     let status: String          // "queued" | "processing" | "completed" | "error"
     let text: String?
     let utterances: [AssemblyAIUtterance]?
+    let entities: [AssemblyAIEntity]?
     let languageCode: String?
     let confidence: Double?
     let audioDuration: Double?  // seconds
     let error: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, status, text, utterances, confidence, error
+        case id, status, text, utterances, entities, confidence, error
         case languageCode = "language_code"
         case audioDuration = "audio_duration"
     }
 
     var isCompleted: Bool { status == "completed" }
     var isFailed: Bool { status == "error" }
+}
+
+struct AssemblyAIEntity: Decodable {
+    let entityType: String
+    let text: String
+    let start: Int?
+    let end: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case entityType = "entity_type"
+        case text, start, end
+    }
+
+    var isPersonName: Bool { entityType == "person_name" }
 }
 
 struct AssemblyAIUtterance: Decodable {

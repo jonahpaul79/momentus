@@ -148,6 +148,22 @@ import UIKit
         return selected
     }
 
+    /// Clears any existing summary and re-runs the summarization step from the saved transcript.
+    func regenerateNotes(recordingID: UUID) {
+        guard !processingRecordingIDs.contains(recordingID),
+              var recording = recording(for: recordingID),
+              recording.transcript != nil
+        else { return }
+
+        recording.summary = nil
+        recording.processingState = .failed
+        recording.processingError = nil
+        recording.processingProgress = nil
+        recording.processingDetail = nil
+        update(recording)
+        retryProcessing(recordingID: recordingID, userInitiated: true)
+    }
+
     /// Continue work that was persisted in an in-progress state before the app exited.
     /// Cloud recordings reuse their saved provider job ID rather than uploading again.
     func resumeInterruptedProcessing() {

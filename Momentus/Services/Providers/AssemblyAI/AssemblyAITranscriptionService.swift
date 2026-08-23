@@ -111,6 +111,12 @@ final class AssemblyAITranscriptionService: ResumableTranscriptionService {
             }
         }
 
+        var providerData: [String: String] = ["assemblyai_transcript_id": transcriptID]
+        let detectedNames = extractPersonNames(from: response.entities ?? [])
+        if !detectedNames.isEmpty {
+            providerData["detected_person_names"] = detectedNames.joined(separator: ",")
+        }
+
         return Transcript(
             id: UUID(),
             recordingId: recordingId,
@@ -118,7 +124,7 @@ final class AssemblyAITranscriptionService: ResumableTranscriptionService {
             speakers: Array(speakerMap.values),
             language: response.languageCode ?? "en",
             provider: providerName,
-            providerData: ["assemblyai_transcript_id": transcriptID],
+            providerData: providerData,
             createdAt: Date()
         )
     }
@@ -139,6 +145,14 @@ final class AssemblyAITranscriptionService: ResumableTranscriptionService {
             colorIndex += 1
         }
         return map
+    }
+
+    private func extractPersonNames(from entities: [AssemblyAIEntity]) -> [String] {
+        var seen = Set<String>()
+        return entities
+            .filter { $0.isPersonName }
+            .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
     }
 
     private func fileSizeDescription(at url: URL) -> String {

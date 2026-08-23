@@ -20,6 +20,7 @@ struct MeetingSummaryDetailView: View {
     @State private var customSpeakerName = ""
     @State private var showingCustomSpeakerName = false
     @State private var showingBestQualityConfirmation = false
+    @State private var showingRegenerateConfirmation = false
     @Environment(\.dismiss) private var dismiss
     @AppStorage("audioRetention") private var audioRetentionRaw: String = AudioRetentionPolicy.deleteAfterTranscript.rawValue
 
@@ -72,6 +73,18 @@ struct MeetingSummaryDetailView: View {
                                 systemImage: recording.isFavorite ? "star.slash" : "star"
                             )
                         }
+                        if recording.transcript != nil || store.canRetryProcessing(recording) {
+                            Button {
+                                if recording.summary != nil {
+                                    showingRegenerateConfirmation = true
+                                } else {
+                                    store.retryProcessing(recordingID: recording.id)
+                                    HapticStyle.medium.trigger()
+                                }
+                            } label: {
+                                Label("Regenerate notes", systemImage: "arrow.clockwise")
+                            }
+                        }
                         Divider()
                         Button(role: .destructive) { store.delete(recording); dismiss() } label: {
                             Label("Delete recording", systemImage: "trash")
@@ -111,6 +124,15 @@ struct MeetingSummaryDetailView: View {
                 .disabled(customSpeakerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             } message: {
                 Text("This name will be used in the transcript and notes.")
+            }
+            .alert("Regenerate Notes?", isPresented: $showingRegenerateConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                Button("Regenerate") {
+                    store.regenerateNotes(recordingID: recording.id)
+                    HapticStyle.medium.trigger()
+                }
+            } message: {
+                Text("The current notes will be replaced with a new AI-generated summary from the existing transcript.")
             }
             .alert("Reprocess with Best Quality?", isPresented: $showingBestQualityConfirmation) {
                 Button("Cancel", role: .cancel) {}
@@ -314,7 +336,12 @@ struct MeetingSummaryDetailView: View {
     // MARK: - Speaker Identification
 
     private func speakerIdentificationCard(speakers: [Speaker], attendees: [String], t: AppTheme) -> some View {
-        VStack(alignment: .leading, spacing: t.spacing.m) {
+        let detectedNames: [String] = {
+            guard let csv = recording.transcript?.providerData["detected_person_names"], !csv.isEmpty else { return [] }
+            return csv.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        }()
+
+        return VStack(alignment: .leading, spacing: t.spacing.m) {
             HStack(spacing: t.spacing.s) {
                 Image(systemName: "person.2.wave.2")
                     .font(.system(size: 13))
@@ -332,9 +359,9 @@ struct MeetingSummaryDetailView: View {
                 .disabled(speakerAssignments.isEmpty)
             }
 
-            Text(attendees.isEmpty
+            Text(attendees.isEmpty && detectedNames.isEmpty
                 ? "Assign a name to each voice in the transcript and notes."
-                : "Choose someone from the calendar invite or enter another name.")
+                : "Choose from the suggestions below or enter another name.")
                 .font(t.typography.bodySmall)
                 .foregroundStyle(t.colors.textSecondary)
 
@@ -360,6 +387,15 @@ struct MeetingSummaryDetailView: View {
                                     ForEach(attendees, id: \.self) { attendee in
                                         Button(attendee) {
                                             speakerAssignments[speaker.id] = attendee
+                                        }
+                                    }
+                                }
+                            }
+                            if !detectedNames.isEmpty {
+                                Section("Names from conversation") {
+                                    ForEach(detectedNames, id: \.self) { name in
+                                        Button(name) {
+                                            speakerAssignments[speaker.id] = name
                                         }
                                     }
                                 }
@@ -604,7 +640,7 @@ struct MeetingSummaryDetailView: View {
                             .font(t.typography.caption)
                             .foregroundStyle(t.colors.textSecondary)
                         }
-                        Spacer(minLength: 0)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         Image(systemName: "chevron.right")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(t.colors.textTertiary)
@@ -753,7 +789,9 @@ struct MeetingSummaryDetailView: View {
             .frame(maxWidth: .infinity)
             .background(.ultraThinMaterial)
             .overlay(alignment: .top) {
-                Divider().overlay(t.colors.divider)
+                Rectangle()
+                    .fill(t.colors.divider)
+                    .frame(height: 0.5)
             }
         }
         .buttonStyle(PlainButtonStyle())
@@ -1116,7 +1154,8 @@ struct AudioPlayerView: View {
                     .font(t.typography.caption)
                     .foregroundStyle(t.colors.textSecondary)
                     .monospacedDigit()
-                    .frame(width: 40, alignment: .leading)
+                    .lineLimit(1)
+                    .frame(minWidth: 40, alignment: .leading)
 
                 Spacer()
 
@@ -1134,7 +1173,8 @@ struct AudioPlayerView: View {
                     .font(t.typography.caption)
                     .foregroundStyle(t.colors.textTertiary)
                     .monospacedDigit()
-                    .frame(width: 40, alignment: .trailing)
+                    .lineLimit(1)
+                    .frame(minWidth: 40, alignment: .trailing)
             }
         }
         .task(id: audioFileID) { await prepareAudio() }
