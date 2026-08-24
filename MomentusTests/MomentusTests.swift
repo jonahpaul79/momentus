@@ -194,6 +194,76 @@ struct MomentusTests {
         #expect(summary.followUpDraft == "Thanks Morgan and Taylor.")
     }
 
+    @Test func assigningAndReassigningSpeakerUpdatesOriginalLabelsAcrossNotes() {
+        let recordingID = UUID()
+        let speakerID = UUID()
+        let speaker = Speaker(
+            id: speakerID,
+            name: "Speaker A",
+            isNameInferred: true,
+            colorHex: "#6366F1"
+        )
+        let transcript = Transcript(
+            id: UUID(),
+            recordingId: recordingID,
+            segments: [],
+            speakers: [speaker],
+            language: "en",
+            provider: "Test",
+            createdAt: Date()
+        )
+        let summary = MeetingSummary(
+            recordingId: recordingID,
+            suggestedTitle: "Speaker A planning session",
+            executiveSummary: "Speaker A led the discussion.",
+            markedMoments: [MarkedMoment(timestamp: 12, summary: "Speaker A introduced the plan.", transcriptExcerpt: "Speaker A: Let's begin.")],
+            decisions: [Decision(id: UUID(), text: "Speaker A approved it.", context: "Ask Speaker A", confidence: 0.9)],
+            actionItems: [ActionItem(
+                id: UUID(),
+                title: "Speaker A will send notes",
+                owner: "Speaker A",
+                isOwnerInferred: true,
+                dueDate: nil,
+                isDueDateInferred: false,
+                isCompleted: false,
+                confidence: 0.9,
+                priority: .medium
+            )],
+            openQuestions: [OpenQuestion(id: UUID(), text: "Can Speaker A confirm?", owner: "Speaker A", priority: .medium)],
+            risks: [Risk(id: UUID(), title: "Speaker A dependency", description: "Waiting on Speaker A.", severity: .low)],
+            followUpDraft: "Thanks, Speaker A.",
+            provider: "Test",
+            confidenceNotes: ["Speaker A attribution needs review."]
+        )
+        var recording = Recording(id: recordingID, transcript: transcript, summary: summary)
+
+        recording.assignSpeakerNames([speakerID: "Jordan"])
+
+        #expect(recording.transcript?.speakers.first?.name == "Jordan")
+        #expect(recording.summary?.suggestedTitle == "Jordan planning session")
+        #expect(recording.summary?.executiveSummary == "Jordan led the discussion.")
+        #expect(recording.summary?.markedMoments.first?.summary == "Jordan introduced the plan.")
+        #expect(recording.summary?.markedMoments.first?.transcriptExcerpt == "Jordan: Let's begin.")
+        #expect(recording.summary?.decisions.first?.text == "Jordan approved it.")
+        #expect(recording.summary?.decisions.first?.context == "Ask Jordan")
+        #expect(recording.summary?.actionItems.first?.title == "Jordan will send notes")
+        #expect(recording.summary?.actionItems.first?.owner == "Jordan")
+        #expect(recording.summary?.openQuestions.first?.text == "Can Jordan confirm?")
+        #expect(recording.summary?.openQuestions.first?.owner == "Jordan")
+        #expect(recording.summary?.risks.first?.title == "Jordan dependency")
+        #expect(recording.summary?.risks.first?.description == "Waiting on Jordan.")
+        #expect(recording.summary?.followUpDraft == "Thanks, Jordan.")
+        #expect(recording.summary?.confidenceNotes.first == "Jordan attribution needs review.")
+
+        // Simulate a stale/legacy summary receiving the provider label again,
+        // then confirm reassignment repairs both the old name and original label.
+        recording.summary?.executiveSummary = "Speaker A will pair with Jordan."
+        recording.assignSpeakerNames([speakerID: "Morgan"])
+
+        #expect(recording.summary?.executiveSummary == "Morgan will pair with Morgan.")
+        #expect(recording.transcript?.providerData["momentus_original_speaker_\(speakerID.uuidString)"] == "Speaker A")
+    }
+
     @Test func upcomingCalendarMeetingIsNotAttachedToRecording() async {
         let futureMeeting = CalendarMeeting(
             id: UUID(),

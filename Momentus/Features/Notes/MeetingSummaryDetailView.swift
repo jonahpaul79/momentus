@@ -507,16 +507,7 @@ struct MeetingSummaryDetailView: View {
     private func applySpeakerAssignments() {
         guard !speakerAssignments.isEmpty else { return }
         var updated = recording
-        var replacements: [String: String] = [:]
-        for (speakerId, name) in speakerAssignments {
-            guard let idx = updated.transcript?.speakers.firstIndex(where: { $0.id == speakerId }) else { continue }
-            let oldName = updated.transcript?.speakers[idx].name ?? ""
-            replacements[oldName] = name
-            updated.transcript?.providerData["momentus_original_speaker_\(speakerId.uuidString)"] = oldName
-            updated.transcript?.speakers[idx].name = name
-            updated.transcript?.speakers[idx].isNameInferred = false
-        }
-        updated.summary?.renameSpeakerReferences(replacements)
+        updated.assignSpeakerNames(speakerAssignments)
         recording = updated
         store.update(updated)
         speakerAssignments = [:]

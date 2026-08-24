@@ -97,6 +97,38 @@ struct Recording: Identifiable, Codable, Equatable {
     }
 }
 
+extension Recording {
+    /// Confirms speaker identities and keeps every generated note section in sync.
+    /// The provider's original label is retained so reassignment can also repair
+    /// legacy summaries that still contain placeholders such as "Speaker A".
+    mutating func assignSpeakerNames(_ assignments: [UUID: String]) {
+        guard var transcript else { return }
+        var replacements: [String: String] = [:]
+
+        for (speakerID, proposedName) in assignments {
+            let name = proposedName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty,
+                  let index = transcript.speakers.firstIndex(where: { $0.id == speakerID })
+            else { continue }
+
+            let currentName = transcript.speakers[index].name
+            let originalNameKey = "momentus_original_speaker_\(speakerID.uuidString)"
+            let originalName = transcript.providerData[originalNameKey] ?? currentName
+
+            if transcript.providerData[originalNameKey] == nil {
+                transcript.providerData[originalNameKey] = currentName
+            }
+            replacements[currentName] = name
+            replacements[originalName] = name
+            transcript.speakers[index].name = name
+            transcript.speakers[index].isNameInferred = false
+        }
+
+        self.transcript = transcript
+        summary?.renameSpeakerReferences(replacements)
+    }
+}
+
 // MARK: - Transcript
 
 struct Transcript: Identifiable, Codable, Equatable {
