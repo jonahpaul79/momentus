@@ -21,6 +21,8 @@ struct MeetingSummaryDetailView: View {
     @State private var showingCustomSpeakerName = false
     @State private var showingBestQualityConfirmation = false
     @State private var showingRegenerateConfirmation = false
+    @State private var showingRenameRecording = false
+    @State private var recordingTitleDraft = ""
     @Environment(\.dismiss) private var dismiss
     @AppStorage("audioRetention") private var audioRetentionRaw: String = AudioRetentionPolicy.deleteAfterTranscript.rawValue
 
@@ -30,6 +32,11 @@ struct MeetingSummaryDetailView: View {
         else { return false }
         let policy = AudioRetentionPolicy(rawValue: audioRetentionRaw) ?? .deleteAfterTranscript
         return policy != .deleteAfterTranscript
+    }
+
+    private var isRecordingProcessing: Bool {
+        recording.processingState.isInProgress
+            || store.processingRecordingIDs.contains(recording.id)
     }
 
     var body: some View {
@@ -61,6 +68,10 @@ struct MeetingSummaryDetailView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
+                        Button { beginRenamingRecording() } label: {
+                            Label("Rename recording", systemImage: "pencil")
+                        }
+                        .disabled(isRecordingProcessing)
                         Button { copyToClipboard() } label: {
                             Label("Copy summary", systemImage: "doc.on.doc")
                         }
@@ -84,6 +95,7 @@ struct MeetingSummaryDetailView: View {
                             } label: {
                                 Label("Regenerate notes", systemImage: "arrow.clockwise")
                             }
+                            .disabled(store.processingRecordingIDs.contains(recording.id))
                         }
                         Divider()
                         Button(role: .destructive) { store.delete(recording); dismiss() } label: {
@@ -125,6 +137,15 @@ struct MeetingSummaryDetailView: View {
             } message: {
                 Text("This name will be used in the transcript and notes.")
             }
+            .alert("Rename Recording", isPresented: $showingRenameRecording) {
+                TextField("Recording name", text: $recordingTitleDraft)
+                    .textInputAutocapitalization(.sentences)
+                Button("Cancel", role: .cancel) {}
+                Button("Save") { saveRecordingTitle() }
+                    .disabled(recordingTitleDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            } message: {
+                Text("Your title will be kept when notes are regenerated.")
+            }
             .alert("Regenerate Notes?", isPresented: $showingRegenerateConfirmation) {
                 Button("Cancel", role: .cancel) {}
                 Button("Regenerate") {
@@ -164,9 +185,20 @@ struct MeetingSummaryDetailView: View {
 
     private func meetingHeader(_ t: AppTheme) -> some View {
         VStack(alignment: .leading, spacing: t.spacing.m) {
-            Text(recording.title)
-                .font(t.typography.displayMedium)
-                .foregroundStyle(t.colors.textPrimary)
+            HStack(alignment: .firstTextBaseline, spacing: t.spacing.s) {
+                Text(recording.title)
+                    .font(t.typography.displayMedium)
+                    .foregroundStyle(t.colors.textPrimary)
+
+                Button { beginRenamingRecording() } label: {
+                    Image(systemName: "pencil.circle")
+                        .font(.title3)
+                        .foregroundStyle(t.colors.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(isRecordingProcessing)
+                .accessibilityLabel("Rename recording")
+            }
 
             HStack(spacing: t.spacing.m) {
                 Label(recording.startedAt.relativeLabel(), systemImage: "calendar")
@@ -192,6 +224,19 @@ struct MeetingSummaryDetailView: View {
         }
         .padding(t.spacing.l)
         .padding(.top, t.spacing.m)
+    }
+
+    private func beginRenamingRecording() {
+        recordingTitleDraft = recording.title
+        showingRenameRecording = true
+    }
+
+    private func saveRecordingTitle() {
+        store.rename(recordingID: recording.id, title: recordingTitleDraft)
+        if let updated = store.recording(for: recording.id) {
+            recording = updated
+        }
+        HapticStyle.medium.trigger()
     }
 
     // MARK: - Summary Content

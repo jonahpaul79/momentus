@@ -15,6 +15,9 @@ import Foundation
 struct Recording: Identifiable, Codable, Equatable {
     let id: UUID
     var title: String
+    /// `true` once a person explicitly renames the recording. Optional so
+    /// recordings saved by older app versions continue to decode.
+    var titleWasEditedByUser: Bool?
     let startedAt: Date
     var endedAt: Date?
     var mode: RecordingMode
@@ -54,6 +57,7 @@ struct Recording: Identifiable, Codable, Equatable {
     init(
         id: UUID = UUID(),
         title: String = "New Recording",
+        titleWasEditedByUser: Bool? = nil,
         startedAt: Date = Date(),
         endedAt: Date? = nil,
         mode: RecordingMode = .onDevice,
@@ -73,6 +77,7 @@ struct Recording: Identifiable, Codable, Equatable {
     ) {
         self.id = id
         self.title = title
+        self.titleWasEditedByUser = titleWasEditedByUser
         self.startedAt = startedAt
         self.endedAt = endedAt
         self.mode = mode

@@ -354,6 +354,7 @@ extension Notification.Name {
                 try await ContinuedProcessingManager.shared.run(
                     recordingID: recordingId,
                     title: recording.title,
+                    requiresGPU: self.transcriptionService.isOnDevice || self.summaryService.isOnDevice,
                     onFailure: { [weak self] error in
                         guard let self else { return }
                         let failedStage = recording.processingState
@@ -522,7 +523,8 @@ extension Notification.Name {
                     }
                     print("[Pipeline] summarization done")
                     recording.summary = summary
-                    if let suggested = summary.suggestedTitle {
+                    if recording.titleWasEditedByUser != true,
+                       let suggested = summary.suggestedTitle {
                         recording.title = suggested
                     }
                     recording.processingState = .preparingNotes

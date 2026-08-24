@@ -43,15 +43,30 @@ final class ClaudeSummaryService: SummaryService {
         let userMessage = MeetingSummaryPromptBuilder.userMessage(for: context)
         print("[Claude] sending \(userMessage.count) chars to \(model)")
 
-        let (responseText, usage) = try await client.message(
+        var reply = try await client.messageDetailed(
             system: MeetingSummaryPromptBuilder.systemPrompt,
-            user: userMessage,
+            messages: [.init(role: "user", content: userMessage)],
             model: model,
-            maxTokens: 2048
+            maxTokens: 4_096
         )
 
-        print("[Claude] received \(responseText.count) chars — \(usage.inputTokens) in / \(usage.outputTokens) out tokens")
-        return parseSummary(from: responseText, transcript: transcript, usage: usage, recordingId: recordingId)
+        if reply.stopReason == "max_tokens" {
+            print("[Claude] structured response hit token limit — retrying with a larger output budget")
+            reply = try await client.messageDetailed(
+                system: MeetingSummaryPromptBuilder.systemPrompt,
+                messages: [.init(role: "user", content: userMessage)],
+                model: model,
+                maxTokens: 8_192
+            )
+        }
+
+        guard reply.stopReason != "max_tokens",
+              reply.stopReason != "model_context_window_exceeded" else {
+            throw ClaudeSummaryError.truncatedResponse
+        }
+
+        print("[Claude] received \(reply.text.count) chars — \(reply.usage.inputTokens) in / \(reply.usage.outputTokens) out tokens; stop=\(reply.stopReason ?? "unknown")")
+        return try parseSummary(from: reply.text, transcript: transcript, recordingId: recordingId)
     }
 
     // MARK: - JSON Parsing
@@ -59,9 +74,8 @@ final class ClaudeSummaryService: SummaryService {
     private func parseSummary(
         from response: String,
         transcript: Transcript,
-        usage: AnthropicClient.MessageResponse.Usage,
         recordingId: UUID
-    ) -> MeetingSummary {
+    ) throws -> MeetingSummary {
         let json = extractJSON(from: response)
 
         if let data = json.data(using: .utf8) {
@@ -75,30 +89,21 @@ final class ClaudeSummaryService: SummaryService {
                 print("[Claude] decoded with normalized keys")
                 return buildSummary(from: parsed, transcript: transcript, recordingId: recordingId)
             }
-            print("[Claude] JSON decode failed")
+            do {
+                _ = try JSONDecoder().decode(ClaudeOutput.self, from: data)
+            } catch {
+                print("[Claude] JSON decode failed: \(error.localizedDescription)")
+            }
         }
 
-        print("[Claude] JSON parse failed — using extractive fallback")
-        return MeetingSummary(
-            id: UUID(),
-            recordingId: recordingId,
-            suggestedTitle: nil,
-            executiveSummary: extractFallbackSummary(from: json),
-            markedMoments: MeetingSummaryPromptBuilder.fallbackMarkedMoments(from: transcript),
-            decisions: [], actionItems: [], openQuestions: [], risks: [],
-            followUpDraft: "Hi team, following up on our meeting.",
-            provider: providerName,
-            createdAt: Date(),
-            confidenceNotes: [
-                "Claude's response could not be parsed as structured JSON.",
-                "Raw response excerpt used as summary.",
-                tokenNote(usage)
-            ]
-        )
+        // Returning a placeholder made a failed Claude response look like a
+        // successful regeneration. Throw so the configured summary fallback can
+        // produce complete notes instead.
+        throw ClaudeSummaryError.invalidStructuredResponse
     }
 
-    // Normalizes top-level JSON keys to the camelCase names ClaudeOutput expects.
-    // Claude occasionally returns keys with inconsistent casing (e.g. "ExecutiveSummary").
+    // Normalizes common casing/snake-case variations and compact string arrays.
+    // A single differently shaped nested item should not invalidate a long result.
     private func normalizeJSONKeys(_ json: String) -> String? {
         guard let data = json.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
@@ -109,24 +114,60 @@ final class ClaudeSummaryService: SummaryService {
             "actionitems": "actionItems",
             "openquestions": "openQuestions",
             "followupdraft": "followUpDraft",
+            "transcriptexcerpt": "transcriptExcerpt",
+            "isownerinferred": "isOwnerInferred",
+            "decision": "text",
+            "question": "text",
+            "action": "title",
+            "task": "title",
+            "responsible": "owner",
         ]
-        var normalized: [String: Any] = [:]
-        for (key, value) in obj { normalized[keyMap[key.lowercased()] ?? key] = value }
+
+        func canonical(_ key: String) -> String {
+            key.unicodeScalars
+                .filter { CharacterSet.alphanumerics.contains($0) }
+                .map(String.init)
+                .joined()
+                .lowercased()
+        }
+
+        func normalize(_ value: Any) -> Any {
+            if let dictionary = value as? [String: Any] {
+                var output: [String: Any] = [:]
+                for (key, nestedValue) in dictionary {
+                    let normalizedKey = keyMap[canonical(key)] ?? key
+                    output[normalizedKey] = normalize(nestedValue)
+                }
+                return output
+            }
+            if let array = value as? [Any] {
+                return array.map(normalize)
+            }
+            return value
+        }
+
+        guard var normalized = normalize(obj) as? [String: Any] else { return nil }
+        let itemShapes: [(key: String, textKey: String)] = [
+            ("markedMoments", "summary"),
+            ("decisions", "text"),
+            ("actionItems", "title"),
+            ("openQuestions", "text"),
+            ("risks", "title"),
+        ]
+        for shape in itemShapes {
+            guard let items = normalized[shape.key] as? [Any] else { continue }
+            normalized[shape.key] = items.compactMap { item -> [String: Any]? in
+                if let text = item as? String { return [shape.textKey: text] }
+                guard var dictionary = item as? [String: Any] else { return nil }
+                if shape.key == "risks", dictionary["description"] == nil {
+                    dictionary["description"] = dictionary["title"] ?? ""
+                }
+                return dictionary
+            }
+        }
         guard let out = try? JSONSerialization.data(withJSONObject: normalized),
               let str = String(data: out, encoding: .utf8) else { return nil }
         return str
-    }
-
-    // Extracts a readable summary string from the raw AI response, avoiding raw JSON in the UI.
-    private func extractFallbackSummary(from json: String) -> String {
-        if let data = json.data(using: .utf8),
-           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let summary = obj.first(where: { $0.key.lowercased() == "executivesummary" })?.value as? String,
-           !summary.isEmpty {
-            return summary
-        }
-        let trimmed = json.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.hasPrefix("{") ? "Meeting notes could not be fully parsed." : String(trimmed.prefix(500))
     }
 
     // Strip markdown fences and extract the outermost balanced JSON object.
@@ -213,10 +254,6 @@ final class ClaudeSummaryService: SummaryService {
             createdAt: Date(),
             confidenceNotes: []
         )
-    }
-
-    private func tokenNote(_ usage: AnthropicClient.MessageResponse.Usage) -> String {
-        "Model: \(model) · \(usage.inputTokens) input / \(usage.outputTokens) output tokens"
     }
 
     // MARK: - Decodable Output Shape
@@ -347,11 +384,17 @@ final class ClaudeSummaryService: SummaryService {
 
 enum ClaudeSummaryError: LocalizedError {
     case missingAPIKey
+    case truncatedResponse
+    case invalidStructuredResponse
 
     var errorDescription: String? {
         switch self {
         case .missingAPIKey:
             return "Momentus Cloud is not configured for Claude summaries."
+        case .truncatedResponse:
+            return "The cloud notes response was incomplete."
+        case .invalidStructuredResponse:
+            return "The cloud notes response was not valid structured data."
         }
     }
 }

@@ -119,6 +119,7 @@ final class CloudKitService {
             recordID: CKRecord.ID(recordName: recording.id.uuidString)
         )
         record["title"]              = recording.title
+        record["titleWasEditedByUser"] = Int64(recording.titleWasEditedByUser == true ? 1 : 0)
         record["startedAt"]          = recording.startedAt
         record["endedAt"]            = recording.endedAt
         record["modeRaw"]            = recording.mode.rawValue
@@ -183,6 +184,7 @@ final class CloudKitService {
         return Recording(
             id: id,
             title: title,
+            titleWasEditedByUser: (record["titleWasEditedByUser"] as? Int64) == 1,
             startedAt: startedAt,
             endedAt: record["endedAt"] as? Date,
             mode: RecordingMode(rawValue: modeRaw) ?? .onDevice,

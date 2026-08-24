@@ -1,5 +1,6 @@
 @preconcurrency import WhisperKit
 import AVFoundation
+import CoreML
 import Foundation
 
 /// On-device transcription using OpenAI's Whisper model via WhisperKit.
@@ -176,7 +177,20 @@ final class WhisperKitTranscriptionService: ProgressReportingTranscriptionServic
         print("[WhisperKit] loading model: \(modelName)")
 
         do {
-            let pipe = try await WhisperKit(model: modelName)
+            // WhisperKit defaults its encoder and decoder to the Neural Engine.
+            // iOS 26 continued tasks can explicitly retain GPU access, but the
+            // background Neural Engine entitlement is only available on iOS 27.
+            // Keep every model stage on CPU/GPU so long private recordings can
+            // continue after the app is backgrounded.
+            let computeOptions = ModelComputeOptions(
+                melCompute: .cpuAndGPU,
+                audioEncoderCompute: .cpuAndGPU,
+                textDecoderCompute: .cpuAndGPU
+            )
+            let pipe = try await WhisperKit(WhisperKitConfig(
+                model: modelName,
+                computeOptions: computeOptions
+            ))
             pipeline = pipe
             print("[WhisperKit] model ready")
         } catch {

@@ -96,6 +96,20 @@ struct MomentusTests {
         #expect(decoded.title == "Legacy meeting")
     }
 
+    @Test func userEditedRecordingTitleSurvivesPersistence() throws {
+        let recording = Recording(
+            title: "Customer onboarding decisions",
+            titleWasEditedByUser: true,
+            processingState: .failed
+        )
+
+        let data = try JSONEncoder().encode(recording)
+        let decoded = try JSONDecoder().decode(Recording.self, from: data)
+
+        #expect(decoded.title == "Customer onboarding decisions")
+        #expect(decoded.titleWasEditedByUser == true)
+    }
+
     @Test func sanitizerDropsInferredDecisionFromPositiveComment() {
         let decision = MeetingSummarySanitizer.cleanDecision(
             text: "The UI looks better than a previous version, indicating an improvement was accepted or noted positively.",

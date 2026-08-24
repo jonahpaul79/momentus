@@ -219,7 +219,8 @@ final class WatchRecordingProcessor {
                 recordingId: recordingId
             )
             recording.summary = summary
-            if let suggested = summary.suggestedTitle {
+            if recording.titleWasEditedByUser != true,
+               let suggested = summary.suggestedTitle {
                 recording.title = suggested
             }
             recording.processingState = .completed
@@ -261,7 +262,8 @@ final class WatchRecordingProcessor {
                 recordingId: recording.id
             )
             recording.summary = summary
-            if let suggested = summary.suggestedTitle {
+            if recording.titleWasEditedByUser != true,
+               let suggested = summary.suggestedTitle {
                 recording.title = suggested
             }
             recording.processingState = .completed

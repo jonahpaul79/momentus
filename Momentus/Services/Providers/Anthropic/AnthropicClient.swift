@@ -306,12 +306,13 @@ final class AnthropicClient {
         model: String = AnthropicClient.defaultModel,
         maxTokens: Int = 2048
     ) async throws -> (text: String, usage: MessageResponse.Usage) {
-        try await message(
+        let reply = try await messageDetailed(
             system: system,
             messages: [.init(role: "user", content: user)],
             model: model,
             maxTokens: maxTokens
         )
+        return (reply.text, reply.usage)
     }
 
     /// Sends a multi-turn conversation. The caller owns and resubmits the history
@@ -334,6 +335,27 @@ final class AnthropicClient {
             throw AnthropicError.emptyResponse
         }
         return (text, decoded.usage)
+    }
+
+    /// Includes the API stop reason so structured-output callers can reject or
+    /// retry a response that was cut off at the token limit.
+    func messageDetailed(
+        system: String,
+        messages: [Message],
+        model: String = AnthropicClient.defaultModel,
+        maxTokens: Int = 2048
+    ) async throws -> (text: String, usage: MessageResponse.Usage, stopReason: String?) {
+        let body = MessageRequest(
+            model: model,
+            maxTokens: maxTokens,
+            system: system,
+            messages: messages
+        )
+        let decoded = try await send(body)
+        guard let text = decoded.firstText else {
+            throw AnthropicError.emptyResponse
+        }
+        return (text, decoded.usage, decoded.stopReason)
     }
 
     /// Sends a conversation with Anthropic's server-side web search tool enabled.

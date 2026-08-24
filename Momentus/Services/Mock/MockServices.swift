@@ -23,6 +23,9 @@ import UIKit
     var isSyncing = false
     private(set) var processingRecordingIDs: Set<UUID> = []
     private let transcriptChatStore = TranscriptChatStore()
+    /// A regeneration uses the mode currently selected in Settings, but does not
+    /// rewrite the privacy mode originally stored with the recording.
+    private var summaryModeOverrides: [UUID: RecordingMode] = [:]
 
     private var isCloudEnabled: Bool {
         UserDefaults.standard.bool(forKey: "iCloudSync")
@@ -87,6 +90,20 @@ import UIKit
         recordings[idx].isFavorite.toggle()
         persist()
         cloudSave(recordings[idx])
+    }
+
+    func rename(recordingID: UUID, title: String) {
+        let cleaned = title
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        guard !cleaned.isEmpty,
+              let index = recordings.firstIndex(where: { $0.id == recordingID })
+        else { return }
+
+        recordings[index].title = String(cleaned.prefix(120))
+        recordings[index].titleWasEditedByUser = true
+        persist()
+        cloudSave(recordings[index])
     }
 
     func recording(for id: UUID) -> Recording? {
@@ -154,6 +171,12 @@ import UIKit
               var recording = recording(for: recordingID),
               recording.transcript != nil
         else { return }
+
+        if let raw = UserDefaults.standard.string(forKey: "defaultRecordingMode"),
+           let selectedMode = RecordingMode(rawValue: raw) {
+            summaryModeOverrides[recordingID] = selectedMode
+            print("[Regenerate Notes] using current setting: \(selectedMode.rawValue)")
+        }
 
         recording.summary = nil
         recording.processingState = .failed
@@ -264,7 +287,8 @@ import UIKit
             var upgraded = original
             upgraded.transcript = transcript
             upgraded.summary = summary
-            if let suggestedTitle = summary.suggestedTitle {
+            if original.titleWasEditedByUser != true,
+               let suggestedTitle = summary.suggestedTitle {
                 upgraded.title = suggestedTitle
             }
 
@@ -289,12 +313,20 @@ import UIKit
     }
 
     private func performProcessingRetry(recordingID: UUID, userInitiated: Bool) async {
-        defer { processingRecordingIDs.remove(recordingID) }
+        defer {
+            processingRecordingIDs.remove(recordingID)
+            summaryModeOverrides.removeValue(forKey: recordingID)
+        }
         do {
             if userInitiated, let recording = recording(for: recordingID) {
+                let effectiveMode = summaryModeOverrides[recordingID] ?? recording.mode
+                let requiresGPU = recording.transcript == nil
+                    ? effectiveMode != .bestQuality
+                    : effectiveMode == .onDevice
                 try await ContinuedProcessingManager.shared.run(
                     recordingID: recordingID,
                     title: recording.title,
+                    requiresGPU: requiresGPU,
                     onFailure: { [weak self] error in
                         guard let self, var failed = self.recording(for: recordingID) else { return }
                         let failedStage = failed.processingState
@@ -454,7 +486,8 @@ import UIKit
 
         try Task.checkCancellation()
         reporter?.update(completed: 65, subtitle: "Generating meeting notes")
-        let summaryService = ServiceFactory.makeSummaryService(for: recording.mode)
+        let summaryMode = summaryModeOverrides[recordingID] ?? recording.mode
+        let summaryService = ServiceFactory.makeSummaryService(for: summaryMode)
         let summary: MeetingSummary
         if let progressService = summaryService as? any ProgressReportingSummaryService {
             summary = try await progressService.summarize(
@@ -479,7 +512,8 @@ import UIKit
             )
         }
         recording.summary = summary
-        if let suggestedTitle = summary.suggestedTitle {
+        if recording.titleWasEditedByUser != true,
+           let suggestedTitle = summary.suggestedTitle {
             recording.title = suggestedTitle
         }
         recording.processingState = .preparingNotes

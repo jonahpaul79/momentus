@@ -18,6 +18,7 @@ final class ContinuedProcessingManager {
     func run(
         recordingID: UUID,
         title: String,
+        requiresGPU: Bool = false,
         onFailure: (@MainActor (Error) -> Void)? = nil,
         operation: @escaping @MainActor (Reporter) async throws -> Void
     ) async throws {
@@ -72,6 +73,10 @@ final class ContinuedProcessingManager {
                 // Let iOS wait for processing capacity instead of rejecting a long
                 // on-device job immediately on a resource-constrained phone.
                 request.strategy = .queue
+                if requiresGPU, BGTaskScheduler.supportedResources.contains(.gpu) {
+                    request.requiredResources = .gpu
+                    print("[Continued Processing] requesting background GPU access")
+                }
 
                 do {
                     try BGTaskScheduler.shared.submit(request)
@@ -134,6 +139,16 @@ final class ContinuedProcessingManager {
         systemTask?.expirationHandler = { [weak self] in
             print("[Continued Processing] system expiration requested for \(job.recordingID)")
             Task { @MainActor in
+                guard let self,
+                      !job.isFinished,
+                      self.activeJob === job
+                else {
+                    // iOS can deliver an old continued-task callback after a
+                    // subsequent retry has begun. Never let that stale callback
+                    // cancel or mark the newer operation as interrupted.
+                    print("[Continued Processing] ignored stale expiration for \(job.taskIdentifier)")
+                    return
+                }
                 // Reconcile persisted/app UI state immediately. Model inference may
                 // take time to unwind after cancellation, while the system surface
                 // marks the continued task failed right away.
@@ -141,7 +156,7 @@ final class ContinuedProcessingManager {
                     job.didReportFailure = true
                     job.onFailure?(CancellationError())
                 }
-                self?.activeOperation?.cancel()
+                self.activeOperation?.cancel()
             }
         }
     }
@@ -153,6 +168,9 @@ final class ContinuedProcessingManager {
     ) {
         guard !job.isFinished else { return }
         job.isFinished = true
+        // Detach the system callback before releasing this job. Otherwise a late
+        // callback can outlive the job and race with the next user-initiated run.
+        systemTask?.expirationHandler = nil
         activeOperation = nil
         if activeJob === job { activeJob = nil }
 
