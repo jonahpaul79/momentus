@@ -42,19 +42,20 @@ struct MeetingSummaryDetailView: View {
     var body: some View {
         let t = themeManager.currentTheme
         NavigationStack {
-            VStack(spacing: 0) {
-                ScrollView(.vertical) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        meetingHeader(t)
-                        if let summary = recording.summary {
-                            summaryContent(summary, t: t)
-                        } else {
-                            noSummaryState(t)
-                        }
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 0) {
+                    meetingHeader(t)
+                    if let summary = recording.summary {
+                        summaryContent(summary, t: t)
+                    } else {
+                        noSummaryState(t)
                     }
-                    .padding(.bottom, t.spacing.huge)
                 }
-
+                .containerRelativeFrame(.horizontal)
+                .padding(.bottom, t.spacing.huge)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
                 if recording.transcript != nil {
                     pinnedTranscriptChatBar(t)
                 }
@@ -165,6 +166,7 @@ struct MeetingSummaryDetailView: View {
                 Text("The original audio will be sent to AssemblyAI for a new transcript with speaker separation, then the notes will be regenerated.")
             }
         }
+        .presentationDragIndicator(.visible)
         .presentationContentInteraction(.resizes)
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             if let updated = store.recording(for: recording.id) { recording = updated }
@@ -200,15 +202,19 @@ struct MeetingSummaryDetailView: View {
                 .accessibilityLabel("Rename recording")
             }
 
-            HStack(spacing: t.spacing.m) {
-                Label(recording.startedAt.relativeLabel(), systemImage: "calendar")
-                    .font(t.typography.bodySmall)
-                    .foregroundStyle(t.colors.textSecondary)
-                Label(recording.duration.shortString, systemImage: "clock")
-                    .font(t.typography.bodySmall)
-                    .foregroundStyle(t.colors.textSecondary)
-                ModeBadge(mode: recording.mode, compact: true)
-                    .environment(themeManager)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: t.spacing.m) {
+                    meetingDateLabel(t)
+                    meetingDurationLabel(t)
+                    meetingModeBadge()
+                }
+                VStack(alignment: .leading, spacing: t.spacing.s) {
+                    HStack(spacing: t.spacing.m) {
+                        meetingDateLabel(t)
+                        meetingDurationLabel(t)
+                    }
+                    meetingModeBadge()
+                }
             }
 
             if hasAudio, let audioFileID = recording.audioFileID {
@@ -224,6 +230,23 @@ struct MeetingSummaryDetailView: View {
         }
         .padding(t.spacing.l)
         .padding(.top, t.spacing.m)
+    }
+
+    private func meetingDateLabel(_ t: AppTheme) -> some View {
+        Label(recording.startedAt.relativeLabel(), systemImage: "calendar")
+            .font(t.typography.bodySmall)
+            .foregroundStyle(t.colors.textSecondary)
+    }
+
+    private func meetingDurationLabel(_ t: AppTheme) -> some View {
+        Label(recording.duration.shortString, systemImage: "clock")
+            .font(t.typography.bodySmall)
+            .foregroundStyle(t.colors.textSecondary)
+    }
+
+    private func meetingModeBadge() -> some View {
+        ModeBadge(mode: recording.mode, compact: true)
+            .environment(themeManager)
     }
 
     private func beginRenamingRecording() {
@@ -735,11 +758,10 @@ struct MeetingSummaryDetailView: View {
                         .foregroundStyle(severityColor(risk.severity, t: t))
                         .padding(.top, 2)
                     VStack(alignment: .leading, spacing: 3) {
-                        HStack {
+                        VStack(alignment: .leading, spacing: 4) {
                             Text(risk.title)
                                 .font(t.typography.headlineSmall)
                                 .foregroundStyle(t.colors.textPrimary)
-                            Spacer()
                             Text(risk.severity.displayName)
                                 .font(t.typography.labelSmall)
                                 .foregroundStyle(severityColor(risk.severity, t: t))
@@ -1102,7 +1124,7 @@ struct ActionItemRow: View {
                     .foregroundStyle(t.colors.textPrimary)
                     .strikethrough(item.isCompleted)
 
-                HStack(spacing: t.spacing.s) {
+                VStack(alignment: .leading, spacing: t.spacing.xs) {
                     if let owner = item.owner {
                         HStack(spacing: 3) {
                             Image(systemName: "person")

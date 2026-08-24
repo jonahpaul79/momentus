@@ -320,9 +320,10 @@ import UIKit
         do {
             if userInitiated, let recording = recording(for: recordingID) {
                 let effectiveMode = summaryModeOverrides[recordingID] ?? recording.mode
-                let requiresGPU = recording.transcript == nil
-                    ? effectiveMode != .bestQuality
-                    : effectiveMode == .onDevice
+                // Regeneration from an existing transcript does not run Whisper.
+                // Request scarce background GPU access only for private, on-device
+                // transcription; CPU/network are included in the default resource.
+                let requiresGPU = recording.transcript == nil && effectiveMode != .bestQuality
                 try await ContinuedProcessingManager.shared.run(
                     recordingID: recordingID,
                     title: recording.title,
