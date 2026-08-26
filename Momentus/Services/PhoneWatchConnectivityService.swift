@@ -82,7 +82,8 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
     private func watchCloudConfigurationPayload() -> [String: String] {
         [
             "action": "watchCloudConfig",
-            "defaultMode": UserDefaults.standard.string(forKey: "defaultRecordingMode") ?? RecordingMode.onDevice.rawValue
+            "defaultMode": UserDefaults.standard.string(forKey: "defaultRecordingMode") ?? RecordingMode.onDevice.rawValue,
+            CloudAIConsent.preferenceKey: UserDefaults.standard.string(forKey: CloudAIConsent.preferenceKey) ?? ""
         ]
     }
 
@@ -255,6 +256,16 @@ final class PhoneWatchConnectivityService: NSObject, WCSessionDelegate {
 
     private func handle(_ message: [String: Any]) {
         guard let action = message["action"] as? String else { return }
+        if action == "watchCloudAIConsentChanged" {
+            let version = message[CloudAIConsent.preferenceKey] as? String
+            if version == CloudAIConsent.currentVersion {
+                UserDefaults.standard.set(version, forKey: CloudAIConsent.preferenceKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: CloudAIConsent.preferenceKey)
+            }
+            sendWatchCloudConfiguration()
+            return
+        }
         if action == "watchRecordingTransferStarted" {
             print("[WatchConnectivity] watch recording transfer starting")
             MomentusAppDelegate.scheduleWatchRecordingProcessingTask()

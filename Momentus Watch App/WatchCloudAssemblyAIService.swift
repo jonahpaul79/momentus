@@ -1,6 +1,7 @@
 import Foundation
 
 struct WatchCloudProcessingResult {
+    let transcriptID: String
     let transcriptText: String
     let summary: WatchCloudSummary?
 }
@@ -47,6 +48,7 @@ final class WatchCloudAssemblyAIService {
 
         let summary = try? await summarize(transcriptID: transcriptID, transcriptText: text)
         return WatchCloudProcessingResult(
+            transcriptID: transcriptID,
             transcriptText: text,
             summary: summary
         )

@@ -6,6 +6,12 @@ private struct TranscriptChatLaunch: Identifiable {
     let question: String?
 }
 
+private enum PendingProcessingAction: Equatable {
+    case retry
+    case regenerate
+    case reprocessBestQuality
+}
+
 struct MeetingSummaryDetailView: View {
     @Environment(ThemeManager.self) private var themeManager
     @Environment(RecordingsStore.self) private var store
@@ -15,22 +21,23 @@ struct MeetingSummaryDetailView: View {
     @State private var showShareSheet = false
     @State private var exportedText = ""
     @State private var playbackSeekTime: TimeInterval?
-    @State private var speakerAssignments: [UUID: String] = [:]
     @State private var customNameSpeakerID: UUID?
     @State private var customSpeakerName = ""
     @State private var showingCustomSpeakerName = false
     @State private var showingBestQualityConfirmation = false
     @State private var showingRegenerateConfirmation = false
     @State private var showingRenameRecording = false
+    @State private var showingCloudAIConsent = false
+    @State private var pendingProcessingAction: PendingProcessingAction?
     @State private var recordingTitleDraft = ""
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("audioRetention") private var audioRetentionRaw: String = AudioRetentionPolicy.deleteAfterTranscript.rawValue
+    @AppStorage("audioRetention") private var audioRetentionRaw: String = AudioRetentionPolicy.keepForever.rawValue
 
     private var hasAudio: Bool {
         guard let audioFileID = recording.audioFileID,
               !audioFileID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return false }
-        let policy = AudioRetentionPolicy(rawValue: audioRetentionRaw) ?? .deleteAfterTranscript
+        let policy = AudioRetentionPolicy(rawValue: audioRetentionRaw) ?? .keepForever
         return policy != .deleteAfterTranscript
     }
 
@@ -90,8 +97,7 @@ struct MeetingSummaryDetailView: View {
                                 if recording.summary != nil {
                                     showingRegenerateConfirmation = true
                                 } else {
-                                    store.retryProcessing(recordingID: recording.id)
-                                    HapticStyle.medium.trigger()
+                                    requestProcessingAction(.retry)
                                 }
                             } label: {
                                 Label("Regenerate notes", systemImage: "arrow.clockwise")
@@ -124,6 +130,17 @@ struct MeetingSummaryDetailView: View {
             .sheet(isPresented: $showShareSheet) {
                 ShareSheet(text: exportedText)
             }
+            .sheet(isPresented: $showingCloudAIConsent) {
+                CloudAIConsentView(
+                    onAllow: {
+                        runPendingProcessingAction()
+                    },
+                    onUsePrivate: {
+                        usePrivateForPendingProcessingAction()
+                    }
+                )
+                .environment(themeManager)
+            }
             .alert("Name this speaker", isPresented: $showingCustomSpeakerName) {
                 TextField("Name", text: $customSpeakerName)
                     .textInputAutocapitalization(.words)
@@ -150,8 +167,7 @@ struct MeetingSummaryDetailView: View {
             .alert("Regenerate Notes?", isPresented: $showingRegenerateConfirmation) {
                 Button("Cancel", role: .cancel) {}
                 Button("Regenerate") {
-                    store.regenerateNotes(recordingID: recording.id)
-                    HapticStyle.medium.trigger()
+                    requestProcessingAction(.regenerate)
                 }
             } message: {
                 Text("The current notes will be replaced with a new AI-generated summary from the existing transcript.")
@@ -159,8 +175,7 @@ struct MeetingSummaryDetailView: View {
             .alert("Reprocess with Best Quality?", isPresented: $showingBestQualityConfirmation) {
                 Button("Cancel", role: .cancel) {}
                 Button("Reprocess") {
-                    store.reprocessWithBestQuality(recordingID: recording.id)
-                    HapticStyle.medium.trigger()
+                    requestProcessingAction(.reprocessBestQuality)
                 }
             } message: {
                 Text("The original audio will be sent to AssemblyAI for a new transcript with speaker separation, then the notes will be regenerated.")
@@ -418,13 +433,6 @@ struct MeetingSummaryDetailView: View {
                     .font(t.typography.labelLarge)
                     .foregroundStyle(t.colors.textSecondary)
                     .tracking(0.6)
-                Spacer()
-                Button("Apply") {
-                    applySpeakerAssignments()
-                }
-                .font(t.typography.labelLarge)
-                .foregroundStyle(speakerAssignments.isEmpty ? t.colors.textTertiary : t.colors.accentPrimary)
-                .disabled(speakerAssignments.isEmpty)
             }
 
             Text(attendees.isEmpty && detectedNames.isEmpty
@@ -454,7 +462,7 @@ struct MeetingSummaryDetailView: View {
                                 Section("Calendar invite") {
                                     ForEach(attendees, id: \.self) { attendee in
                                         Button(attendee) {
-                                            speakerAssignments[speaker.id] = attendee
+                                            assignSpeakerName(attendee, to: speaker.id)
                                         }
                                     }
                                 }
@@ -463,7 +471,7 @@ struct MeetingSummaryDetailView: View {
                                 Section("Names from conversation") {
                                     ForEach(detectedNames, id: \.self) { name in
                                         Button(name) {
-                                            speakerAssignments[speaker.id] = name
+                                            assignSpeakerName(name, to: speaker.id)
                                         }
                                     }
                                 }
@@ -471,19 +479,11 @@ struct MeetingSummaryDetailView: View {
                             Button("Enter a name…", systemImage: "pencil") {
                                 beginCustomSpeakerName(for: speaker)
                             }
-                            if speakerAssignments[speaker.id] != nil {
-                                Button("Discard change", role: .destructive) {
-                                    speakerAssignments.removeValue(forKey: speaker.id)
-                                }
-                            }
                         } label: {
                             HStack(spacing: 4) {
-                                Text(speakerAssignments[speaker.id]
-                                    ?? (speaker.requiresIdentification ? "Assign name" : "Change"))
+                                Text(speaker.requiresIdentification ? "Assign name" : "Change")
                                     .font(t.typography.bodyMedium)
-                                    .foregroundStyle(speakerAssignments[speaker.id] != nil
-                                        ? t.colors.accentPrimary
-                                        : t.colors.textTertiary)
+                                    .foregroundStyle(t.colors.textTertiary)
                                 Image(systemName: "chevron.up.chevron.down")
                                     .font(.system(size: 11, weight: .medium))
                                     .foregroundStyle(t.colors.textTertiary)
@@ -504,13 +504,12 @@ struct MeetingSummaryDetailView: View {
         .environment(themeManager)
     }
 
-    private func applySpeakerAssignments() {
-        guard !speakerAssignments.isEmpty else { return }
+    private func assignSpeakerName(_ name: String, to speakerID: UUID) {
         var updated = recording
-        updated.assignSpeakerNames(speakerAssignments)
+        updated.assignSpeakerNames([speakerID: name])
+        guard updated != recording else { return }
         recording = updated
         store.update(updated)
-        speakerAssignments = [:]
         HapticStyle.success.trigger()
     }
 
@@ -518,14 +517,14 @@ struct MeetingSummaryDetailView: View {
         customNameSpeakerID = speaker.id
         customSpeakerName = speaker.requiresIdentification
             ? ""
-            : (speakerAssignments[speaker.id] ?? speaker.name)
+            : speaker.name
         showingCustomSpeakerName = true
     }
 
     private func assignCustomSpeakerName() {
         let name = customSpeakerName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let speakerID = customNameSpeakerID, !name.isEmpty else { return }
-        speakerAssignments[speakerID] = name
+        assignSpeakerName(name, to: speakerID)
         customNameSpeakerID = nil
         customSpeakerName = ""
     }
@@ -984,8 +983,7 @@ struct MeetingSummaryDetailView: View {
 
             if store.canRetryProcessing(recording) {
                 Button {
-                    store.retryProcessing(recordingID: recording.id)
-                    HapticStyle.medium.trigger()
+                    requestProcessingAction(.retry)
                 } label: {
                     Label("Retry AI processing", systemImage: "arrow.clockwise")
                         .font(t.typography.headlineMedium)
@@ -1014,6 +1012,63 @@ struct MeetingSummaryDetailView: View {
         .surfaceCard()
         .environment(themeManager)
         .padding(.horizontal, t.spacing.l)
+    }
+
+    private func requestProcessingAction(_ action: PendingProcessingAction) {
+        let requiresCloud: Bool
+        switch action {
+        case .retry:
+            requiresCloud = RecordingsStore.processingMode(
+                for: recording,
+                userInitiated: true
+            ).usesCloud
+        case .regenerate:
+            let raw = UserDefaults.standard.string(forKey: "defaultRecordingMode")
+            requiresCloud = (raw.flatMap(RecordingMode.init(rawValue:)) ?? recording.mode).usesCloud
+        case .reprocessBestQuality:
+            requiresCloud = true
+        }
+
+        if requiresCloud, !CloudAIConsent.isGranted {
+            pendingProcessingAction = action
+            showingCloudAIConsent = true
+        } else {
+            runProcessingAction(action)
+        }
+    }
+
+    private func runPendingProcessingAction() {
+        guard let action = pendingProcessingAction else { return }
+        pendingProcessingAction = nil
+        runProcessingAction(action)
+    }
+
+    private func usePrivateForPendingProcessingAction() {
+        guard let action = pendingProcessingAction else { return }
+        pendingProcessingAction = nil
+
+        // Best Quality specifically requires cloud transcription, so choosing
+        // Private cancels that request instead of silently uploading audio.
+        guard action != .reprocessBestQuality else { return }
+
+        UserDefaults.standard.set(RecordingMode.onDevice.rawValue, forKey: "defaultRecordingMode")
+        if action == .retry, recording.transcript != nil, recording.mode.usesCloud {
+            recording.mode = .onDevice
+            store.update(recording)
+        }
+        runProcessingAction(action)
+    }
+
+    private func runProcessingAction(_ action: PendingProcessingAction) {
+        switch action {
+        case .retry:
+            store.retryProcessing(recordingID: recording.id)
+        case .regenerate:
+            store.regenerateNotes(recordingID: recording.id)
+        case .reprocessBestQuality:
+            store.reprocessWithBestQuality(recordingID: recording.id)
+        }
+        HapticStyle.medium.trigger()
     }
 
     // MARK: - Section Header

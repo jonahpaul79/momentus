@@ -1,11 +1,20 @@
 import SwiftUI
 
 struct TranscriptChatView: View {
+    private enum PendingChatAction {
+        case send
+        case initialQuestion(String)
+        case suggestion(String)
+        case retry
+    }
+
     @Environment(ThemeManager.self) private var themeManager
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: TranscriptChatViewModel
     @State private var showingClearConfirmation = false
+    @State private var showingCloudAIConsent = false
     @State private var handledInitialLaunch = false
+    @State private var pendingChatAction: PendingChatAction?
     @FocusState private var composerIsFocused: Bool
 
     private let initialQuestion: String?
@@ -74,8 +83,20 @@ struct TranscriptChatView: View {
                 await Task.yield()
                 composerIsFocused = true
                 if let initialQuestion {
-                    await viewModel.sendInitialQuestion(initialQuestion)
+                    requestChatAction(.initialQuestion(initialQuestion))
                 }
+            }
+            .sheet(isPresented: $showingCloudAIConsent) {
+                CloudAIConsentView(
+                    onAllow: {
+                        runPendingChatAction()
+                    },
+                    onUsePrivate: {
+                        viewModel.selectedMode = .onDevice
+                        runPendingChatAction()
+                    }
+                )
+                .environment(themeManager)
             }
         }
     }
@@ -161,7 +182,7 @@ struct TranscriptChatView: View {
             VStack(spacing: t.spacing.s) {
                 ForEach(suggestions, id: \.self) { suggestion in
                     Button {
-                        Task { await viewModel.askSuggestion(suggestion) }
+                        requestChatAction(.suggestion(suggestion))
                     } label: {
                         HStack {
                             Text(suggestion)
@@ -238,7 +259,7 @@ struct TranscriptChatView: View {
                         .font(t.typography.caption)
                         .foregroundStyle(t.colors.textSecondary)
                     Spacer()
-                    Button("Retry") { Task { await viewModel.retryPendingQuestion() } }
+                    Button("Retry") { requestChatAction(.retry) }
                         .font(t.typography.labelLarge)
                         .foregroundStyle(t.colors.accentPrimary)
                         .disabled(viewModel.blockingError != nil)
@@ -260,10 +281,10 @@ struct TranscriptChatView: View {
                     }
                     .focused($composerIsFocused)
                     .defaultFocus($composerIsFocused, true)
-                    .onSubmit { Task { await viewModel.send() } }
+                    .onSubmit { requestChatAction(.send) }
 
                 Button {
-                    Task { await viewModel.send() }
+                    requestChatAction(.send)
                 } label: {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 16, weight: .bold))
@@ -295,7 +316,8 @@ struct TranscriptChatView: View {
             if issue.offersBestQuality {
                 if viewModel.hasAnthropicKey {
                     Button("Use Best Quality") {
-                        Task { await viewModel.useBestQualityAndRetry() }
+                        viewModel.selectedMode = .bestQuality
+                        requestChatAction(.retry)
                     }
                     .font(t.typography.labelLarge)
                     .foregroundStyle(t.colors.accentPrimary)
@@ -310,6 +332,36 @@ struct TranscriptChatView: View {
         .padding(t.spacing.m)
         .background(t.colors.accentWarning.opacity(0.10))
         .clipShape(RoundedRectangle(cornerRadius: t.radius.m))
+    }
+
+    private func requestChatAction(_ action: PendingChatAction) {
+        if viewModel.selectedMode == .bestQuality, !CloudAIConsent.isGranted {
+            pendingChatAction = action
+            showingCloudAIConsent = true
+        } else {
+            runChatAction(action)
+        }
+    }
+
+    private func runPendingChatAction() {
+        guard let action = pendingChatAction else { return }
+        pendingChatAction = nil
+        runChatAction(action)
+    }
+
+    private func runChatAction(_ action: PendingChatAction) {
+        Task {
+            switch action {
+            case .send:
+                await viewModel.send()
+            case .initialQuestion(let question):
+                await viewModel.sendInitialQuestion(question)
+            case .suggestion(let suggestion):
+                await viewModel.askSuggestion(suggestion)
+            case .retry:
+                await viewModel.retryPendingQuestion()
+            }
+        }
     }
 }
 

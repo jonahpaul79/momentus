@@ -8,16 +8,18 @@ struct SettingsView: View {
     @Environment(RecordingsStore.self) private var store
 
     @AppStorage("defaultRecordingMode") private var defaultModeRaw: String = RecordingMode.onDevice.rawValue
-    @AppStorage("audioRetention") private var audioRetentionRaw: String = AudioRetentionPolicy.deleteAfterTranscript.rawValue
+    @AppStorage("audioRetention") private var audioRetentionRaw: String = AudioRetentionPolicy.keepForever.rawValue
     @AppStorage("transcriptionProvider") private var transcriptionProviderRaw: String = TranscriptionProvider.appleOnDevice.rawValue
     @AppStorage("summaryProvider") private var summaryProviderRaw: String = SummaryProvider.appleFoundationModels.rawValue
-    @AppStorage("showConsentPrompt") private var showConsentPrompt: Bool = false
+    @AppStorage(CloudAIConsent.preferenceKey) private var cloudAIConsentVersion: String = ""
     @AppStorage("iCloudSync") private var iCloudSync: Bool = false
 
     @State private var micPermission = AVAudioApplication.shared.recordPermission
     @State private var calPermission = EKEventStore.authorizationStatus(for: .event)
     @State private var notifStatus: UNAuthorizationStatus = .notDetermined
     @State private var showingWidgetEducation = false
+    @State private var showingCloudAIConsent = false
+    @State private var pendingDefaultMode: RecordingMode?
     @State private var iPhoneWidgetInstalled = false
 
     private var defaultMode: RecordingMode {
@@ -26,7 +28,7 @@ struct SettingsView: View {
     }
 
     private var audioRetention: AudioRetentionPolicy {
-        get { AudioRetentionPolicy(rawValue: audioRetentionRaw) ?? .deleteAfterTranscript }
+        get { AudioRetentionPolicy(rawValue: audioRetentionRaw) ?? .keepForever }
         nonmutating set { audioRetentionRaw = newValue.rawValue }
     }
 
@@ -42,7 +44,6 @@ struct SettingsView: View {
         let t = themeManager.currentTheme
         List {
             recordingModeSection(t)
-            momentusCloudSection(t)
             privacySection(t)
             quickRecordSection(t)
             permissionsSection(t)
@@ -66,6 +67,24 @@ struct SettingsView: View {
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showingCloudAIConsent) {
+            CloudAIConsentView(
+                onAllow: {
+                    cloudAIConsentVersion = CloudAIConsent.currentVersion
+                    if let pendingDefaultMode {
+                        defaultModeRaw = pendingDefaultMode.rawValue
+                        syncWatchProviderConfig()
+                    }
+                    pendingDefaultMode = nil
+                },
+                onUsePrivate: {
+                    defaultModeRaw = RecordingMode.onDevice.rawValue
+                    pendingDefaultMode = nil
+                    syncWatchProviderConfig()
+                }
+            )
+            .environment(themeManager)
+        }
     }
 
     // MARK: - Recording Mode Section
@@ -74,8 +93,13 @@ struct SettingsView: View {
         Section {
             ForEach(RecordingMode.allCases) { mode in
                 Button {
-                    defaultModeRaw = mode.rawValue
-                    syncWatchProviderConfig()
+                    if mode.usesCloud, !CloudAIConsent.isGranted {
+                        pendingDefaultMode = mode
+                        showingCloudAIConsent = true
+                    } else {
+                        defaultModeRaw = mode.rawValue
+                        syncWatchProviderConfig()
+                    }
                     HapticStyle.light.trigger()
                 } label: {
                     HStack {
@@ -131,30 +155,6 @@ struct SettingsView: View {
         }
     }
 
-    private func momentusCloudSection(_ t: AppTheme) -> some View {
-        Section {
-            HStack(spacing: t.spacing.s) {
-                Image(systemName: "checkmark.shield.fill")
-                    .foregroundStyle(t.colors.accentSuccess)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Cloud AI ready")
-                        .font(t.typography.headlineSmall)
-                        .foregroundStyle(t.colors.textPrimary)
-                    Text("No provider keys required")
-                        .font(t.typography.caption)
-                        .foregroundStyle(t.colors.textSecondary)
-                }
-            }
-            .listRowBackground(t.colors.surfacePrimary)
-        } header: {
-            sectionHeader("Momentus Cloud", t: t)
-        } footer: {
-            Text("Quality recordings use Momentus-managed AssemblyAI transcription and Claude summaries. Your provider credentials are never stored on this device. Private mode remains fully on device.")
-                .font(t.typography.caption)
-                .foregroundStyle(t.colors.textTertiary)
-        }
-    }
-
     // MARK: - Privacy Section
 
     private func privacySection(_ t: AppTheme) -> some View {
@@ -171,13 +171,25 @@ struct SettingsView: View {
             }
             .tint(t.colors.accentPrimary)
             .listRowBackground(t.colors.surfacePrimary)
+            .onChange(of: audioRetentionRaw) { _, _ in
+                Task { await store.applyAudioRetentionPolicy() }
+            }
 
-            // Consent prompt
-            Toggle(isOn: $showConsentPrompt) {
+            Toggle(isOn: Binding(
+                get: { cloudAIConsentVersion == CloudAIConsent.currentVersion },
+                set: { enabled in
+                    if enabled {
+                        showingCloudAIConsent = true
+                    } else {
+                        cloudAIConsentVersion = ""
+                        CloudAIConsent.revoke()
+                    }
+                }
+            )) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Show recording consent")
+                    Text("Allow Cloud AI processing")
                         .foregroundStyle(t.colors.textPrimary)
-                    Text("Display a reminder before each meeting")
+                    Text("Share meeting data with AssemblyAI and Anthropic")
                         .font(t.typography.caption)
                         .foregroundStyle(t.colors.textSecondary)
                 }
@@ -185,10 +197,22 @@ struct SettingsView: View {
             .tint(t.colors.accentPrimary)
             .listRowBackground(t.colors.surfacePrimary)
 
+            Link(destination: URL(string: "https://momentusnotes.com/privacy")!) {
+                Label("Privacy Policy", systemImage: "hand.raised")
+                    .foregroundStyle(t.colors.textPrimary)
+            }
+            .listRowBackground(t.colors.surfacePrimary)
+
+            Link(destination: URL(string: "https://momentusnotes.com/ai-data")!) {
+                Label("AI Data Details", systemImage: "sparkles.rectangle.stack")
+                    .foregroundStyle(t.colors.textPrimary)
+            }
+            .listRowBackground(t.colors.surfacePrimary)
+
         } header: {
             sectionHeader("Privacy", t: t)
         } footer: {
-            Text("No meeting content is used for training by this app.")
+            Text("Turn Cloud AI off here at any time. Private mode remains on device.")
                 .font(t.typography.caption)
                 .foregroundStyle(t.colors.textTertiary)
         }
@@ -229,8 +253,8 @@ struct SettingsView: View {
             sectionHeader("Storage", t: t)
         } footer: {
             Text(iCloudSync
-                 ? "Notes and transcripts sync across your devices via iCloud. Audio files are not synced."
-                 : "Enable to sync notes and transcripts across your devices.")
+                 ? "Recordings, transcripts, and notes sync through your private iCloud database. Raw audio follows the retention period above."
+                 : "Enable to sync recordings, transcripts, and notes across your devices.")
                 .font(t.typography.caption)
                 .foregroundStyle(t.colors.textTertiary)
         }
@@ -297,12 +321,9 @@ struct SettingsView: View {
                     .foregroundStyle(t.colors.textSecondary)
             }
             .listRowBackground(t.colors.surfacePrimary)
+
         } header: {
             sectionHeader("About", t: t)
-        } footer: {
-            Text("Momentus MVP · Dark mode by default · Privacy first")
-                .font(t.typography.caption)
-                .foregroundStyle(t.colors.textTertiary)
         }
     }
 

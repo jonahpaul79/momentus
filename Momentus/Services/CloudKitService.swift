@@ -27,7 +27,10 @@ final class CloudKitService {
 
     func save(_ recording: Recording) async {
         do {
-            let record = try makeRecord(from: recording)
+            let recordID = CKRecord.ID(recordName: recording.id.uuidString)
+            let record = (try? await db.record(for: recordID))
+                ?? CKRecord(recordType: recordType, recordID: recordID)
+            try populate(record, from: recording)
             try await db.save(record)
         } catch {
             print("[CloudKit] save \(recording.id): \(error.localizedDescription)")
@@ -73,6 +76,21 @@ final class CloudKitService {
         }
     }
 
+    func deleteAudioAsset(recordingID: UUID) async {
+        do {
+            let recordID = CKRecord.ID(recordName: recordingID.uuidString)
+            let record = try await db.record(for: recordID)
+            record["audioAsset"] = nil
+            record["audioFileID"] = nil
+            record["rawAudioDeletedAt"] = Date()
+            try await db.save(record)
+        } catch let error as CKError where error.code == .unknownItem {
+            return
+        } catch {
+            print("[CloudKit] delete audio \(recordingID): \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Read
 
     func fetchAll() async throws -> [Recording] {
@@ -113,11 +131,7 @@ final class CloudKitService {
 
     // MARK: - CKRecord → Recording
 
-    private func makeRecord(from recording: Recording) throws -> CKRecord {
-        let record = CKRecord(
-            recordType: recordType,
-            recordID: CKRecord.ID(recordName: recording.id.uuidString)
-        )
+    private func populate(_ record: CKRecord, from recording: Recording) throws {
         record["title"]              = recording.title
         record["titleWasEditedByUser"] = Int64(recording.titleWasEditedByUser == true ? 1 : 0)
         record["startedAt"]          = recording.startedAt
@@ -125,6 +139,11 @@ final class CloudKitService {
         record["modeRaw"]            = recording.mode.rawValue
         record["micSourceRaw"]       = recording.micSource.rawValue
         record["audioFileID"]        = recording.audioFileID
+        if let rawAudioDeletedAt = recording.rawAudioDeletedAt {
+            record["rawAudioDeletedAt"] = rawAudioDeletedAt
+            record["audioAsset"] = nil
+            record["audioFileID"] = nil
+        }
         record["processingStateRaw"] = recording.processingState.rawValue
         record["processingError"]    = recording.processingError
         record["processingDetail"]   = recording.processingDetail
@@ -148,7 +167,16 @@ final class CloudKitService {
             record["transcriptAsset"] = CKAsset(fileURL: url)
         }
 
-        return record
+        if record["audioAsset"] == nil,
+           record["rawAudioDeletedAt"] == nil,
+           let audioFileID = normalizedAudioFileID(recording.audioFileID) {
+            let audioURL = AVAudioRecorderService.recordingsDirectory
+                .appendingPathComponent(audioFileID)
+            let fileSize = (try? audioURL.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+            if fileSize >= 1024 {
+                record["audioAsset"] = CKAsset(fileURL: audioURL)
+            }
+        }
     }
 
     private func parseRecord(_ record: CKRecord) -> Recording? {
@@ -190,6 +218,7 @@ final class CloudKitService {
             mode: RecordingMode(rawValue: modeRaw) ?? .onDevice,
             micSource: MicSource(rawValue: micRaw) ?? .iPhone,
             audioFileID: audioFileID,
+            rawAudioDeletedAt: record["rawAudioDeletedAt"] as? Date,
             processingState: ProcessingState(rawValue: stateRaw) ?? .completed,
             processingError: record["processingError"] as? String,
             processingDetail: record["processingDetail"] as? String,

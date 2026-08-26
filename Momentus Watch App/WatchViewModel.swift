@@ -3,6 +3,27 @@ import WatchConnectivity
 import WatchKit
 import AVFoundation
 
+enum WatchCloudAIConsent {
+    nonisolated static let preferenceKey = "cloudAIConsentVersion"
+    nonisolated static let currentVersion = "2026-08-26-v1"
+
+    nonisolated static var isGranted: Bool {
+        UserDefaults.standard.string(forKey: preferenceKey) == currentVersion
+    }
+
+    static func grant() {
+        UserDefaults.standard.set(currentVersion, forKey: preferenceKey)
+    }
+
+    static func update(from version: String?) {
+        if version == currentVersion {
+            UserDefaults.standard.set(version, forKey: preferenceKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: preferenceKey)
+        }
+    }
+}
+
 enum WatchRecordingState: Equatable {
     case idle
     case recording
@@ -75,6 +96,21 @@ enum WatchProcessingStatus: Equatable {
 
         startAudioCapture()
         startTimers()
+    }
+
+    func grantCloudAIConsent() {
+        WatchCloudAIConsent.grant()
+        let message = [
+            "action": "watchCloudAIConsentChanged",
+            WatchCloudAIConsent.preferenceKey: WatchCloudAIConsent.currentVersion
+        ]
+        if WCSession.default.isReachable {
+            WCSession.default.sendMessage(message, replyHandler: nil) { _ in
+                WCSession.default.transferUserInfo(message)
+            }
+        } else {
+            WCSession.default.transferUserInfo(message)
+        }
     }
 
     func stopRecording() async {
@@ -266,6 +302,7 @@ enum WatchProcessingStatus: Equatable {
                 "startedAt": startedAt.timeIntervalSince1970,
                 "endedAt": now.timeIntervalSince1970,
                 "markers": markerStr,
+                "transcriptID": result.transcriptID,
                 "transcriptText": result.transcriptText
             ]
             if let summary = result.summary {
@@ -287,6 +324,7 @@ enum WatchProcessingStatus: Equatable {
                     startedAt: startedAt,
                     endedAt: now,
                     markers: markers,
+                    transcriptID: result.transcriptID,
                     transcriptText: result.transcriptText,
                     summary: result.summary
                 )
@@ -500,7 +538,9 @@ extension WatchViewModel: WCSessionDelegate {
                     self.processingStatus = .needsPhoneWake
                 }
             case "watchCloudConfig":
-                break
+                WatchCloudAIConsent.update(
+                    from: message[WatchCloudAIConsent.preferenceKey] as? String
+                )
             case "startRecording":
                 if let mode = message["mode"] as? String {
                     if mode == WatchRecordingMode.bestQuality.rawValue {

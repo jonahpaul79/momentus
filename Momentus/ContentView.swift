@@ -52,12 +52,16 @@ struct ContentView: View {
             WatchRecordingProcessor.shared.configure(store: store)
             await CloudKitService.shared.saveCurrentProviderConfig()
             await store.importCloudRecordingsWithRetry()
+            await store.applyAudioRetentionPolicy()
+            await store.processPendingRemoteTranscriptDeletions()
             store.resumeInterruptedProcessing()
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             Task {
                 await store.importCloudRecordingsWithRetry()
+                await store.applyAudioRetentionPolicy()
+                await store.processPendingRemoteTranscriptDeletions()
                 store.resumeInterruptedProcessing()
             }
         }

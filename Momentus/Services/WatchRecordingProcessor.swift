@@ -42,6 +42,7 @@ final class WatchRecordingProcessor {
         let markers = ((message["markers"] as? String) ?? "")
             .split(separator: ",")
             .compactMap { TimeInterval($0) }
+        let transcriptID = cleanedString(message["transcriptID"] as? String)
 
         let speaker = Speaker(id: UUID(), name: "Speaker 1", isNameInferred: true, colorHex: "#6366F1")
         let transcript = Transcript(
@@ -60,6 +61,7 @@ final class WatchRecordingProcessor {
             speakers: [speaker],
             language: "en",
             provider: "AssemblyAI (Watch Cloud)",
+            providerData: transcriptID.map { ["assemblyai_transcript_id": $0] } ?? [:],
             createdAt: Date()
         )
 

@@ -26,6 +26,11 @@ actor WatchBackendClient {
         contentType: String = "application/json",
         queryItems: [URLQueryItem] = []
     ) async throws -> Data {
+        if operation != "assemblyai.poll",
+           operation != "assemblyai.delete",
+           !WatchCloudAIConsent.isGranted {
+            throw WatchBackendError.cloudAIConsentRequired
+        }
         let session: Session
         do {
             session = try await supabase.auth.session
@@ -60,11 +65,13 @@ actor WatchBackendClient {
 enum WatchBackendError: LocalizedError {
     case invalidResponse
     case server(String)
+    case cloudAIConsentRequired
 
     var errorDescription: String? {
         switch self {
         case .invalidResponse: return "Momentus received an invalid cloud response."
         case .server(let message): return "Momentus cloud error: \(message)"
+        case .cloudAIConsentRequired: return "Allow Cloud AI processing before sending this recording."
         }
     }
 }

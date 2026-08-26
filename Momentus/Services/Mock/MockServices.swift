@@ -23,6 +23,9 @@ import UIKit
     var isSyncing = false
     private(set) var processingRecordingIDs: Set<UUID> = []
     private let transcriptChatStore = TranscriptChatStore()
+    private var audioRetentionTask: Task<Void, Never>?
+    private let remoteTranscriptDeletionKey = "pending_assemblyai_transcript_deletions"
+    private var isProcessingRemoteTranscriptDeletions = false
     /// A regeneration uses the mode currently selected in Settings, but does not
     /// rewrite the privacy mode originally stored with the recording.
     private var summaryModeOverrides: [UUID: RecordingMode] = [:]
@@ -32,6 +35,7 @@ import UIKit
     }
 
     init(loadSamples: Bool = true) {
+        Self.migrateAudioRetentionDefaultIfNeeded()
         if let data = UserDefaults.standard.data(forKey: storageKey),
            let saved = try? JSONDecoder().decode([Recording].self, from: data),
            !saved.isEmpty {
@@ -50,7 +54,21 @@ import UIKit
         } else if loadSamples {
             recordings = MockMeetings.sampleRecordings
         }
-        Task { await syncFromCloud() }
+        Task {
+            await syncFromCloud()
+            await applyAudioRetentionPolicy()
+            await processPendingRemoteTranscriptDeletions()
+        }
+    }
+
+    /// Retention choices existed before cleanup was implemented. Treat every
+    /// existing install as Keep Forever once so enabling the feature cannot
+    /// unexpectedly erase a backlog of recordings.
+    private static func migrateAudioRetentionDefaultIfNeeded() {
+        let migrationKey = "audioRetentionPolicyVersion"
+        guard UserDefaults.standard.integer(forKey: migrationKey) < 1 else { return }
+        UserDefaults.standard.set(AudioRetentionPolicy.keepForever.rawValue, forKey: "audioRetention")
+        UserDefaults.standard.set(1, forKey: migrationKey)
     }
 
     func add(_ recording: Recording) {
@@ -64,24 +82,30 @@ import UIKit
         recordings[idx] = recording
         persist()
         cloudSave(recording)
+        scheduleAudioRetentionSweep()
     }
 
     func delete(id: UUID) {
-        recordings.removeAll { $0.id == id }
-        persist()
-        transcriptChatStore.delete(recordingID: id)
-        if isCloudEnabled { Task { await CloudKitService.shared.delete(id: id) } }
+        guard let recording = recording(for: id) else { return }
+        delete(recording)
     }
 
     func delete(_ recording: Recording) {
         recordings.removeAll { $0.id == recording.id }
         persist()
         transcriptChatStore.delete(recordingID: recording.id)
-        if isCloudEnabled { Task { await CloudKitService.shared.delete(id: recording.id) } }
-        guard let fileID = recording.audioFileID else { return }
+        scheduleAudioRetentionSweep()
+        let transcriptID = recording.transcript?.providerData["assemblyai_transcript_id"]
+        if let transcriptID, !transcriptID.isEmpty {
+            enqueueRemoteTranscriptDeletion(transcriptID)
+        }
         Task {
-            let url = AVAudioRecorderService.recordingsDirectory.appendingPathComponent(fileID)
-            try? FileManager.default.removeItem(at: url)
+            if let fileID = recording.audioFileID {
+                let url = AVAudioRecorderService.recordingsDirectory.appendingPathComponent(fileID)
+                try? FileManager.default.removeItem(at: url)
+            }
+            await CloudKitService.shared.delete(id: recording.id)
+            await processPendingRemoteTranscriptDeletions()
         }
     }
 
@@ -565,7 +589,16 @@ import UIKit
         for cloudRecording in cloudRecordings where localIDs.contains(cloudRecording.id) {
             guard let idx = recordings.firstIndex(where: { $0.id == cloudRecording.id }) else { continue }
             let local = recordings[idx]
-            if localNeedsAudio(local), audioIsPlayable(cloudRecording.audioFileID) {
+            if let deletedAt = cloudRecording.rawAudioDeletedAt,
+               local.rawAudioDeletedAt == nil || local.rawAudioDeletedAt! < deletedAt {
+                if let audioFileID = local.audioFileID {
+                    let url = AVAudioRecorderService.recordingsDirectory.appendingPathComponent(audioFileID)
+                    try? FileManager.default.removeItem(at: url)
+                }
+                recordings[idx].audioFileID = nil
+                recordings[idx].rawAudioDeletedAt = deletedAt
+                didRefreshExisting = true
+            } else if localNeedsAudio(local), audioIsPlayable(cloudRecording.audioFileID) {
                 recordings[idx].audioFileID = cloudRecording.audioFileID
                 didRefreshExisting = true
             }
@@ -578,6 +611,7 @@ import UIKit
         if uploadLocalOnly, isCloudEnabled, !localOnly.isEmpty {
             await CloudKitService.shared.saveAll(localOnly)
         }
+        await applyAudioRetentionPolicy()
     }
 
     func importCloudRecordingsWithRetry() async {
@@ -597,11 +631,92 @@ import UIKit
         isSyncing = true
         defer { isSyncing = false }
         await CloudKitService.shared.saveAll(recordings)
+        await applyAudioRetentionPolicy()
     }
 
     private func cloudSave(_ recording: Recording) {
         guard isCloudEnabled else { return }
         Task { await CloudKitService.shared.save(recording) }
+    }
+
+    func applyAudioRetentionPolicy(now: Date = Date()) async {
+        let rawValue = UserDefaults.standard.string(forKey: "audioRetention")
+        let policy = rawValue.flatMap(AudioRetentionPolicy.init(rawValue:)) ?? .keepForever
+        var expiredRecordingIDs: [UUID] = []
+
+        for index in recordings.indices {
+            let recording = recordings[index]
+            guard audioIsPlayable(recording.audioFileID),
+                  let expiration = policy.expirationDate(for: recording),
+                  expiration <= now,
+                  let audioFileID = recording.audioFileID
+            else { continue }
+
+            let url = AVAudioRecorderService.recordingsDirectory.appendingPathComponent(audioFileID)
+            do {
+                try FileManager.default.removeItem(at: url)
+                recordings[index].audioFileID = nil
+                recordings[index].rawAudioDeletedAt = now
+                expiredRecordingIDs.append(recording.id)
+            } catch {
+                print("[Audio Retention] failed to delete \(audioFileID): \(error.localizedDescription)")
+            }
+        }
+
+        if !expiredRecordingIDs.isEmpty {
+            persist()
+            for recordingID in expiredRecordingIDs {
+                await CloudKitService.shared.deleteAudioAsset(recordingID: recordingID)
+            }
+        }
+        scheduleAudioRetentionSweep(now: now)
+    }
+
+    func processPendingRemoteTranscriptDeletions() async {
+        guard !isProcessingRemoteTranscriptDeletions else { return }
+        isProcessingRemoteTranscriptDeletions = true
+        defer { isProcessingRemoteTranscriptDeletions = false }
+
+        let pending = UserDefaults.standard.stringArray(forKey: remoteTranscriptDeletionKey) ?? []
+        for transcriptID in pending {
+            do {
+                try await AssemblyAITranscriptionService().deleteRemoteTranscript(id: transcriptID)
+                var remaining = UserDefaults.standard.stringArray(forKey: remoteTranscriptDeletionKey) ?? []
+                remaining.removeAll { $0 == transcriptID }
+                UserDefaults.standard.set(remaining, forKey: remoteTranscriptDeletionKey)
+            } catch {
+                print("[AssemblyAI] delete transcript \(transcriptID) deferred: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func enqueueRemoteTranscriptDeletion(_ transcriptID: String) {
+        var pending = UserDefaults.standard.stringArray(forKey: remoteTranscriptDeletionKey) ?? []
+        guard !pending.contains(transcriptID) else { return }
+        pending.append(transcriptID)
+        UserDefaults.standard.set(pending, forKey: remoteTranscriptDeletionKey)
+    }
+
+    private func scheduleAudioRetentionSweep(now: Date = Date()) {
+        audioRetentionTask?.cancel()
+        let rawValue = UserDefaults.standard.string(forKey: "audioRetention")
+        let policy = rawValue.flatMap(AudioRetentionPolicy.init(rawValue:)) ?? .keepForever
+        let nextExpiration = recordings.compactMap { recording -> Date? in
+            guard audioIsPlayable(recording.audioFileID) else { return nil }
+            return policy.expirationDate(for: recording)
+        }.min()
+        guard let nextExpiration else { return }
+
+        let delay = max(0.1, nextExpiration.timeIntervalSince(now))
+        audioRetentionTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(delay))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await self?.applyAudioRetentionPolicy()
+        }
     }
 
     private func localNeedsAudio(_ recording: Recording) -> Bool {

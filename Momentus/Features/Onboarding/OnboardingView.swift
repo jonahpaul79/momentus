@@ -14,6 +14,8 @@ struct OnboardingView: View {
     @State private var speechGranted = false
     @State private var calendarGranted = false
     @State private var notificationsGranted = false
+    @State private var showingCloudAIConsent = false
+    @State private var pendingDefaultMode: RecordingMode?
 
     // Toggles default ON — user opts out of what they don't want
     @State private var micEnabled = true
@@ -43,6 +45,21 @@ struct OnboardingView: View {
 
                 bottomNav(t)
             }
+        }
+        .sheet(isPresented: $showingCloudAIConsent) {
+            CloudAIConsentView(
+                onAllow: {
+                    if let pendingDefaultMode {
+                        defaultModeRaw = pendingDefaultMode.rawValue
+                    }
+                    pendingDefaultMode = nil
+                },
+                onUsePrivate: {
+                    defaultModeRaw = RecordingMode.onDevice.rawValue
+                    pendingDefaultMode = nil
+                }
+            )
+            .environment(themeManager)
         }
     }
 
@@ -173,7 +190,12 @@ struct OnboardingView: View {
                             mode: mode,
                             isSelected: defaultModeRaw == mode.rawValue
                         ) {
-                            defaultModeRaw = mode.rawValue
+                            if mode.usesCloud, !CloudAIConsent.isGranted {
+                                pendingDefaultMode = mode
+                                showingCloudAIConsent = true
+                            } else {
+                                defaultModeRaw = mode.rawValue
+                            }
                             HapticStyle.light.trigger()
                         }
                         .environment(themeManager)

@@ -23,6 +23,9 @@ struct Recording: Identifiable, Codable, Equatable {
     var mode: RecordingMode
     var micSource: MicSource
     var audioFileID: String?
+    /// Tombstone propagated through CloudKit so another device cannot re-upload
+    /// audio that the retention policy already removed.
+    var rawAudioDeletedAt: Date?
     var processingState: ProcessingState
     /// The last processing failure, persisted so Notes can explain and retry it.
     var processingError: String?
@@ -63,6 +66,7 @@ struct Recording: Identifiable, Codable, Equatable {
         mode: RecordingMode = .onDevice,
         micSource: MicSource = .iPhone,
         audioFileID: String? = nil,
+        rawAudioDeletedAt: Date? = nil,
         processingState: ProcessingState = .idle,
         processingError: String? = nil,
         processingDetail: String? = nil,
@@ -83,6 +87,7 @@ struct Recording: Identifiable, Codable, Equatable {
         self.mode = mode
         self.micSource = micSource
         self.audioFileID = audioFileID
+        self.rawAudioDeletedAt = rawAudioDeletedAt
         self.processingState = processingState
         self.processingError = processingError
         self.processingDetail = processingDetail

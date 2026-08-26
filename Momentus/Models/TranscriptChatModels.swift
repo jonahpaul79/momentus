@@ -25,7 +25,7 @@ enum TranscriptChatMode: String, Codable, CaseIterable, Identifiable {
         case .onDevice:
             return "Transcript and questions stay on this device."
         case .bestQuality:
-            return "Transcript text, chat, and any web queries are processed by Momentus Cloud. Audio is never sent for chat."
+            return "Transcript text, chat, and search queries are processed by Momentus Cloud using Anthropic. Audio is never sent for chat."
         }
     }
 }

@@ -36,6 +36,9 @@ actor MomentusBackendClient {
         contentType: String = "application/json",
         queryItems: [URLQueryItem] = []
     ) async throws -> Data {
+        if CloudAIConsent.requiresConsent(for: operation), !CloudAIConsent.isGranted {
+            throw CloudAIConsentError.required
+        }
         let session = try await authenticatedSession()
         var components = URLComponents(
             url: Self.projectURL.appending(path: "/functions/v1/ai-gateway"),
@@ -67,6 +70,9 @@ actor MomentusBackendClient {
 
     /// Upload a file without first copying the complete recording into app memory.
     func upload(operation: String, fileURL: URL, contentType: String) async throws -> Data {
+        if CloudAIConsent.requiresConsent(for: operation), !CloudAIConsent.isGranted {
+            throw CloudAIConsentError.required
+        }
         let session = try await authenticatedSession()
         var components = URLComponents(
             url: Self.projectURL.appending(path: "/functions/v1/ai-gateway"),
@@ -95,6 +101,7 @@ actor MomentusBackendClient {
         recordingID: UUID,
         progress: (@MainActor (AudioUploadProgress) -> Void)? = nil
     ) async throws -> URL {
+        guard CloudAIConsent.isGranted else { throw CloudAIConsentError.required }
         let session = try await authenticatedSession()
         let path = recordingAudioPath(userID: session.user.id.uuidString, recordingID: recordingID)
         let bucket = supabase.storage.from(Self.recordingAudioBucket)

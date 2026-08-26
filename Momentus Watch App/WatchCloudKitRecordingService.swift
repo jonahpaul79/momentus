@@ -15,6 +15,7 @@ final class WatchCloudKitRecordingService {
         startedAt: Date,
         endedAt: Date,
         markers: [TimeInterval],
+        transcriptID: String,
         transcriptText: String,
         summary: WatchCloudSummary?
     ) async -> Bool {
@@ -45,6 +46,7 @@ final class WatchCloudKitRecordingService {
                 recordingID: recordingUUID,
                 startedAt: startedAt,
                 endedAt: endedAt,
+                transcriptID: transcriptID,
                 transcriptText: transcriptText
             )
 
@@ -61,6 +63,7 @@ final class WatchCloudKitRecordingService {
         recordingID: UUID,
         startedAt: Date,
         endedAt: Date,
+        transcriptID: String,
         transcriptText: String
     ) throws -> CKAsset {
         let speakerID = UUID()
@@ -88,7 +91,7 @@ final class WatchCloudKitRecordingService {
             ],
             language: "en",
             provider: "AssemblyAI (Watch Cloud)",
-            providerData: [:],
+            providerData: ["assemblyai_transcript_id": transcriptID],
             createdAt: Date()
         )
         let url = FileManager.default.temporaryDirectory

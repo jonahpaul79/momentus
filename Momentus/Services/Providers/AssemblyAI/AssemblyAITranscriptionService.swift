@@ -10,6 +10,10 @@ final class AssemblyAITranscriptionService: ResumableTranscriptionService {
         self.client = AssemblyAIClient(apiKey: apiKey)
     }
 
+    func deleteRemoteTranscript(id: String) async throws {
+        try await client.deleteTranscript(id: id)
+    }
+
     func transcribe(audioFileID: String, recordingId: UUID) async throws -> Transcript {
         let transcriptID = try await createTranscription(
             audioFileID: audioFileID,

@@ -235,7 +235,7 @@ enum TranscriptionProvider: String, CaseIterable, Identifiable, Codable {
     var privacyLabels: [String] {
         switch self {
         case .appleOnDevice: return ["On-device", "No data sent"]
-        case .assemblyAI:    return ["Speaker labels", "No training"]
+        case .assemblyAI:    return ["Speaker labels", "May improve models"]
         case .soniox:        return ["No training", "Zero retention"]
         case .deepgram:      return ["Metadata retained"]
         }
@@ -266,8 +266,8 @@ enum SummaryProvider: String, CaseIterable, Identifiable, Codable {
     var privacyLabels: [String] {
         switch self {
         case .appleFoundationModels: return ["On-device", "No data sent"]
-        case .assemblyAILeMUR:       return ["No training", "Notes local"]
-        case .claude:                return ["No training", "Zero retention"]
+        case .assemblyAILeMUR:       return ["Cloud processing", "May improve models"]
+        case .claude:                return ["No training by default", "Up to 30-day retention"]
         case .openAI:                return ["Metadata retained"]
         }
     }
@@ -289,6 +289,20 @@ enum AudioRetentionPolicy: String, CaseIterable, Identifiable, Codable {
         case .keepSevenDays: return "Keep 7 days"
         case .keepThirtyDays: return "Keep 30 days"
         case .keepForever: return "Keep forever"
+        }
+    }
+
+    func expirationDate(for recording: Recording) -> Date? {
+        let referenceDate = recording.endedAt ?? recording.startedAt
+        switch self {
+        case .deleteAfterTranscript:
+            return recording.transcript == nil ? nil : Date.distantPast
+        case .keepSevenDays:
+            return referenceDate.addingTimeInterval(7 * 24 * 60 * 60)
+        case .keepThirtyDays:
+            return referenceDate.addingTimeInterval(30 * 24 * 60 * 60)
+        case .keepForever:
+            return nil
         }
     }
 }

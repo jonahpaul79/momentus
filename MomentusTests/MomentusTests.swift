@@ -81,6 +81,34 @@ struct MomentusTests {
         #expect(!stale.hasUsableTranscriptionCheckpoint)
     }
 
+    @Test func audioRetentionDatesPreserveForeverAndExpireShorterChoices() {
+        let endedAt = Date(timeIntervalSince1970: 1_000_000)
+        let transcript = Transcript(
+            id: UUID(),
+            recordingId: UUID(),
+            segments: [],
+            speakers: [],
+            language: "en",
+            provider: "Test",
+            createdAt: endedAt
+        )
+        let recording = Recording(
+            startedAt: endedAt.addingTimeInterval(-60),
+            endedAt: endedAt,
+            transcript: transcript
+        )
+
+        #expect(AudioRetentionPolicy.keepForever.expirationDate(for: recording) == nil)
+        #expect(AudioRetentionPolicy.deleteAfterTranscript.expirationDate(for: recording) == .distantPast)
+        #expect(AudioRetentionPolicy.keepSevenDays.expirationDate(for: recording) == endedAt.addingTimeInterval(7 * 24 * 60 * 60))
+        #expect(AudioRetentionPolicy.keepThirtyDays.expirationDate(for: recording) == endedAt.addingTimeInterval(30 * 24 * 60 * 60))
+    }
+
+    @Test func deleteAfterTranscriptPreservesAudioUntilTranscriptExists() {
+        let recording = Recording(endedAt: Date(), transcript: nil)
+        #expect(AudioRetentionPolicy.deleteAfterTranscript.expirationDate(for: recording) == nil)
+    }
+
     @Test @MainActor func recordingWithoutCheckpointStillDecodes() throws {
         let recording = Recording(id: UUID(), title: "Legacy meeting")
         let encoded = try JSONEncoder().encode(recording)

@@ -6,6 +6,9 @@ struct RecordHomeView: View {
     @State private var vm = RecordViewModel()
     @State private var showingActiveRecording = false
     @State private var showingProcessing = false
+    @State private var showingCloudAIConsent = false
+    @State private var pendingCloudMode: RecordingMode?
+    @State private var startRecordingAfterConsent = false
     var body: some View {
         let t = themeManager.currentTheme
         GeometryReader { geo in
@@ -39,7 +42,7 @@ struct RecordHomeView: View {
             )
             await vm.loadCalendarContext()
             if QuickRecordLaunchRequest.consumePendingStart(), vm.state == .idle {
-                await vm.startRecording()
+                requestRecordingStart()
             }
         }
         .onChange(of: vm.selectedMode) { _, newMode in
@@ -61,6 +64,35 @@ struct RecordHomeView: View {
             })
             .environment(themeManager)
         }
+        .sheet(isPresented: $showingCloudAIConsent) {
+            CloudAIConsentView(
+                onAllow: {
+                    if let pendingCloudMode {
+                        vm.selectedMode = pendingCloudMode
+                    }
+                    let shouldStart = startRecordingAfterConsent
+                    pendingCloudMode = nil
+                    startRecordingAfterConsent = false
+                    if shouldStart {
+                        Task { await vm.startRecording() }
+                    }
+                },
+                onUsePrivate: {
+                    vm.selectedMode = .onDevice
+                    vm.configure(
+                        transcriptionService: ServiceFactory.makeTranscriptionService(for: .onDevice),
+                        summaryService: ServiceFactory.makeSummaryService(for: .onDevice)
+                    )
+                    let shouldStart = startRecordingAfterConsent
+                    pendingCloudMode = nil
+                    startRecordingAfterConsent = false
+                    if shouldStart {
+                        Task { await vm.startRecording() }
+                    }
+                }
+            )
+            .environment(themeManager)
+        }
         .onChange(of: vm.state) { _, newState in
             switch newState {
             case .recording:
@@ -74,7 +106,7 @@ struct RecordHomeView: View {
         .onReceive(NotificationCenter.default.publisher(for: .autoStartRecording)) { _ in
             _ = QuickRecordLaunchRequest.consumePendingStart()
             guard vm.state == .idle else { return }
-            Task { await vm.startRecording() }
+            requestRecordingStart()
         }
         .onReceive(NotificationCenter.default.publisher(for: .toggleActiveRecording)) { _ in
             Task {
@@ -96,6 +128,17 @@ struct RecordHomeView: View {
         }
     }
 
+    private func requestRecordingStart() {
+        guard vm.state == .idle else { return }
+        if vm.selectedMode.usesCloud, !CloudAIConsent.isGranted {
+            pendingCloudMode = vm.selectedMode
+            startRecordingAfterConsent = true
+            showingCloudAIConsent = true
+        } else {
+            Task { await vm.startRecording() }
+        }
+    }
+
     // MARK: - Hero Section
 
     private func heroSection(_ t: AppTheme) -> some View {
@@ -105,7 +148,7 @@ struct RecordHomeView: View {
             // Record Button
             Button {
                 HapticStyle.medium.trigger()
-                Task { await vm.startRecording() }
+                requestRecordingStart()
             } label: {
                 ZStack {
                     Circle()
@@ -152,7 +195,13 @@ struct RecordHomeView: View {
         Menu {
             ForEach(RecordingMode.allCases) { mode in
                 Button {
-                    vm.selectedMode = mode
+                    if mode.usesCloud, !CloudAIConsent.isGranted {
+                        pendingCloudMode = mode
+                        startRecordingAfterConsent = false
+                        showingCloudAIConsent = true
+                    } else {
+                        vm.selectedMode = mode
+                    }
                     HapticStyle.light.trigger()
                 } label: {
                     HStack {

@@ -7,29 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A1000000000000000000000C /* Momentus Widgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000001 /* Momentus Widgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		B1000000000000000000000C /* Momentus Watch Widgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* Momentus Watch Widgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		8CAA6EC72FC91345007D0CB1 /* Momentus Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 8CAA6EC62FC91345007D0CB1 /* Momentus Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		8CCE68CD2FCF2BE40077F268 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 8CCE68CC2FCF2BE40077F268 /* WhisperKit */; };
+		A1000000000000000000000C /* Momentus Widgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000001 /* Momentus Widgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B1000000000000000000000C /* Momentus Watch Widgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B10000000000000000000001 /* Momentus Watch Widgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		D10000000000000000000001 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = D10000000000000000000004 /* Supabase */; };
 		D10000000000000000000002 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = D10000000000000000000004 /* Supabase */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		A1000000000000000000000D /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 8CAA6E9B2FC91342007D0CB1 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = A10000000000000000000004;
-			remoteInfo = "Momentus Widgets";
-		};
-		B1000000000000000000000D /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 8CAA6E9B2FC91342007D0CB1 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = B10000000000000000000004;
-			remoteInfo = "Momentus Watch Widgets";
-		};
 		8CAA6EB12FC91345007D0CB1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 8CAA6E9B2FC91342007D0CB1 /* Project object */;
@@ -65,9 +51,34 @@
 			remoteGlobalIDString = 8CAA6EC52FC91345007D0CB1;
 			remoteInfo = "Momentus Watch App";
 		};
+		A1000000000000000000000D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8CAA6E9B2FC91342007D0CB1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000004;
+			remoteInfo = "Momentus Widgets";
+		};
+		B1000000000000000000000D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8CAA6E9B2FC91342007D0CB1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B10000000000000000000004;
+			remoteInfo = "Momentus Watch Widgets";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		8CAA6EEC2FC91346007D0CB1 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				8CAA6EC72FC91345007D0CB1 /* Momentus Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A1000000000000000000000B /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -90,31 +101,34 @@
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		8CAA6EEC2FC91346007D0CB1 /* Embed Watch Content */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
-			dstSubfolderSpec = 16;
-			files = (
-				8CAA6EC72FC91345007D0CB1 /* Momentus Watch App.app in Embed Watch Content */,
-			);
-			name = "Embed Watch Content";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		A10000000000000000000001 /* Momentus Widgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Momentus Widgets.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
-		B10000000000000000000001 /* Momentus Watch Widgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Momentus Watch Widgets.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 		8CAA6EA32FC91343007D0CB1 /* Momentus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Momentus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8CAA6EB02FC91345007D0CB1 /* MomentusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MomentusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8CAA6EBA2FC91345007D0CB1 /* MomentusUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MomentusUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8CAA6EC62FC91345007D0CB1 /* Momentus Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Momentus Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		8CAA6ED52FC91346007D0CB1 /* Momentus Watch AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Momentus Watch AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		8CAA6EDF2FC91346007D0CB1 /* Momentus Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Momentus Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000001 /* Momentus Widgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Momentus Widgets.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000001 /* Momentus Watch Widgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Momentus Watch Widgets.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8CAA6F042FC9A401007D0CB1 /* Exceptions for "Momentus Watch App" folder in "Momentus Watch App" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 8CAA6EC52FC91345007D0CB1 /* Momentus Watch App */;
+		};
+		8CAA6F052FC9A402007D0CB1 /* Exceptions for "Momentus" folder in "Momentus" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Momentus-Info-Additions.plist",
+			);
+			target = 8CAA6EA22FC91343007D0CB1 /* Momentus */;
+		};
 		A10000000000000000000003 /* Exceptions for "Momentus Widgets" folder in "Momentus Widgets" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -129,49 +143,9 @@
 			);
 			target = B10000000000000000000004 /* Momentus Watch Widgets */;
 		};
-		8CAA6F052FC9A402007D0CB1 /* Exceptions for "Momentus" folder in "Momentus" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				"Momentus-Info-Additions.plist",
-			);
-			target = 8CAA6EA22FC91343007D0CB1 /* Momentus */;
-		};
-		8CAA6F042FC9A401007D0CB1 /* Exceptions for "Momentus Watch App" folder in "Momentus Watch App" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 8CAA6EC52FC91345007D0CB1 /* Momentus Watch App */;
-		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		A10000000000000000000002 /* Momentus Widgets */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				A10000000000000000000003 /* Exceptions for "Momentus Widgets" folder in "Momentus Widgets" target */,
-			);
-			path = "Momentus Widgets";
-			sourceTree = "<group>";
-		};
-		B10000000000000000000002 /* Momentus Watch Widgets */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				B10000000000000000000003 /* Exceptions for "Momentus Watch Widgets" folder in "Momentus Watch Widgets" target */,
-			);
-			path = "Momentus Watch Widgets";
-			sourceTree = "<group>";
-		};
-		C10000000000000000000001 /* Shared iOS Widgets */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Shared iOS Widgets";
-			sourceTree = "<group>";
-		};
-		C10000000000000000000002 /* Shared Watch Widgets */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Shared Watch Widgets";
-			sourceTree = "<group>";
-		};
 		8CAA6EA52FC91343007D0CB1 /* Momentus */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -208,23 +182,35 @@
 			path = "Momentus Watch AppUITests";
 			sourceTree = "<group>";
 		};
+		A10000000000000000000002 /* Momentus Widgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A10000000000000000000003 /* Exceptions for "Momentus Widgets" folder in "Momentus Widgets" target */,
+			);
+			path = "Momentus Widgets";
+			sourceTree = "<group>";
+		};
+		B10000000000000000000002 /* Momentus Watch Widgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				B10000000000000000000003 /* Exceptions for "Momentus Watch Widgets" folder in "Momentus Watch Widgets" target */,
+			);
+			path = "Momentus Watch Widgets";
+			sourceTree = "<group>";
+		};
+		C10000000000000000000001 /* Shared iOS Widgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Shared iOS Widgets";
+			sourceTree = "<group>";
+		};
+		C10000000000000000000002 /* Shared Watch Widgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Shared Watch Widgets";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		A10000000000000000000006 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		B10000000000000000000006 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		8CAA6EA02FC91343007D0CB1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -264,6 +250,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		8CAA6EDC2FC91346007D0CB1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000000000000000000006 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B10000000000000000000006 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -316,52 +316,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A10000000000000000000004 /* Momentus Widgets */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = A1000000000000000000000A /* Build configuration list for PBXNativeTarget "Momentus Widgets" */;
-			buildPhases = (
-				A10000000000000000000005 /* Sources */,
-				A10000000000000000000006 /* Frameworks */,
-				A10000000000000000000007 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				A10000000000000000000002 /* Momentus Widgets */,
-				C10000000000000000000001 /* Shared iOS Widgets */,
-			);
-			name = "Momentus Widgets";
-			packageProductDependencies = (
-			);
-			productName = "Momentus Widgets";
-			productReference = A10000000000000000000001 /* Momentus Widgets.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
-		B10000000000000000000004 /* Momentus Watch Widgets */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = B1000000000000000000000A /* Build configuration list for PBXNativeTarget "Momentus Watch Widgets" */;
-			buildPhases = (
-				B10000000000000000000005 /* Sources */,
-				B10000000000000000000006 /* Frameworks */,
-				B10000000000000000000007 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				B10000000000000000000002 /* Momentus Watch Widgets */,
-				C10000000000000000000002 /* Shared Watch Widgets */,
-			);
-			name = "Momentus Watch Widgets";
-			packageProductDependencies = (
-			);
-			productName = "Momentus Watch Widgets";
-			productReference = B10000000000000000000001 /* Momentus Watch Widgets.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 		8CAA6EA22FC91343007D0CB1 /* Momentus */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8CAA6EED2FC91346007D0CB1 /* Build configuration list for PBXNativeTarget "Momentus" */;
@@ -509,6 +463,52 @@
 			productReference = 8CAA6EDF2FC91346007D0CB1 /* Momentus Watch AppUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		A10000000000000000000004 /* Momentus Widgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1000000000000000000000A /* Build configuration list for PBXNativeTarget "Momentus Widgets" */;
+			buildPhases = (
+				A10000000000000000000005 /* Sources */,
+				A10000000000000000000006 /* Frameworks */,
+				A10000000000000000000007 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A10000000000000000000002 /* Momentus Widgets */,
+				C10000000000000000000001 /* Shared iOS Widgets */,
+			);
+			name = "Momentus Widgets";
+			packageProductDependencies = (
+			);
+			productName = "Momentus Widgets";
+			productReference = A10000000000000000000001 /* Momentus Widgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		B10000000000000000000004 /* Momentus Watch Widgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B1000000000000000000000A /* Build configuration list for PBXNativeTarget "Momentus Watch Widgets" */;
+			buildPhases = (
+				B10000000000000000000005 /* Sources */,
+				B10000000000000000000006 /* Frameworks */,
+				B10000000000000000000007 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				B10000000000000000000002 /* Momentus Watch Widgets */,
+				C10000000000000000000002 /* Shared Watch Widgets */,
+			);
+			name = "Momentus Watch Widgets";
+			packageProductDependencies = (
+			);
+			productName = "Momentus Watch Widgets";
+			productReference = B10000000000000000000001 /* Momentus Watch Widgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -519,12 +519,6 @@
 				LastSwiftUpdateCheck = 2650;
 				LastUpgradeCheck = 2650;
 				TargetAttributes = {
-					A10000000000000000000004 = {
-						CreatedOnToolsVersion = 26.5;
-					};
-					B10000000000000000000004 = {
-						CreatedOnToolsVersion = 26.5;
-					};
 					8CAA6EA22FC91343007D0CB1 = {
 						CreatedOnToolsVersion = 26.5;
 					};
@@ -547,6 +541,12 @@
 						CreatedOnToolsVersion = 26.5;
 						TestTargetID = 8CAA6EC52FC91345007D0CB1;
 					};
+					A10000000000000000000004 = {
+						CreatedOnToolsVersion = 26.5;
+					};
+					B10000000000000000000004 = {
+						CreatedOnToolsVersion = 26.5;
+					};
 				};
 			};
 			buildConfigurationList = 8CAA6E9E2FC91342007D0CB1 /* Build configuration list for PBXProject "Momentus" */;
@@ -559,7 +559,7 @@
 			mainGroup = 8CAA6E9A2FC91342007D0CB1;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				8CCE68CA2FCF2A6B0077F268 /* XCRemoteSwiftPackageReference "WhisperKit" */,
+				8CCE68CA2FCF2A6B0077F268 /* XCRemoteSwiftPackageReference "argmax-oss-swift" */,
 				D10000000000000000000003 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -580,20 +580,6 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		A10000000000000000000007 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		B10000000000000000000007 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		8CAA6EA12FC91343007D0CB1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -636,23 +622,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A10000000000000000000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B10000000000000000000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A10000000000000000000005 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		B10000000000000000000005 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		8CAA6E9F2FC91343007D0CB1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -695,19 +681,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A10000000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B10000000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		A1000000000000000000000E /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = A10000000000000000000004 /* Momentus Widgets */;
-			targetProxy = A1000000000000000000000D /* PBXContainerItemProxy */;
-		};
-		B1000000000000000000000E /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = B10000000000000000000004 /* Momentus Watch Widgets */;
-			targetProxy = B1000000000000000000000D /* PBXContainerItemProxy */;
-		};
 		8CAA6EB22FC91345007D0CB1 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 8CAA6EA22FC91343007D0CB1 /* Momentus */;
@@ -733,131 +723,19 @@
 			target = 8CAA6EC52FC91345007D0CB1 /* Momentus Watch App */;
 			targetProxy = 8CAA6EE02FC91346007D0CB1 /* PBXContainerItemProxy */;
 		};
+		A1000000000000000000000E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000000000000000000004 /* Momentus Widgets */;
+			targetProxy = A1000000000000000000000D /* PBXContainerItemProxy */;
+		};
+		B1000000000000000000000E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B10000000000000000000004 /* Momentus Watch Widgets */;
+			targetProxy = B1000000000000000000000D /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		A10000000000000000000008 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
-				DEVELOPMENT_TEAM = C5SKKESF4C;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Momentus Widgets/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.1;
-				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.widgets;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		A10000000000000000000009 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
-				DEVELOPMENT_TEAM = C5SKKESF4C;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Momentus Widgets/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.1;
-				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.widgets;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
-		B10000000000000000000008 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
-				DEVELOPMENT_TEAM = C5SKKESF4C;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Momentus Watch Widgets/Info.plist";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.1;
-				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.watchkitapp.widgets;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = watchos;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 10.0;
-			};
-			name = Debug;
-		};
-		B10000000000000000000009 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
-				DEVELOPMENT_TEAM = C5SKKESF4C;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Momentus Watch Widgets/Info.plist";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.1;
-				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.watchkitapp.widgets;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = watchos;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 4;
-				VALIDATE_PRODUCT = YES;
-				WATCHOS_DEPLOYMENT_TARGET = 10.0;
-			};
-			name = Release;
-		};
 		8CAA6EE72FC91346007D0CB1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1322,27 +1200,131 @@
 			};
 			name = Release;
 		};
+		A10000000000000000000008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Momentus Widgets/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A10000000000000000000009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Momentus Widgets/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		B10000000000000000000008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Momentus Watch Widgets/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.watchkitapp.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		B10000000000000000000009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = C5SKKESF4C;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Momentus Watch Widgets/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = jonahpaul.momentus.watchkitapp.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A1000000000000000000000A /* Build configuration list for PBXNativeTarget "Momentus Widgets" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A10000000000000000000008 /* Debug */,
-				A10000000000000000000009 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		B1000000000000000000000A /* Build configuration list for PBXNativeTarget "Momentus Watch Widgets" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				B10000000000000000000008 /* Debug */,
-				B10000000000000000000009 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		8CAA6E9E2FC91342007D0CB1 /* Build configuration list for PBXProject "Momentus" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1406,10 +1388,28 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		A1000000000000000000000A /* Build configuration list for PBXNativeTarget "Momentus Widgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000008 /* Debug */,
+				A10000000000000000000009 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B1000000000000000000000A /* Build configuration list for PBXNativeTarget "Momentus Watch Widgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B10000000000000000000008 /* Debug */,
+				B10000000000000000000009 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		8CCE68CA2FCF2A6B0077F268 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+		8CCE68CA2FCF2A6B0077F268 /* XCRemoteSwiftPackageReference "argmax-oss-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/argmaxinc/argmax-oss-swift";
 			requirement = {
@@ -1430,7 +1430,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		8CCE68CC2FCF2BE40077F268 /* WhisperKit */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 8CCE68CA2FCF2A6B0077F268 /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			package = 8CCE68CA2FCF2A6B0077F268 /* XCRemoteSwiftPackageReference "argmax-oss-swift" */;
 			productName = WhisperKit;
 		};
 		D10000000000000000000004 /* Supabase */ = {

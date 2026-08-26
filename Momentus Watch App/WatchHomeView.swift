@@ -2,6 +2,7 @@ import SwiftUI
 
 struct WatchHomeView: View {
     @State private var vm = WatchViewModel()
+    @State private var showingCloudAIConsent = false
     private let t = WatchTheme.midnightIndigo
 
     var body: some View {
@@ -18,12 +19,21 @@ struct WatchHomeView: View {
         .onReceive(NotificationCenter.default.publisher(for: .autoStartRecording)) { _ in
             _ = WatchQuickRecordLaunchRequest.consumePendingStart()
             guard vm.recordingState == .idle else { return }
-            Task { await vm.startRecording() }
+            requestRecordingStart()
         }
         .task {
             if WatchQuickRecordLaunchRequest.consumePendingStart(), vm.recordingState == .idle {
-                await vm.startRecording()
+                requestRecordingStart()
             }
+        }
+        .alert("Allow Cloud AI Processing?", isPresented: $showingCloudAIConsent) {
+            Button("Cancel", role: .cancel) {}
+            Button("Allow") {
+                vm.grantCloudAIConsent()
+                Task { await vm.startRecording() }
+            }
+        } message: {
+            Text("Momentus sends audio through Supabase to AssemblyAI for transcription, then sends the transcript and meeting details to Anthropic's Claude. AssemblyAI may use submitted data to improve its models.")
         }
     }
 
@@ -36,7 +46,7 @@ struct WatchHomeView: View {
 
             // Record button
             Button {
-                Task { await vm.startRecording() }
+                requestRecordingStart()
             } label: {
                 ZStack {
                     Circle()
@@ -68,6 +78,15 @@ struct WatchHomeView: View {
             micTargetIndicator
         }
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private func requestRecordingStart() {
+        guard vm.recordingState == .idle else { return }
+        if WatchCloudAIConsent.isGranted {
+            Task { await vm.startRecording() }
+        } else {
+            showingCloudAIConsent = true
+        }
     }
 
     private var modePill: some View {

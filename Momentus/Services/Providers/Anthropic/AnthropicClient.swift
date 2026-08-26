@@ -418,7 +418,7 @@ final class AnthropicClient {
     }
 
     private func send(_ body: MessageRequest) async throws -> MessageResponse {
-
+        guard CloudAIConsent.isGranted else { throw CloudAIConsentError.required }
         let encodedBody = try JSONEncoder().encode(body)
         if apiKey == nil {
             let data = try await MomentusBackendClient.shared.perform(

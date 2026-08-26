@@ -21,6 +21,7 @@ final class AssemblyAIClient {
         recordingId: UUID,
         progress: (@MainActor (AudioUploadProgress) -> Void)? = nil
     ) async throws -> String {
+        guard CloudAIConsent.isGranted else { throw CloudAIConsentError.required }
         if apiKey == nil {
             // Never proxy a long recording through an Edge Function. Apart from its
             // request limits, doing so loses the resumable Storage checkpoint and can
@@ -54,6 +55,7 @@ final class AssemblyAIClient {
 
     /// Submits a transcript job. Returns the transcript ID for polling.
     func createTranscript(uploadURL: String) async throws -> String {
+        guard CloudAIConsent.isGranted else { throw CloudAIConsentError.required }
         let body = try JSONEncoder().encode(AssemblyAITranscriptRequest(audioURL: uploadURL))
         if apiKey == nil {
             let responseData = try await MomentusBackendClient.shared.perform(
@@ -121,10 +123,27 @@ final class AssemblyAIClient {
         throw AssemblyAIError.timeout
     }
 
+    func deleteTranscript(id: String) async throws {
+        if apiKey == nil {
+            _ = try await MomentusBackendClient.shared.perform(
+                operation: "assemblyai.delete",
+                queryItems: [URLQueryItem(name: "id", value: id)]
+            )
+            return
+        }
+
+        var request = URLRequest(url: baseURL.appending(path: "/v2/transcript/\(id)"))
+        request.httpMethod = "DELETE"
+        request.setValue(apiKey, forHTTPHeaderField: "Authorization")
+        let (data, response) = try await session.data(for: request)
+        try validate(response, data: data, context: "delete transcript")
+    }
+
     // MARK: - LeMUR
 
     /// Calls LeMUR with either transcript IDs or raw input text. Returns the model's response string.
     func lemurTask(_ lemurRequest: AssemblyAILeMURRequest) async throws -> String {
+        guard CloudAIConsent.isGranted else { throw CloudAIConsentError.required }
         let body = try JSONEncoder().encode(lemurRequest)
         if apiKey == nil {
             let responseData = try await MomentusBackendClient.shared.perform(

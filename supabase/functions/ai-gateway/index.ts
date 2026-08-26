@@ -20,7 +20,7 @@ export default {
     const operation = url.searchParams.get("operation");
 
     try {
-      if (operation !== "assemblyai.poll") {
+      if (operation !== "assemblyai.poll" && operation !== "assemblyai.delete") {
         const userID = context.userClaims?.id;
         if (!userID) throw new Error("Authenticated user is required");
         const { data: accepted, error } = await context.supabaseAdmin.rpc("consume_ai_quota", {
@@ -41,6 +41,8 @@ export default {
           return await proxyJSON(request, `${assemblyAIBaseURL}/v2/transcript`, assemblyAIHeaders());
         case "assemblyai.poll":
           return await assemblyAIPoll(url);
+        case "assemblyai.delete":
+          return await assemblyAIDelete(url);
         case "assemblyai.lemur":
           return await proxyJSON(request, `${assemblyAIBaseURL}/lemur/v3/generate/task`, assemblyAIHeaders());
         case "anthropic.messages":
@@ -77,6 +79,17 @@ async function assemblyAIPoll(url: URL): Promise<Response> {
   if (!/^[a-zA-Z0-9_-]{8,100}$/.test(id)) return jsonError("Invalid transcript ID", 400);
 
   const response = await fetch(`${assemblyAIBaseURL}/v2/transcript/${encodeURIComponent(id)}`, {
+    headers: assemblyAIHeaders(),
+  });
+  return providerResponse(response);
+}
+
+async function assemblyAIDelete(url: URL): Promise<Response> {
+  const id = url.searchParams.get("id") ?? "";
+  if (!/^[a-zA-Z0-9_-]{8,100}$/.test(id)) return jsonError("Invalid transcript ID", 400);
+
+  const response = await fetch(`${assemblyAIBaseURL}/v2/transcript/${encodeURIComponent(id)}`, {
+    method: "DELETE",
     headers: assemblyAIHeaders(),
   });
   return providerResponse(response);
