@@ -33,7 +33,7 @@ struct WatchHomeView: View {
                 Task { await vm.startRecording() }
             }
         } message: {
-            Text("Momentus sends audio through Supabase to AssemblyAI for transcription, then sends the transcript and meeting details to Anthropic's Claude. AssemblyAI may use submitted data to improve its models.")
+            Text("Best Quality sends audio to AssemblyAI for transcription, then sends the transcript and meeting details to Anthropic's Claude for summaries.")
         }
     }
 

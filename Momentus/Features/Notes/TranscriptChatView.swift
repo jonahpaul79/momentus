@@ -220,7 +220,7 @@ struct TranscriptChatView: View {
 
             Group {
                 if message.role == .assistant {
-                    Text(LocalizedStringKey(message.text))
+                    MarkdownMessageView(markdown: message.text, theme: t)
                 } else {
                     Text(message.text)
                 }
