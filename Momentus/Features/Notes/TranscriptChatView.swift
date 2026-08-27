@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct TranscriptChatView: View {
     private enum PendingChatAction {
@@ -15,6 +16,7 @@ struct TranscriptChatView: View {
     @State private var showingCloudAIConsent = false
     @State private var handledInitialLaunch = false
     @State private var pendingChatAction: PendingChatAction?
+    @State private var copiedMessageID: UUID?
     @FocusState private var composerIsFocused: Bool
 
     private let initialQuestion: String?
@@ -232,6 +234,28 @@ struct TranscriptChatView: View {
             .padding(.vertical, t.spacing.m)
             .background(message.role == .user ? t.colors.accentPrimary : t.colors.surfacePrimary)
             .clipShape(RoundedRectangle(cornerRadius: t.radius.l))
+
+            if message.role == .assistant {
+                Button {
+                    copyResponse(message)
+                } label: {
+                    Label(
+                        copiedMessageID == message.id ? "Copied" : "Copy",
+                        systemImage: copiedMessageID == message.id ? "checkmark" : "doc.on.doc"
+                    )
+                    .font(t.typography.labelSmall)
+                    .foregroundStyle(
+                        copiedMessageID == message.id
+                            ? t.colors.accentSuccess
+                            : t.colors.textTertiary
+                    )
+                    .padding(.horizontal, t.spacing.s)
+                    .padding(.vertical, t.spacing.xs)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(copiedMessageID == message.id ? "Response copied" : "Copy response")
+            }
         }
         .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
         .padding(message.role == .user ? .leading : .trailing, t.spacing.huge)
@@ -361,6 +385,17 @@ struct TranscriptChatView: View {
             case .retry:
                 await viewModel.retryPendingQuestion()
             }
+        }
+    }
+
+    private func copyResponse(_ message: TranscriptChatMessage) {
+        UIPasteboard.general.string = message.text
+        copiedMessageID = message.id
+
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard copiedMessageID == message.id else { return }
+            copiedMessageID = nil
         }
     }
 }
