@@ -50,8 +50,6 @@ struct Recording: Identifiable, Codable, Equatable {
         return end.timeIntervalSince(startedAt)
     }
     var shortSummary: String? { summary?.executiveSummary }
-    var confidenceScore: Float? { transcript?.averageConfidence }
-    var isLowConfidence: Bool { (confidenceScore ?? 1.0) < 0.75 }
     var hasUsableTranscriptionCheckpoint: Bool {
         guard transcriptionJobID != nil, let createdAt = transcriptionJobCreatedAt else { return false }
         return Date().timeIntervalSince(createdAt) < 24 * 60 * 60
@@ -568,7 +566,6 @@ enum RecordingFilter: String, CaseIterable, Equatable, Identifiable {
     case all
     case thisWeek
     case withActionItems
-    case lowConfidence
     case favorites
 
     var id: String { rawValue }
@@ -578,7 +575,6 @@ enum RecordingFilter: String, CaseIterable, Equatable, Identifiable {
         case .all: return "All"
         case .thisWeek: return "This week"
         case .withActionItems: return "Action items"
-        case .lowConfidence: return "Low confidence"
         case .favorites: return "Favorites"
         }
     }

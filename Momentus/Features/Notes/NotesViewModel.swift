@@ -24,8 +24,6 @@ import SwiftUI
             return recordings.filter { $0.startedAt >= start }
         case .withActionItems:
             return recordings.filter { $0.hasActionItems }
-        case .lowConfidence:
-            return recordings.filter { $0.isLowConfidence }
         case .favorites:
             return recordings.filter { $0.isFavorite }
         }

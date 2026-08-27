@@ -214,10 +214,6 @@ struct RecordingCard: View {
                     .font(.system(size: 11))
                     .foregroundStyle(t.colors.accentWarning)
             }
-            if recording.isLowConfidence {
-                ConfidenceBadge(label: "Low confidence", isWarning: true)
-                    .environment(themeManager)
-            }
             Spacer()
             Image(systemName: "chevron.right")
                 .font(.system(size: 11, weight: .medium))
